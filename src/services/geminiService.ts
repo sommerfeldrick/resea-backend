@@ -485,15 +485,13 @@ export async function* generateContentStream(
     Comece agora com o título principal.
     `;
 
-    // Use multi-AI provider streaming
-    const streamGenerator = streamText(prompt, {
+    // Use multi-AI provider
+    const result = await generateText(prompt, {
       systemPrompt: 'Você é um escritor acadêmico especialista, perito em formatação de trabalhos científicos segundo as normas da ABNT.',
       temperature: 0.7
     });
 
-    for await (const chunk of streamGenerator) {
-      yield chunk;
-    }
+    yield result;
 
     logger.info('Content generation stream completed');
   } catch (error: any) {
