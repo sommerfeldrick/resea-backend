@@ -5,11 +5,10 @@ package-lock.json
 # Build output
 dist/
 
-# Environment variables
+# Environment variables - NUNCA commitar!
 .env
-.env.local
-.env.development
-.env.test
+.env.*
+!.env.example
 
 # Logs
 logs/
