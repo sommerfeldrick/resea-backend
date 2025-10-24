@@ -1,0 +1,58 @@
+{
+  "name": "resea-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Resea AI Research Assistant",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "keywords": [
+    "research",
+    "ai",
+    "academic",
+    "gemini"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "helmet": "^8.0.0",
+    "express-rate-limit": "^7.5.0",
+    "compression": "^1.7.5",
+    "@google/genai": "^1.26.0",
+    "@anthropic-ai/sdk": "^0.32.1",
+    "openai": "^4.76.0",
+    "groq-sdk": "^0.8.0",
+    "ollama": "^0.5.11",
+    "ioredis": "^5.4.2",
+    "pdf-parse": "^1.1.1",
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
+    "zod": "^3.24.1",
+    "winston": "^3.17.0",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/cors": "^2.8.17",
+    "@types/compression": "^1.7.5",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^22.14.0",
+    "@types/pdf-parse": "^1.1.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.2",
+    "vitest": "^2.1.8",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2"
+  }
+}

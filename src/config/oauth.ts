@@ -1,0 +1,77 @@
+/**
+ * OAuth Configuration for SmileAI Platform Integration
+ *
+ * Integração completa com a plataforma SmileAI usando Laravel Passport OAuth2
+ * Documentação oficial: https://smileai.com.br/docs
+ *
+ * Módulos disponíveis na plataforma:
+ * - AI Chat, AI Writer, AI Image Generation
+ * - Documents, Brand Voice, Chat Templates
+ * - User Profile, Payments, Support, Affiliates
+ */
+
+export const oauthConfig = {
+  // Personal Access Client (Client ID: 1)
+  // Usado para chamadas diretas de API sem interação do usuário
+  personalAccess: {
+    clientId: '1',
+    clientSecret: 'Q2NM4Z6f4xt6HzlGhwRroO6eN5byqdjjmJoblJZX',
+  },
+
+  // Password Grant Client (Client ID: 2) ⭐ RECOMENDADO para SSO
+  // Usado para autenticação de usuários com email/senha
+  passwordGrant: {
+    clientId: '2',
+    clientSecret: '2Moof1U6aYC1radoWP4ZozfMxPmy7Kufoyj2c7E8',
+  },
+
+  // Base URL da plataforma SmileAI (Laravel Passport)
+  baseUrl: 'https://smileai.com.br',
+
+  // Endpoints OAuth2 (Laravel Passport)
+  oauth: {
+    authorize: '/oauth/authorize',  // GET - Tela de autorização
+    token: '/oauth/token',          // POST - Obter access token
+    refresh: '/token/refresh',      // POST - Refresh access token
+  },
+
+  // Endpoints de Autenticação
+  auth: {
+    login: '/api/login',           // POST - Login (se disponível)
+    logout: '/api/logout',         // POST - Logout
+    me: '/api/user',               // GET - Usuário autenticado
+    profile: '/api/user/profile',  // GET - Perfil completo
+  },
+
+  // Endpoints de funcionalidades SmileAI disponíveis
+  features: {
+    // AI Features
+    aiChat: '/api/ai-chat',
+    aiWriter: '/api/ai-writer',
+    aiImageGeneration: '/api/ai-image-generation',
+
+    // Content Management
+    documents: '/api/documents',
+    brandVoice: '/api/brand-voice',
+    chatTemplates: '/api/chat-templates',
+
+    // User & Business
+    userProfile: '/api/user/profile',
+    payments: '/api/payments',
+    affiliates: '/api/affiliates',
+    support: '/api/support',
+    appSettings: '/api/app-settings',
+  },
+
+  // Scopes OAuth2 (deixar vazio para acesso total se não houver scopes específicos)
+  scopes: {
+    default: '',
+    all: '*'
+  },
+
+  // Configurações de requisição
+  timeout: 10000, // 10 segundos
+  retries: 3,
+};
+
+export default oauthConfig;
