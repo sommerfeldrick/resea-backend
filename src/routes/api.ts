@@ -242,7 +242,7 @@ router.get('/health', (req: Request, res: Response) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     aiProvider: activeProvider,
-    cache: cache.getStats(),
+    cache: 'getStats' in cache ? cache.getStats() : { type: 'redis' },
     searchStats
   });
 });

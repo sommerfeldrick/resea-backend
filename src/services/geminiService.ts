@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { logger } from '../config/logger.js';
 import { buscaAcademicaUniversal, enrichWithPDFContent } from './academicSearch.js';
-import { generateText, streamText } from './aiProvider.js';
+import { generateText } from './aiProvider.js';
 import { scrapeArticle, prepareForAI, calculateSavings } from './webScraper.js';
 import type {
   TaskPlan,
@@ -234,9 +234,7 @@ export async function performResearchStep(
       sourceProvider: res.fonte,
       citationCount: res.citationCount,
       doi: res.doi,
-      pdfUrl: res.pdfUrl,
-      fullText: res.fullText,
-      sections: res.sections
+      pdfUrl: res.pdfUrl
     }));
 
     // Use web scraping for articles with PDFs to save tokens
