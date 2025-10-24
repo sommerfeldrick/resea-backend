@@ -491,7 +491,7 @@ export async function* generateContentStream(
       temperature: 0.7
     });
 
-    yield result;
+    yield result.text;
 
     logger.info('Content generation stream completed');
   } catch (error: any) {
