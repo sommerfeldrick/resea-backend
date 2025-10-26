@@ -248,6 +248,31 @@ router.get('/health', (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/server-ip
+ * Get server public IP for Cloudflare whitelist
+ */
+router.get('/server-ip', async (req: Request, res: Response) => {
+  try {
+    const axios = (await import('axios')).default;
+    const response = await axios.get('https://api.ipify.org?format=json');
+    res.json({
+      success: true,
+      ip: response.data.ip,
+      service: 'ipify.org',
+      timestamp: new Date().toISOString(),
+      note: 'Add this IP to Cloudflare whitelist for SmileAI API access'
+    });
+  } catch (error: any) {
+    logger.error('API: Get server IP failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get server IP',
+      message: error.message
+    });
+  }
+});
+
+/**
  * POST /api/cache/clear
  * Clear cache (admin endpoint)
  */
