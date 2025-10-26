@@ -12,6 +12,20 @@ services:
         value: production
       - key: PORT
         value: 3001
+      - key: FRONTEND_URL
+        value: https://app.smileai.com.br
+      - key: MAIN_DOMAIN_API
+        value: https://smileai.com.br
+      - key: OAUTH_CLIENT_ID
+        value: 2
+      - key: OAUTH_CLIENT_SECRET
+        sync: false
+      - key: AI_PROVIDER
+        value: groq
+      - key: ENABLE_WEB_SCRAPING
+        value: true
+      - key: REDIS_ENABLED
+        value: false
       - key: GROQ_API_KEY
         sync: false
       - key: GEMINI_API_KEY
