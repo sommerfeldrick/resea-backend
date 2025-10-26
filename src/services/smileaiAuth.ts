@@ -93,25 +93,38 @@ class SmileAIAuthClient {
     password: string
   ): Promise<AuthResponse> {
     try {
+      const requestData = {
+        grant_type: 'password',
+        client_id: oauthConfig.passwordGrant.clientId,
+        client_secret: oauthConfig.passwordGrant.clientSecret,
+        username: email,
+        password: password,
+        scope: oauthConfig.scopes.all,
+      };
+
       logger.info('SmileAI: Attempting password grant', {
         email,
         endpoint: oauthConfig.oauth.token,
         baseUrl: oauthConfig.baseUrl,
+        fullUrl: `${oauthConfig.baseUrl}${oauthConfig.oauth.token}`,
         clientId: oauthConfig.passwordGrant.clientId,
+        clientIdType: typeof oauthConfig.passwordGrant.clientId,
         hasClientSecret: !!oauthConfig.passwordGrant.clientSecret,
         clientSecretLength: oauthConfig.passwordGrant.clientSecret?.length || 0,
+        clientSecretFirst5: oauthConfig.passwordGrant.clientSecret?.substring(0, 5) || '',
+        scope: oauthConfig.scopes.all,
+        requestData: {
+          grant_type: requestData.grant_type,
+          client_id: requestData.client_id,
+          username: requestData.username,
+          hasPassword: !!requestData.password,
+          scope: requestData.scope,
+        }
       });
 
       const response = await this.client.post<TokenResponse>(
         oauthConfig.oauth.token,
-        {
-          grant_type: 'password',
-          client_id: oauthConfig.passwordGrant.clientId,
-          client_secret: oauthConfig.passwordGrant.clientSecret,
-          username: email,
-          password: password,
-          scope: oauthConfig.scopes.all,
-        }
+        requestData
       );
 
       logger.info('SmileAI: Password grant successful', { email });
