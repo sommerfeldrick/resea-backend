@@ -93,6 +93,15 @@ class SmileAIAuthClient {
     password: string
   ): Promise<AuthResponse> {
     try {
+      logger.info('SmileAI: Attempting password grant', {
+        email,
+        endpoint: oauthConfig.oauth.token,
+        baseUrl: oauthConfig.baseUrl,
+        clientId: oauthConfig.passwordGrant.clientId,
+        hasClientSecret: !!oauthConfig.passwordGrant.clientSecret,
+        clientSecretLength: oauthConfig.passwordGrant.clientSecret?.length || 0,
+      });
+
       const response = await this.client.post<TokenResponse>(
         oauthConfig.oauth.token,
         {
@@ -118,12 +127,20 @@ class SmileAIAuthClient {
     } catch (error: any) {
       logger.error('SmileAI: Password grant failed', {
         email,
-        error: error.response?.data || error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        config: {
+          url: error.config?.url,
+          baseURL: error.config?.baseURL,
+          method: error.config?.method,
+        }
       });
 
       return {
         success: false,
-        error: error.response?.data?.message || 'Falha na autenticação',
+        error: error.response?.data?.message || error.response?.data?.error || 'Falha na autenticação',
       };
     }
   }
