@@ -21,12 +21,12 @@ export const oauthConfig = {
   // Password Grant Client (Client ID: 2) ⭐ RECOMENDADO para SSO
   // Usado para autenticação de usuários com email/senha
   passwordGrant: {
-    clientId: '2',
-    clientSecret: '2Moof1U6aYC1radoWP4ZozfMxPmy7Kufoyj2c7E8',
+    clientId: parseInt(process.env.OAUTH_CLIENT_ID || '2'),
+    clientSecret: process.env.OAUTH_CLIENT_SECRET || '2Moof1U6aYC1radoWP4ZozfMxPmy7Kufoyj2c7E8',
   },
 
   // Base URL da plataforma SmileAI (Laravel Passport)
-  baseUrl: 'https://smileai.com.br',
+  baseUrl: process.env.MAIN_DOMAIN_API || 'https://smileai.com.br',
 
   // Endpoints OAuth2 (Laravel Passport)
   oauth: {
