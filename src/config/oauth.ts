@@ -31,8 +31,8 @@ export const oauthConfig = {
   // Endpoints OAuth2 (Laravel Passport)
   oauth: {
     authorize: '/oauth/authorize',  // GET - Tela de autorização
-    token: '/oauth/token',          // POST - Obter access token
-    refresh: '/token/refresh',      // POST - Refresh access token
+    token: '/oauth/token',          // POST - Obter access token (usado também para refresh)
+    refresh: '/oauth/token',        // POST - Refresh access token (mesmo endpoint, grant_type diferente)
   },
 
   // Endpoints de Autenticação
@@ -64,9 +64,10 @@ export const oauthConfig = {
   },
 
   // Scopes OAuth2 (deixar vazio para acesso total se não houver scopes específicos)
+  // Laravel Passport geralmente não requer scope específico para password grant
   scopes: {
     default: '',
-    all: '*'
+    all: ''  // Deixar vazio - Laravel Passport aceita requisições sem scope
   },
 
   // Configurações de requisição
