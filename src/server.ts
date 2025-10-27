@@ -8,7 +8,10 @@ import { config } from 'dotenv';
 import { logger } from './config/logger.js';
 import apiRoutes from './routes/api.js';
 import authRoutes from './routes/auth.js';
+import filesRoutes from './routes/files.js';
+import templatesRoutes from './routes/templates.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { smileaiAuthRequired } from './middleware/smileaiAuth.js';
 
 // Load environment variables
 config();
@@ -88,6 +91,12 @@ app.use('/api', limiter);
 // Auth routes (SmileAI SSO)
 app.use('/api/auth', authRoutes);
 
+// Files routes (upload, processing)
+app.use('/api/files', smileaiAuthRequired, filesRoutes);
+
+// Templates routes (favorites, history, custom templates)
+app.use('/api/templates', smileaiAuthRequired, templatesRoutes);
+
 // Main API routes
 app.use('/api', apiRoutes);
 
@@ -119,7 +128,28 @@ app.get('/', (req, res) => {
       // SmileAI Integration
       smileaiDocuments: 'GET /api/auth/smileai/documents',
       smileaiTemplates: 'GET /api/auth/smileai/templates',
-      smileaiBrandVoice: 'GET /api/auth/smileai/brand-voice'
+      smileaiBrandVoice: 'GET /api/auth/smileai/brand-voice',
+
+      // File Management
+      uploadFile: 'POST /api/files/upload',
+      getFile: 'GET /api/files/:id',
+      listFiles: 'GET /api/files',
+      deleteFile: 'DELETE /api/files/:id',
+      processFile: 'POST /api/files/:id/process',
+
+      // Template Management
+      addFavorite: 'POST /api/templates/favorites',
+      getFavorites: 'GET /api/templates/favorites',
+      removeFavorite: 'DELETE /api/templates/favorites/:templateId',
+      addHistory: 'POST /api/templates/history',
+      getHistory: 'GET /api/templates/history',
+      clearHistory: 'DELETE /api/templates/history',
+      createCustomTemplate: 'POST /api/templates/custom',
+      getCustomTemplates: 'GET /api/templates/custom',
+      getCustomTemplate: 'GET /api/templates/custom/:id',
+      updateCustomTemplate: 'PUT /api/templates/custom/:id',
+      deleteCustomTemplate: 'DELETE /api/templates/custom/:id',
+      getTemplateAnalytics: 'GET /api/templates/analytics/:id'
     }
   });
 });

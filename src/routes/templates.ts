@@ -1,0 +1,432 @@
+import { Router, Request, Response } from 'express';
+import { logger } from '../config/logger.js';
+
+const router = Router();
+
+// Armazenamento temporário em memória (substituir por banco de dados)
+const storage = {
+  favorites: new Map<string, any[]>(),
+  history: new Map<string, any[]>(),
+  customTemplates: new Map<string, any>(),
+  sharedTemplates: new Map<string, any>()
+};
+
+/**
+ * POST /api/templates/favorites
+ * Adicionar template aos favoritos
+ */
+router.post('/favorites', async (req: Request, res: Response) => {
+  try {
+    const { templateId } = req.body;
+    const userId = (req as any).smileaiUser?.id || 'guest';
+
+    if (!templateId) {
+      return res.status(400).json({
+        success: false,
+        error: 'templateId é obrigatório'
+      });
+    }
+
+    const userFavorites = storage.favorites.get(userId) || [];
+
+    const favorite = {
+      id: `fav-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      templateId,
+      userId,
+      addedAt: new Date()
+    };
+
+    userFavorites.push(favorite);
+    storage.favorites.set(userId, userFavorites);
+
+    logger.info('Template added to favorites', { userId, templateId });
+
+    res.json({
+      success: true,
+      data: favorite
+    });
+  } catch (error: any) {
+    logger.error('Add favorite failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/templates/favorites
+ * Listar favoritos do usuário
+ */
+router.get('/favorites', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).smileaiUser?.id || 'guest';
+    const userFavorites = storage.favorites.get(userId) || [];
+
+    res.json({
+      success: true,
+      data: userFavorites
+    });
+  } catch (error: any) {
+    logger.error('Get favorites failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * DELETE /api/templates/favorites/:templateId
+ * Remover template dos favoritos
+ */
+router.delete('/favorites/:templateId', async (req: Request, res: Response) => {
+  try {
+    const { templateId } = req.params;
+    const userId = (req as any).smileaiUser?.id || 'guest';
+
+    const userFavorites = storage.favorites.get(userId) || [];
+    const filtered = userFavorites.filter(f => f.templateId !== templateId);
+    storage.favorites.set(userId, filtered);
+
+    logger.info('Template removed from favorites', { userId, templateId });
+
+    res.json({
+      success: true,
+      message: 'Favorito removido'
+    });
+  } catch (error: any) {
+    logger.error('Remove favorite failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/templates/history
+ * Adicionar uso de template ao histórico
+ */
+router.post('/history', async (req: Request, res: Response) => {
+  try {
+    const { templateId, filledData, generatedPrompt } = req.body;
+    const userId = (req as any).smileaiUser?.id || 'guest';
+
+    if (!templateId || !generatedPrompt) {
+      return res.status(400).json({
+        success: false,
+        error: 'templateId e generatedPrompt são obrigatórios'
+      });
+    }
+
+    const usage = {
+      id: `usage-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      templateId,
+      userId,
+      usedAt: new Date(),
+      filledData: filledData || {},
+      generatedPrompt
+    };
+
+    const userHistory = storage.history.get(userId) || [];
+    userHistory.unshift(usage);
+
+    // Limitar a 100 últimos
+    if (userHistory.length > 100) {
+      userHistory.pop();
+    }
+
+    storage.history.set(userId, userHistory);
+
+    logger.info('Template usage saved to history', { userId, templateId });
+
+    res.json({
+      success: true,
+      data: usage
+    });
+  } catch (error: any) {
+    logger.error('Save history failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/templates/history
+ * Obter histórico de uso
+ */
+router.get('/history', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).smileaiUser?.id || 'guest';
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    const userHistory = storage.history.get(userId) || [];
+    const limited = userHistory.slice(0, limit);
+
+    res.json({
+      success: true,
+      data: limited
+    });
+  } catch (error: any) {
+    logger.error('Get history failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * DELETE /api/templates/history
+ * Limpar histórico
+ */
+router.delete('/history', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).smileaiUser?.id || 'guest';
+    storage.history.delete(userId);
+
+    logger.info('History cleared', { userId });
+
+    res.json({
+      success: true,
+      message: 'Histórico limpo'
+    });
+  } catch (error: any) {
+    logger.error('Clear history failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/templates/custom
+ * Criar template personalizado
+ */
+router.post('/custom', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+
+    if (!userId || userId === 'guest') {
+      return res.status(401).json({
+        success: false,
+        error: 'Autenticação necessária'
+      });
+    }
+
+    const template = {
+      ...req.body,
+      id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      usageCount: 0,
+      likes: 0
+    };
+
+    storage.customTemplates.set(template.id, template);
+
+    logger.info('Custom template created', { userId, templateId: template.id });
+
+    res.json({
+      success: true,
+      data: template
+    });
+  } catch (error: any) {
+    logger.error('Create custom template failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/templates/custom
+ * Listar templates personalizados do usuário
+ */
+router.get('/custom', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+
+    if (!userId || userId === 'guest') {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    const userTemplates = Array.from(storage.customTemplates.values())
+      .filter(t => t.userId === userId);
+
+    res.json({
+      success: true,
+      data: userTemplates
+    });
+  } catch (error: any) {
+    logger.error('Get custom templates failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/templates/custom/:id
+ * Obter template personalizado por ID
+ */
+router.get('/custom/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const template = storage.customTemplates.get(id);
+
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        error: 'Template não encontrado'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: template
+    });
+  } catch (error: any) {
+    logger.error('Get custom template failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * PUT /api/templates/custom/:id
+ * Atualizar template personalizado
+ */
+router.put('/custom/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = (req as any).user?.id;
+    const template = storage.customTemplates.get(id);
+
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        error: 'Template não encontrado'
+      });
+    }
+
+    if (template.userId !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Sem permissão para editar este template'
+      });
+    }
+
+    const updated = {
+      ...template,
+      ...req.body,
+      id: template.id,
+      userId: template.userId,
+      createdAt: template.createdAt,
+      updatedAt: new Date()
+    };
+
+    storage.customTemplates.set(id, updated);
+
+    logger.info('Custom template updated', { userId, templateId: id });
+
+    res.json({
+      success: true,
+      data: updated
+    });
+  } catch (error: any) {
+    logger.error('Update custom template failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * DELETE /api/templates/custom/:id
+ * Deletar template personalizado
+ */
+router.delete('/custom/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = (req as any).user?.id;
+    const template = storage.customTemplates.get(id);
+
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        error: 'Template não encontrado'
+      });
+    }
+
+    if (template.userId !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Sem permissão para deletar este template'
+      });
+    }
+
+    storage.customTemplates.delete(id);
+
+    logger.info('Custom template deleted', { userId, templateId: id });
+
+    res.json({
+      success: true,
+      message: 'Template deletado'
+    });
+  } catch (error: any) {
+    logger.error('Delete custom template failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/templates/analytics/:id
+ * Obter analytics de um template
+ */
+router.get('/analytics/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Calcular analytics baseado no histórico
+    const allHistory = Array.from(storage.history.values()).flat();
+    const templateHistory = allHistory.filter(h => h.templateId === id);
+
+    const analytics = {
+      templateId: id,
+      totalUses: templateHistory.length,
+      uniqueUsers: new Set(templateHistory.map(h => h.userId)).size,
+      lastUsed: templateHistory[0]?.usedAt || null,
+      popularityTrend: 'stable' as const
+    };
+
+    res.json({
+      success: true,
+      data: analytics
+    });
+  } catch (error: any) {
+    logger.error('Get template analytics failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+export default router;
