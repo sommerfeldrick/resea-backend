@@ -10,8 +10,10 @@ import apiRoutes from './routes/api.js';
 import authRoutes from './routes/auth.js';
 import filesRoutes from './routes/files.js';
 import templatesRoutes from './routes/templates.js';
+import researchRoutes from './routes/research.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { smileaiAuthRequired } from './middleware/smileaiAuth.js';
+import { creditsService } from './services/creditsService.js';
 
 // Load environment variables
 config();
@@ -97,6 +99,9 @@ app.use('/api/files', smileaiAuthRequired, filesRoutes);
 // Templates routes (favorites, history, custom templates)
 app.use('/api/templates', smileaiAuthRequired, templatesRoutes);
 
+// Research routes (generation, credits, scraping)
+app.use('/api/research', smileaiAuthRequired, researchRoutes);
+
 // Main API routes
 app.use('/api', apiRoutes);
 
@@ -165,24 +170,32 @@ app.use(errorHandler);
 // Start Server
 // ============================================================
 
+// Initialize Redis connection
+creditsService.connect()
+  .then(() => logger.info('✅ Redis connected'))
+  .catch((err) => logger.error('❌ Redis connection failed:', err));
+
 app.listen(PORT, () => {
   logger.info(`🚀 Server running on port ${PORT}`);
   logger.info(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
   logger.info(`🔐 SmileAI Integration: ${process.env.MAIN_DOMAIN_API || 'https://smileai.com.br'}`);
-  logger.info(`🤖 AI Provider: ${process.env.AI_PROVIDER || 'gemini'}`);
-  logger.info(`💾 Cache: ${process.env.REDIS_ENABLED === 'true' ? 'Redis' : 'Memory'}`);
-  logger.info(`🕷️  Web Scraping: ${process.env.ENABLE_WEB_SCRAPING === 'true' ? 'Enabled ✓' : 'Disabled ✗'}`);
+  logger.info(`🤖 AI Providers: ${process.env.GROQ_API_KEY ? 'Groq ✓' : ''} ${process.env.GEMINI_API_KEY ? 'Gemini ✓' : ''} ${process.env.OPENAI_API_KEY ? 'OpenAI ✓' : ''}`);
+  logger.info(`💾 Cache: Redis`);
+  logger.info(`🕷️  Web Scraping: Enabled ✓`);
+  logger.info(`📊 Research API: /api/research/*`);
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
+  await creditsService.disconnect();
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully');
+  await creditsService.disconnect();
   process.exit(0);
 });
 
