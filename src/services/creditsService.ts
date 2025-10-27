@@ -8,41 +8,83 @@ interface UserPlan {
 }
 
 export class CreditsService {
-  private redis: RedisClientType;
+  private redis: RedisClientType | null = null;
   private isConnected: boolean = false;
+  private memoryCache: Map<string, { value: any; expiry: number }> = new Map();
 
   constructor() {
-    this.redis = createClient({
-      url: process.env.REDIS_URL || 'redis://localhost:6379',
-      socket: {
-        reconnectStrategy: (retries) => {
-          if (retries > 10) {
-            logger.error('Redis: Too many reconnection attempts');
-            return new Error('Redis connection failed');
+    // Tenta inicializar Redis, mas não falha se não conseguir
+    try {
+      this.redis = createClient({
+        url: process.env.REDIS_URL || 'redis://localhost:6379',
+        socket: {
+          reconnectStrategy: (retries) => {
+            if (retries > 3) {
+              logger.warn('Redis: Too many reconnection attempts, falling back to memory cache');
+              return false; // Para de tentar reconectar
+            }
+            return retries * 100;
           }
-          return retries * 100;
         }
-      }
-    });
+      });
 
-    this.redis.on('error', (err) => logger.error('Redis Client Error', err));
-    this.redis.on('connect', () => {
-      logger.info('Redis connected successfully');
-      this.isConnected = true;
-    });
+      this.redis.on('error', (err) => {
+        logger.warn('Redis Client Error (usando cache em memória):', err.message);
+        this.redis = null; // Desabilita Redis em caso de erro
+      });
+
+      this.redis.on('connect', () => {
+        logger.info('✅ Redis connected successfully');
+        this.isConnected = true;
+      });
+    } catch (error) {
+      logger.warn('Redis não disponível, usando cache em memória');
+      this.redis = null;
+    }
   }
 
   async connect(): Promise<void> {
-    if (!this.isConnected) {
-      await this.redis.connect();
+    if (this.redis && !this.isConnected) {
+      try {
+        await this.redis.connect();
+      } catch (error) {
+        logger.warn('Falha ao conectar Redis, usando cache em memória');
+        this.redis = null;
+      }
     }
   }
 
   async disconnect(): Promise<void> {
-    if (this.isConnected) {
-      await this.redis.quit();
-      this.isConnected = false;
+    if (this.redis && this.isConnected) {
+      try {
+        await this.redis.quit();
+        this.isConnected = false;
+      } catch (error) {
+        logger.error('Error disconnecting Redis:', error);
+      }
     }
+  }
+
+  // Métodos auxiliares para cache em memória
+  private setMemoryCache(key: string, value: any, ttlSeconds: number): void {
+    const expiry = Date.now() + (ttlSeconds * 1000);
+    this.memoryCache.set(key, { value, expiry });
+  }
+
+  private getMemoryCache(key: string): any | null {
+    const cached = this.memoryCache.get(key);
+    if (!cached) return null;
+
+    if (Date.now() > cached.expiry) {
+      this.memoryCache.delete(key);
+      return null;
+    }
+
+    return cached.value;
+  }
+
+  private deleteMemoryCache(key: string): void {
+    this.memoryCache.delete(key);
   }
 
   /**
@@ -52,11 +94,23 @@ export class CreditsService {
     try {
       const cacheKey = `user_plan:${userId}`;
 
-      // Tenta cache primeiro (TTL: 5 minutos)
-      const cached = await this.redis.get(cacheKey);
-      if (cached && typeof cached === 'string') {
+      // Tenta cache primeiro (Redis ou memória)
+      let cached: string | null = null;
+
+      if (this.redis && this.isConnected) {
+        try {
+          cached = await this.redis.get(cacheKey) as string | null;
+        } catch (error) {
+          logger.warn('Redis get failed, trying memory cache');
+          cached = this.getMemoryCache(cacheKey);
+        }
+      } else {
+        cached = this.getMemoryCache(cacheKey);
+      }
+
+      if (cached) {
         logger.info(`User plan cache HIT for user ${userId}`);
-        return JSON.parse(cached);
+        return typeof cached === 'string' ? JSON.parse(cached) : cached;
       }
 
       logger.info(`User plan cache MISS for user ${userId}, fetching from API`);
@@ -77,9 +131,19 @@ export class CreditsService {
       const limit = this.getWordLimit(planName);
 
       const plan: UserPlan = { name: planName, limit };
+      const planJson = JSON.stringify(plan);
 
-      // Cacheia por 5 minutos
-      await this.redis.setEx(cacheKey, 300, JSON.stringify(plan));
+      // Cacheia por 5 minutos (Redis ou memória)
+      if (this.redis && this.isConnected) {
+        try {
+          await this.redis.setEx(cacheKey, 300, planJson);
+        } catch (error) {
+          logger.warn('Redis set failed, using memory cache');
+          this.setMemoryCache(cacheKey, planJson, 300);
+        }
+      } else {
+        this.setMemoryCache(cacheKey, planJson, 300);
+      }
 
       return plan;
     } catch (error) {
@@ -108,13 +172,25 @@ export class CreditsService {
   }
 
   /**
-   * Busca palavras consumidas pelo usuário (armazenadas no Redis)
+   * Busca palavras consumidas pelo usuário (armazenadas no Redis ou memória)
    */
   async getConsumedWords(userId: string): Promise<number> {
     try {
       const key = `consumed_words:${userId}`;
-      const consumed = await this.redis.get(key);
-      return parseInt((consumed as string) || '0', 10);
+      let consumed: string | null = null;
+
+      if (this.redis && this.isConnected) {
+        try {
+          consumed = await this.redis.get(key) as string | null;
+        } catch (error) {
+          logger.warn('Redis get failed, trying memory cache');
+          consumed = this.getMemoryCache(key);
+        }
+      } else {
+        consumed = this.getMemoryCache(key);
+      }
+
+      return parseInt(consumed || '0', 10);
     } catch (error) {
       logger.error(`Failed to get consumed words for ${userId}:`, error);
       return 0;
@@ -138,11 +214,24 @@ export class CreditsService {
     try {
       const key = `consumed_words:${userId}`;
 
-      // Incrementa consumo
-      await this.redis.incrBy(key, wordCount);
-
-      // Define expiração de 30 dias (reseta mensalmente)
-      await this.redis.expire(key, 30 * 24 * 60 * 60);
+      if (this.redis && this.isConnected) {
+        try {
+          // Incrementa consumo no Redis
+          await this.redis.incrBy(key, wordCount);
+          await this.redis.expire(key, 30 * 24 * 60 * 60); // 30 dias
+        } catch (error) {
+          logger.warn('Redis increment failed, using memory cache');
+          // Fallback para memória
+          const current = parseInt(this.getMemoryCache(key) || '0', 10);
+          const newValue = current + wordCount;
+          this.setMemoryCache(key, newValue.toString(), 30 * 24 * 60 * 60);
+        }
+      } else {
+        // Usa cache em memória
+        const current = parseInt(this.getMemoryCache(key) || '0', 10);
+        const newValue = current + wordCount;
+        this.setMemoryCache(key, newValue.toString(), 30 * 24 * 60 * 60);
+      }
 
       logger.info(`User ${userId} consumed ${wordCount} words`);
 
@@ -160,7 +249,18 @@ export class CreditsService {
   async resetUsage(userId: string): Promise<void> {
     try {
       const key = `consumed_words:${userId}`;
-      await this.redis.del(key);
+
+      if (this.redis && this.isConnected) {
+        try {
+          await this.redis.del(key);
+        } catch (error) {
+          logger.warn('Redis delete failed, clearing from memory cache');
+          this.deleteMemoryCache(key);
+        }
+      } else {
+        this.deleteMemoryCache(key);
+      }
+
       logger.info(`Usage reset for user ${userId}`);
     } catch (error) {
       logger.error(`Failed to reset usage for ${userId}:`, error);

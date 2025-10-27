@@ -170,10 +170,13 @@ app.use(errorHandler);
 // Start Server
 // ============================================================
 
-// Initialize Redis connection
+// Initialize Redis connection (opcional - usa cache em memória se falhar)
 creditsService.connect()
   .then(() => logger.info('✅ Redis connected'))
-  .catch((err) => logger.error('❌ Redis connection failed:', err));
+  .catch((err) => {
+    logger.warn('⚠️  Redis connection failed, using memory cache:', err.message);
+    logger.info('💾 Sistema funcionará normalmente com cache em memória');
+  });
 
 app.listen(PORT, () => {
   logger.info(`🚀 Server running on port ${PORT}`);
@@ -181,7 +184,7 @@ app.listen(PORT, () => {
   logger.info(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
   logger.info(`🔐 SmileAI Integration: ${process.env.MAIN_DOMAIN_API || 'https://smileai.com.br'}`);
   logger.info(`🤖 AI Providers: ${process.env.GROQ_API_KEY ? 'Groq ✓' : ''} ${process.env.GEMINI_API_KEY ? 'Gemini ✓' : ''} ${process.env.OPENAI_API_KEY ? 'OpenAI ✓' : ''}`);
-  logger.info(`💾 Cache: Redis`);
+  logger.info(`💾 Cache: Redis (fallback: memory)`);
   logger.info(`🕷️  Web Scraping: Enabled ✓`);
   logger.info(`📊 Research API: /api/research/*`);
 });
