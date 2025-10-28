@@ -22,7 +22,7 @@ export const oauthConfig = {
   // Usado para autenticação de usuários com email/senha
   passwordGrant: {
     clientId: parseInt(process.env.OAUTH_CLIENT_ID || '2'),
-    clientSecret: process.env.OAUTH_CLIENT_SECRET || '2Moof1U6aYC1radoWP4ZozfMxPmy7Kufoyj2c7E8',
+    clientSecret: process.env.OAUTH_CLIENT_SECRET as string,
   },
 
   // Base URL da plataforma SmileAI (Laravel Passport)
