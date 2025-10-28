@@ -391,4 +391,55 @@ router.get(
   }
 );
 
+/**
+ * GET /api/auth/usage-data
+ * Obter dados de uso e créditos do usuário
+ *
+ * Headers:
+ * Authorization: Bearer {access_token}
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "words_left": 5000,
+ *     "images_left": 10,
+ *     "plan_name": "Premium",
+ *     "plan_status": "active",
+ *     "total_words": 10000,
+ *     "total_images": 20,
+ *     "words_used": 5000,
+ *     "images_used": 10
+ *   }
+ * }
+ */
+router.get(
+  '/usage-data',
+  smileaiAuthRequired,
+  async (req: Request, res: Response) => {
+    try {
+      const usageData = await smileaiAuth.getUserUsageData(req.smileaiToken!);
+
+      if (!usageData) {
+        return res.status(404).json({
+          success: false,
+          error: 'Dados de uso não encontrados',
+        });
+      }
+
+      res.json({
+        success: true,
+        data: usageData,
+      });
+    } catch (error: any) {
+      logger.error('Auth: Get usage data failed', { error: error.message });
+
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao obter dados de uso',
+      });
+    }
+  }
+);
+
 export default router;

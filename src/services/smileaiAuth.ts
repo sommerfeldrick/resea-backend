@@ -360,6 +360,18 @@ class SmileAIAuthClient {
       oauthConfig.features.payments
     );
   }
+
+  /**
+   * Obter dados de uso e créditos do usuário
+   * Endpoint: /api/app/usage-data
+   */
+  async getUserUsageData(accessToken: string): Promise<any> {
+    return this.authenticatedRequest(
+      accessToken,
+      'GET',
+      '/api/app/usage-data'
+    );
+  }
 }
 
 // Singleton instance
