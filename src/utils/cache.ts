@@ -107,11 +107,19 @@ export class RedisCache {
     }
   }
 
-  async set<T>(key: string, data: T, ttl?: number): Promise<void> {
+  async set<T>(key: string, data: T, ttl?: number | null): Promise<void> {
     try {
       const serialized = JSON.stringify(data);
-      await this.client.setex(key, ttl || this.defaultTTL, serialized);
-      logger.debug('Cache set', { key, ttl: ttl || this.defaultTTL });
+
+      if (ttl === null) {
+        // Set persistent data without TTL
+        await this.client.set(key, serialized);
+        logger.debug('Cache set (persistent)', { key });
+      } else {
+        // Set data with TTL
+        await this.client.setex(key, ttl || this.defaultTTL, serialized);
+        logger.debug('Cache set', { key, ttl: ttl || this.defaultTTL });
+      }
     } catch (error: any) {
       logger.error('Redis set error', { key, error: error.message });
     }
