@@ -1,4 +1,3 @@
-import { GoogleGenAI, Type } from '@google/genai';
 import { logger } from '../config/logger.js';
 import { buscaAcademicaUniversal, enrichWithPDFContent } from './academicSearch.js';
 import { generateText } from './aiProvider.js';
@@ -10,14 +9,6 @@ import type {
   AcademicSearchFilters
 } from '../types/index.js';
 
-const getAIClient = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY not configured');
-  }
-  return new GoogleGenAI({ apiKey });
-};
-
 /**
  * Generate task plan from user query
  */
@@ -25,66 +16,28 @@ export async function generateTaskPlan(query: string): Promise<TaskPlan> {
   logger.info('Generating task plan', { query });
 
   try {
-    const ai = getAIClient();
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `Você é um assistente de pesquisa especialista. Com base na consulta do usuário "${query}", crie um plano detalhado de pesquisa e redação. A pesquisa deve ser profunda e o estilo de escrita deve ser humanizado, evitando jargões excessivos para ser claro e envolvente. A saída deve ser um objeto JSON que siga estritamente o esquema fornecido. O idioma de saída deve ser o português do Brasil.`,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            taskTitle: {
-              type: Type.STRING,
-              description: 'Um título conciso para a tarefa de pesquisa em português.'
-            },
-            taskDescription: {
-              type: Type.OBJECT,
-              properties: {
-                type: {
-                  type: Type.STRING,
-                  description: "O tipo de documento a ser produzido (ex: 'revisão de literatura acadêmica')."
-                },
-                style: {
-                  type: Type.STRING,
-                  description: "O estilo de escrita (ex: 'acadêmico formal humanizado')."
-                },
-                audience: {
-                  type: Type.STRING,
-                  description: 'O público-alvo do documento.'
-                },
-                wordCount: {
-                  type: Type.STRING,
-                  description: "A contagem de palavras estimada (ex: '8000-12000 palavras')."
-                }
-              },
-              required: ['type', 'style', 'audience', 'wordCount']
-            },
-            executionPlan: {
-              type: Type.OBJECT,
-              properties: {
-                thinking: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                  description: "Uma lista de etapas de 'pensamento' para estruturar o trabalho."
-                },
-                research: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                  description: 'Uma lista de etapas de pesquisa acionáveis.'
-                },
-                writing: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                  description: 'Uma lista de etapas de redação para montar o documento.'
-                }
-              },
-              required: ['thinking', 'research', 'writing']
-            }
-          },
-          required: ['taskTitle', 'taskDescription', 'executionPlan']
-        }
-      }
+    const prompt = `Com base na consulta do usuário "${query}", crie um plano detalhado de pesquisa e redação. A pesquisa deve ser profunda e o estilo de escrita deve ser humanizado, evitando jargões excessivos para ser claro e envolvente.
+
+Retorne APENAS um objeto JSON válido (sem markdown, sem \`\`\`json) com a seguinte estrutura:
+{
+  "taskTitle": "título conciso em português",
+  "taskDescription": {
+    "type": "tipo de documento (ex: 'revisão de literatura acadêmica')",
+    "style": "estilo de escrita (ex: 'acadêmico formal humanizado')",
+    "audience": "público-alvo",
+    "wordCount": "contagem estimada (ex: '8000-12000 palavras')"
+  },
+  "executionPlan": {
+    "thinking": ["etapa 1 de pensamento", "etapa 2...", "..."],
+    "research": ["etapa 1 de pesquisa", "etapa 2...", "..."],
+    "writing": ["etapa 1 de redação", "etapa 2...", "..."]
+  }
+}`;
+
+    const response = await generateText(prompt, {
+      systemPrompt: 'Você é um assistente de pesquisa especialista. Retorne APENAS JSON válido, sem formatação markdown.',
+      temperature: 0.7,
+      maxTokens: 2000
     });
 
     const plan = JSON.parse(response.text);
@@ -103,69 +56,22 @@ export async function generateMindMap(plan: TaskPlan): Promise<MindMapData> {
   logger.info('Generating mind map', { title: plan.taskTitle });
 
   try {
-    const ai = getAIClient();
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `Crie uma estrutura de dados de mapa mental para o ReactFlow com base no seguinte plano de pesquisa: ${JSON.stringify(plan.executionPlan)}.
-      O nó principal deve ser o título da tarefa: "${plan.taskTitle}".
-      Crie nós para cada um dos principais temas nas fases de 'pensamento' e 'pesquisa'.
-      Conecte os nós temáticos ao nó principal.
-      A saída deve ser um objeto JSON válido com propriedades 'nodes' e 'edges'.
-      - Cada nó em 'nodes' deve ter 'id' (string), 'data: { label: string }', e 'position: { x: number, y: number }'.
-      - Posicione o nó principal em { x: 250, y: 5 } e distribua os outros nós ao redor dele de forma lógica.
-      - Cada aresta em 'edges' deve ter 'id' (ex: 'e1-2'), 'source' (id do nó de origem), e 'target' (id do nó de destino).
-      O idioma de saída deve ser o português do Brasil.`,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            nodes: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  type: {
-                    type: Type.STRING,
-                    description: "Opcional, pode ser 'input' para o nó principal."
-                  },
-                  data: {
-                    type: Type.OBJECT,
-                    properties: {
-                      label: { type: Type.STRING }
-                    },
-                    required: ['label']
-                  },
-                  position: {
-                    type: Type.OBJECT,
-                    properties: {
-                      x: { type: Type.NUMBER },
-                      y: { type: Type.NUMBER }
-                    },
-                    required: ['x', 'y']
-                  }
-                },
-                required: ['id', 'data', 'position']
-              }
-            },
-            edges: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  source: { type: Type.STRING },
-                  target: { type: Type.STRING },
-                  animated: { type: Type.BOOLEAN }
-                },
-                required: ['id', 'source', 'target']
-              }
-            }
-          },
-          required: ['nodes', 'edges']
-        }
-      }
+    const prompt = `Crie uma estrutura de dados de mapa mental para o ReactFlow com base no seguinte plano de pesquisa: ${JSON.stringify(plan.executionPlan)}.
+
+O nó principal deve ser o título da tarefa: "${plan.taskTitle}".
+Crie nós para cada um dos principais temas nas fases de 'pensamento' e 'pesquisa'.
+Conecte os nós temáticos ao nó principal.
+
+Retorne APENAS um objeto JSON válido (sem markdown, sem \`\`\`json) com propriedades 'nodes' e 'edges':
+- Cada nó em 'nodes' deve ter 'id' (string), 'data: { label: string }', e 'position: { x: number, y: number }'.
+- Posicione o nó principal em { x: 250, y: 5 } e distribua os outros nós ao redor dele de forma lógica.
+- Cada aresta em 'edges' deve ter 'id' (ex: 'e1-2'), 'source' (id do nó de origem), e 'target' (id do nó de destino).
+O idioma deve ser português do Brasil.`;
+
+    const response = await generateText(prompt, {
+      systemPrompt: 'Você é um especialista em criar mapas mentais. Retorne APENAS JSON válido, sem formatação markdown.',
+      temperature: 0.7,
+      maxTokens: 1500
     });
 
     const mindMapData = JSON.parse(response.text);
@@ -391,8 +297,6 @@ export async function* generateContentStream(
   logger.info('Starting content generation stream');
 
   try {
-    const ai = getAIClient();
-
     // Collect all unique sources
     const uniqueSources = [
       ...new Map(
