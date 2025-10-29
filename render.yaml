@@ -25,7 +25,9 @@ services:
       - key: ENABLE_WEB_SCRAPING
         value: true
       - key: REDIS_ENABLED
-        value: false
+        value: true
+      - key: REDIS_URL
+        sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: GEMINI_API_KEY

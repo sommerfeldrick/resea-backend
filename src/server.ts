@@ -15,8 +15,22 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { smileaiAuthRequired } from './middleware/smileaiAuth.js';
 import { creditsService } from './services/creditsService.js';
 
-// Load environment variables
+// Load environment variables first
 config();
+
+// Validate required environment variables
+const requiredEnvVars = {
+  MAIN_DOMAIN_API: process.env.MAIN_DOMAIN_API || 'https://smileai.com.br',
+  OAUTH_CLIENT_ID: process.env.OAUTH_CLIENT_ID || '2',
+  OAUTH_CLIENT_SECRET: process.env.OAUTH_CLIENT_SECRET || 'Q2NM4Z6f4xt6HzlGhwRroO6eN5byqdjjmJoblJZX'
+};
+
+Object.entries(requiredEnvVars).forEach(([key, value]) => {
+  if (!value) {
+    logger.error(`Missing required environment variable: ${key}`);
+    process.exit(1);
+  }
+});
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -170,12 +184,19 @@ app.use(errorHandler);
 // Start Server
 // ============================================================
 
+// Validate Redis configuration
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+logger.info(`🔄 Connecting to Redis: ${redisUrl}`);
+
 // Initialize Redis connection (opcional - usa cache em memória se falhar)
 creditsService.connect()
-  .then(() => logger.info('✅ Redis connected'))
+  .then(() => {
+    logger.info('✅ Redis connected successfully');
+    logger.info('💳 Credits service initialized with Redis storage');
+  })
   .catch((err) => {
-    logger.warn('⚠️  Redis connection failed, using memory cache:', err.message);
-    logger.info('💾 Sistema funcionará normalmente com cache em memória');
+    logger.warn('⚠️  Redis connection failed:', err.message);
+    logger.info('💾 Credits service will use memory cache');
   });
 
 app.listen(PORT, () => {
