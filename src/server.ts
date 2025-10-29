@@ -189,15 +189,17 @@ app.use(errorHandler);
 // Start Server
 // ============================================================
 
-// Initialize database
+// Initialize database (non-blocking - server continues if DB fails)
 initializeDatabase()
   .then(() => {
     logger.info('✅ Database initialized successfully');
   })
   .catch((err) => {
-    logger.error('❌ Database initialization failed:', err.message);
+    logger.warn('⚠️  Database initialization failed (server continues):', err.message);
+    logger.warn('   Add DATABASE_URL environment variable to enable PostgreSQL');
+    // Don't exit - server continues with in-memory cache
     if (process.env.NODE_ENV === 'production') {
-      process.exit(1);
+      logger.warn('   In production, ensure DATABASE_URL is set in Render Environment Variables');
     }
   });
 

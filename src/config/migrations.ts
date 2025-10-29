@@ -2,7 +2,14 @@ import { query } from '../config/database.js';
 
 export async function initializeDatabase() {
   try {
-    console.log('📚 Inicializando banco de dados...');
+    // Check if DATABASE_URL is configured
+    if (!process.env.DATABASE_URL) {
+      console.log('⚠️  DATABASE_URL not configured - skipping database initialization');
+      console.log('   Server will use in-memory cache only');
+      return false;
+    }
+
+    console.log('📚 Initializing PostgreSQL database...');
 
     // Criar tabela de usuários
     await query(`
