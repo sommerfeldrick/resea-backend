@@ -11,9 +11,11 @@ import authRoutes from './routes/auth.js';
 import filesRoutes from './routes/files.js';
 import templatesRoutes from './routes/templates.js';
 import researchRoutes from './routes/research.js';
+import documentsRoutes from './routes/documents.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { smileaiAuthRequired } from './middleware/smileaiAuth.js';
 import { creditsService } from './services/creditsService.js';
+import { initializeDatabase } from './config/migrations.js';
 
 // Load environment variables first
 config();
@@ -116,6 +118,9 @@ app.use('/api/templates', smileaiAuthRequired, templatesRoutes);
 // Research routes (generation, credits, scraping)
 app.use('/api/research', smileaiAuthRequired, researchRoutes);
 
+// Documents routes (history, statistics)
+app.use('/api/documents', smileaiAuthRequired, documentsRoutes);
+
 // Main API routes
 app.use('/api', apiRoutes);
 
@@ -183,6 +188,18 @@ app.use(errorHandler);
 // ============================================================
 // Start Server
 // ============================================================
+
+// Initialize database
+initializeDatabase()
+  .then(() => {
+    logger.info('✅ Database initialized successfully');
+  })
+  .catch((err) => {
+    logger.error('❌ Database initialization failed:', err.message);
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+  });
 
 // Validate Redis configuration
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
