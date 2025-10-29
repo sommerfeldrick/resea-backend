@@ -99,7 +99,7 @@ router.post('/generate', async (req: Request, res: Response) => {
 
     // 2. TODO: Implement scraping (requires optional dependencies)
     logger.warn('Web scraping temporarily disabled - using fallback');
-    const sources: any[] = [];
+    const sources: Array<{ title: string; url: string; content: string }> = [];
 
     // 3. Monta o prompt baseado no template (se fornecido)
     let enhancedPrompt = query;
@@ -109,7 +109,8 @@ router.post('/generate', async (req: Request, res: Response) => {
 
     // 4. Gera conteúdo com IA (usa fallback automático)
     logger.info('Generating content with AI...');
-    const content = `# ${query}\n\n## Conteúdo em desenvolvimento\n\nEste endpoint requer dependências opcionais (groq-sdk, openai) que não estão instaladas.\nUse o endpoint /api/generate-plan e /api/generate-content para funcionalidade completa.`;
+    const FALLBACK_MESSAGE = `# ${query}\n\n## Conteúdo em desenvolvimento\n\nEste endpoint requer dependências opcionais (groq-sdk, openai) que não estão instaladas.\nUse o endpoint /api/generate-plan e /api/generate-content para funcionalidade completa.`;
+    const content = FALLBACK_MESSAGE;
 
     // 5. Conta palavras do rascunho
     const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
