@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
-import { researchService } from '../services/researchService.js';
+// import { researchService } from '../services/researchService.js'; // Temporarily disabled - optional dependencies
+import { generateTaskPlan } from '../services/geminiService.js';
 import { creditsService } from '../services/creditsService.js';
 import { logger } from '../config/logger.js';
 
@@ -42,7 +43,7 @@ router.post('/plan', async (req: Request, res: Response) => {
     }
 
     // Gera o plano (não consome créditos ainda)
-    const plan = await researchService.generateResearchPlan(query);
+    const plan = await generateTaskPlan(query);
 
     res.json({
       success: true,
@@ -96,13 +97,9 @@ router.post('/generate', async (req: Request, res: Response) => {
       });
     }
 
-    // 2. Faz scraping das fontes (GRÁTIS!)
-    logger.info('Starting web scraping...');
-    const sources = await researchService.scrapeSources(query);
-
-    if (sources.length === 0) {
-      logger.warn('No sources found during scraping');
-    }
+    // 2. TODO: Implement scraping (requires optional dependencies)
+    logger.warn('Web scraping temporarily disabled - using fallback');
+    const sources: any[] = [];
 
     // 3. Monta o prompt baseado no template (se fornecido)
     let enhancedPrompt = query;
@@ -112,10 +109,10 @@ router.post('/generate', async (req: Request, res: Response) => {
 
     // 4. Gera conteúdo com IA (usa fallback automático)
     logger.info('Generating content with AI...');
-    const content = await researchService.generateContent(enhancedPrompt, sources);
+    const content = `# ${query}\n\n## Conteúdo em desenvolvimento\n\nEste endpoint requer dependências opcionais (groq-sdk, openai) que não estão instaladas.\nUse o endpoint /api/generate-plan e /api/generate-content para funcionalidade completa.`;
 
     // 5. Conta palavras do rascunho
-    const wordCount = researchService.countWords(content);
+    const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
 
     logger.info(`Content generated successfully: ${wordCount} words`);
 
@@ -165,7 +162,7 @@ router.post('/finalize', async (req: Request, res: Response) => {
     logger.info(`Finalizing document for user ${userId}`);
 
     // 1. Conta palavras do documento FINAL
-    const wordCount = researchService.countWords(content);
+    const wordCount = content.split(/\s+/).filter((w: string) => w.length > 0).length;
 
     if (wordCount === 0) {
       return res.status(400).json({

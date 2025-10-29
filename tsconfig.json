@@ -28,5 +28,16 @@
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "src/services/nlp.service.ts",
+    "src/services/vectorSearch.service.ts",
+    "src/services/smartCache.service.ts",
+    "src/services/researchService.ts",
+    "src/services/aiIntegration.ts",
+    "src/services/openrouterProvider.ts",
+    "src/services/academicSearchOptimized.ts"
+  ]
 }
