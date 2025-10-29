@@ -170,8 +170,8 @@ async function generateWithGemini(prompt: string, options: any): Promise<AIRespo
   return {
     text,
     provider: 'gemini',
-    tokensUsed: response.usageMetadata?.totalTokenCount,
-    cost: calculateCost('gemini', response.usageMetadata?.totalTokenCount || 0)
+    tokensUsed: undefined, // Token usage not available in this version
+    cost: 0 // Will be calculated based on estimates if needed
   };
 }
 
