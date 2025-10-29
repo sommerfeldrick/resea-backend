@@ -442,4 +442,54 @@ router.get(
   }
 );
 
+/**
+ * GET /api/auth/debug/credits
+ * Endpoint para debugging de dados de créditos
+ * IMPORTANTE: Remover em produção!
+ *
+ * Headers:
+ * Authorization: Bearer {access_token}
+ */
+router.get(
+  '/debug/credits',
+  smileaiAuthRequired,
+  async (req: Request, res: Response) => {
+    try {
+      logger.info('Debug: Credits endpoint called');
+
+      // Retorna dados do usuário atual
+      const userData = req.smileaiUser;
+
+      // Tenta buscar dados de uso da SmileAI API
+      const usageData = await smileaiAuth.getUserUsageData(req.smileaiToken!);
+
+      res.json({
+        success: true,
+        debug: {
+          user: {
+            id: userData?.id,
+            name: userData?.name,
+            email: userData?.email,
+            type: userData?.type,
+            status: userData?.status,
+            remaining_words: userData?.remaining_words,
+            remaining_images: userData?.remaining_images,
+            entity_credits: userData?.entity_credits ? 'presente' : 'ausente',
+          },
+          usage_data: usageData || null,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logger.error('Debug: Credits failed', { error: error.message });
+
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao debugar créditos',
+        message: error.message,
+      });
+    }
+  }
+);
+
 export default router;
