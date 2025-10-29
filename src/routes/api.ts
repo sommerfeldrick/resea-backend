@@ -297,4 +297,37 @@ router.post('/cache/clear', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/health/cache
+ * Check cache status and configuration
+ */
+router.get('/health/cache', async (req: Request, res: Response) => {
+  try {
+    const cache = getCache();
+    const cacheType = cache.constructor.name;
+    const isRedis = cacheType === 'RedisCache';
+    
+    res.json({
+      success: true,
+      cache: {
+        type: cacheType,
+        isRedis: isRedis,
+        redisEnabled: process.env.REDIS_ENABLED === 'true',
+        status: isRedis ? 'Redis' : 'In-memory cache',
+        details: {
+          fallback: !isRedis ? 'Using memory cache (Redis disabled or unavailable)' : 'Using Redis',
+          recommendation: !isRedis ? 'For production, consider enabling Redis for better performance' : 'Redis is active'
+        }
+      }
+    });
+  } catch (error: any) {
+    logger.error('API: Cache health check failed', { error: error.message });
+
+    res.status(500).json({
+      success: false,
+      error: 'Falha ao verificar status do cache'
+    });
+  }
+});
+
 export default router;

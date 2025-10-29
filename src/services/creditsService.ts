@@ -11,45 +11,59 @@ export class CreditsService {
   private redis: RedisClientType | null = null;
   private isConnected: boolean = false;
   private memoryCache: Map<string, { value: any; expiry: number }> = new Map();
+  private redisInitialized: boolean = false;
 
   constructor() {
-    // Tenta inicializar Redis, mas não falha se não conseguir
+    // Tenta inicializar Redis apenas se explicitamente habilitado
+    if (process.env.REDIS_ENABLED === 'true') {
+      this.initializeRedis();
+    } else {
+      logger.info('ℹ️  Redis desabilitado - usando cache em memória');
+    }
+  }
+
+  private initializeRedis(): void {
     try {
+      const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+      
       this.redis = createClient({
-        url: process.env.REDIS_URL || 'redis://localhost:6379',
+        url: redisUrl,
         socket: {
-          reconnectStrategy: (retries) => {
-            if (retries > 3) {
-              logger.warn('Redis: Too many reconnection attempts, falling back to memory cache');
-              return false; // Para de tentar reconectar
-            }
-            return retries * 100;
-          }
+          connectTimeout: 5000
         }
       });
 
       this.redis.on('error', (err) => {
-        logger.warn('Redis Client Error (usando cache em memória):', err.message);
-        this.redis = null; // Desabilita Redis em caso de erro
+        logger.debug('Redis connection error (falling back to memory cache):', err.message);
+        this.redis = null;
+        this.isConnected = false;
       });
 
       this.redis.on('connect', () => {
-        logger.info('✅ Redis connected successfully');
+        logger.info('✅ Redis conectado com sucesso');
         this.isConnected = true;
       });
+
+      this.redis.on('ready', () => {
+        logger.debug('Redis pronto para uso');
+      });
+
+      this.redisInitialized = true;
     } catch (error) {
-      logger.warn('Redis não disponível, usando cache em memória');
+      logger.debug('Erro ao inicializar Redis (usando cache em memória)');
       this.redis = null;
+      this.redisInitialized = false;
     }
   }
 
   async connect(): Promise<void> {
-    if (this.redis && !this.isConnected) {
+    if (this.redis && !this.isConnected && this.redisInitialized) {
       try {
         await this.redis.connect();
       } catch (error) {
-        logger.warn('Falha ao conectar Redis, usando cache em memória');
+        logger.debug('Não foi possível conectar ao Redis - usando cache em memória');
         this.redis = null;
+        this.isConnected = false;
       }
     }
   }
