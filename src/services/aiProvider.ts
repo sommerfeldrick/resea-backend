@@ -3,7 +3,7 @@
  * Suporta múltiplas APIs de IA com fallback automático
  */
 
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import axios from 'axios';
 import { logger } from '../config/logger.js';
 
@@ -155,17 +155,20 @@ export async function generateText(
  */
 async function generateWithGemini(prompt: string, options: any): Promise<AIResponse> {
   const config = aiConfigs.gemini;
-  const ai = new GoogleGenAI({ apiKey: config.apiKey! });
+  const genAI = new GoogleGenerativeAI(config.apiKey!);
+  const model = genAI.getGenerativeModel({ model: config.model! });
 
-  const response = await ai.models.generateContent({
-    model: config.model!,
-    contents: options.systemPrompt
+  const result = await model.generateContent(
+    options.systemPrompt
       ? `${options.systemPrompt}\n\n${prompt}`
-      : prompt,
-  });
+      : prompt
+  );
+
+  const response = await result.response;
+  const text = response.text();
 
   return {
-    text: response.text,
+    text,
     provider: 'gemini',
     tokensUsed: response.usageMetadata?.totalTokenCount,
     cost: calculateCost('gemini', response.usageMetadata?.totalTokenCount || 0)
