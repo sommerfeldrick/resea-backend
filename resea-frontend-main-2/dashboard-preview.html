@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - SmileAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-slate-100">
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white/80 backdrop-blur-xl border-b border-gray-100/50 sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center">
+                        <span class="text-white font-bold">S</span>
+                    </div>
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">SmileAI</h1>
+                </div>
+                <button class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+                    Sair
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+            <!-- User Profile Card -->
+            <div class="mb-8">
+                <div class="bg-white/90 backdrop-blur-xl border border-gray-100/50 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-shadow">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-2xl font-semibold shadow-lg">
+                                JD
+                            </div>
+                            <div>
+                                <h2 class="text-2xl font-bold text-gray-900">João da Silva</h2>
+                                <p class="text-gray-500">joao.silva@email.com</p>
+                                <p class="text-sm text-indigo-600 font-medium mt-1">Premium - Membro desde Jan 2025</p>
+                            </div>
+                        </div>
+                        <button class="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
+                            Editar Perfil
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Credits and Usage -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <!-- Credits Card -->
+                <div class="bg-white/90 backdrop-blur-xl border border-gray-100/50 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all hover:-translate-y-1">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Créditos</h3>
+                        <div class="w-12 h-12 bg-gradient-to-br from-amber-100 to-yellow-100 rounded-lg flex items-center justify-center text-xl">
+                            💳
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <p class="text-3xl font-bold text-amber-600">2,450</p>
+                            <p class="text-sm text-gray-500">créditos disponíveis</p>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-gradient-to-r from-amber-400 to-yellow-500 h-2 rounded-full w-3/4"></div>
+                        </div>
+                        <p class="text-xs text-gray-600">Renovação em: 15 de Novembro</p>
+                    </div>
+                </div>
+
+                <!-- Documents Created -->
+                <div class="bg-white/90 backdrop-blur-xl border border-gray-100/50 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all hover:-translate-y-1">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Documentos</h3>
+                        <div class="w-12 h-12 bg-gradient-to-br from-emerald-100 to-green-100 rounded-lg flex items-center justify-center text-xl">
+                            📄
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <p class="text-3xl font-bold text-emerald-600">45</p>
+                            <p class="text-sm text-gray-500">documentos criados</p>
+                        </div>
+                        <div class="text-sm text-gray-600">
+                            <p>• Pesquisas: <span class="font-semibold">28</span></p>
+                            <p>• Ensaios: <span class="font-semibold">12</span></p>
+                            <p>• Resumos: <span class="font-semibold">5</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Usage -->
+                <div class="bg-white/90 backdrop-blur-xl border border-gray-100/50 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all hover:-translate-y-1">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">API Usage</h3>
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-lg flex items-center justify-center text-xl">
+                            ⚡
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <p class="text-3xl font-bold text-blue-600">156</p>
+                            <p class="text-sm text-gray-500">requisições este mês</p>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-gradient-to-r from-blue-400 to-cyan-500 h-2 rounded-full w-1/2"></div>
+                        </div>
+                        <p class="text-xs text-gray-600">500 requisições/mês disponível</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Documents -->
+            <div class="bg-white/90 backdrop-blur-xl border border-gray-100/50 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-shadow">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-bold text-gray-900">Documentos Recentes</h3>
+                    <a href="#" class="text-indigo-600 hover:text-indigo-700 text-sm font-medium">Ver todos →</a>
+                </div>
+                
+                <div class="space-y-3">
+                    <!-- Document Item 1 -->
+                    <div class="p-4 border border-gray-100 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-all group">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <h4 class="font-semibold text-gray-900 group-hover:text-indigo-600">Revisão Literatura: Implantes Dentários</h4>
+                                <p class="text-sm text-gray-500 mt-1">Tipo: Pesquisa Acadêmica • 5.200 palavras</p>
+                                <div class="flex gap-2 mt-3">
+                                    <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Concluído</span>
+                                    <span class="inline-block px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">Fácil</span>
+                                </div>
+                            </div>
+                            <div class="text-right text-sm text-gray-500">
+                                <p>25 Out 2025</p>
+                                <p class="text-xs mt-1">11:30</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Document Item 2 -->
+                    <div class="p-4 border border-gray-100 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-all group">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <h4 class="font-semibold text-gray-900 group-hover:text-indigo-600">Análise de Tendências IA 2025</h4>
+                                <p class="text-sm text-gray-500 mt-1">Tipo: Relatório • 8.500 palavras</p>
+                                <div class="flex gap-2 mt-3">
+                                    <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Concluído</span>
+                                    <span class="inline-block px-3 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Médio</span>
+                                </div>
+                            </div>
+                            <div class="text-right text-sm text-gray-500">
+                                <p>22 Out 2025</p>
+                                <p class="text-xs mt-1">14:45</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Document Item 3 -->
+                    <div class="p-4 border border-gray-100 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-all group">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <h4 class="font-semibold text-gray-900 group-hover:text-indigo-600">Estudo de Caso: Transformação Digital</h4>
+                                <p class="text-sm text-gray-500 mt-1">Tipo: Estudo de Caso • 3.200 palavras</p>
+                                <div class="flex gap-2 mt-3">
+                                    <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Concluído</span>
+                                    <span class="inline-block px-3 py-1 bg-rose-100 text-rose-700 text-xs font-medium rounded-full">Avançado</span>
+                                </div>
+                            </div>
+                            <div class="text-right text-sm text-gray-500">
+                                <p>20 Out 2025</p>
+                                <p class="text-xs mt-1">09:15</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="mt-8 flex gap-4 justify-center">
+                <button class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-medium rounded-lg hover:shadow-lg hover:shadow-indigo-500/50 transition-all hover:-translate-y-0.5">
+                    ➕ Novo Documento
+                </button>
+                <button class="px-6 py-3 bg-white/90 border border-gray-200 text-gray-700 font-medium rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-all">
+                    📊 Ver Análise
+                </button>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

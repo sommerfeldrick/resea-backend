@@ -1,0 +1,5 @@
+{
+  "name": "Resea AI Research Assistant",
+  "description": "An AI-powered research assistant that automates the process of planning, researching, and writing academic content. It uses a multi-step approach to generate a research plan, visualize concepts with a mind map, browse the web for information, and compose a final document.",
+  "requestFramePermissions": []
+}

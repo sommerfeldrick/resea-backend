@@ -1,0 +1,35 @@
+# ============================================================
+# RENDER ENVIRONMENT VARIABLES - Backend
+# ============================================================
+# Copie estas variáveis no Render Dashboard → Environment (Backend)
+
+# Server
+NODE_ENV=production
+PORT=3001
+FRONTEND_URL=https://app.smileai.com.br
+
+# Database
+DATABASE_URL=postgresql://resea_db_user:hq707SfpO7Z8Q4doUH7FBeH287VX9qFf@dpg-d414nmfdiees73apfsl0-a/resea_db
+
+# Redis (Upstash)
+REDIS_ENABLED=true
+REDIS_URL=redis://default:sua_senha_upstash@seu_host_upstash:6379
+
+# SmileAI Integration
+MAIN_DOMAIN_API=https://smileai.com.br
+OAUTH_CLIENT_ID=2
+OAUTH_CLIENT_SECRET=2Moof1U6aYC1radoWP4ZozfMxPmy7Kufoyj2c7E8
+
+# AI Provider
+AI_PROVIDER=groq
+GROQ_API_KEY=gsk_sua_chave_aqui
+GROQ_MODEL=llama-3.1-70b-versatile
+
+# Web Scraping
+ENABLE_WEB_SCRAPING=true
+SCRAPING_TIMEOUT=30000
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+LOG_LEVEL=info

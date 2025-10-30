@@ -1,0 +1,16 @@
+# ============================================================
+# RENDER ENVIRONMENT VARIABLES - Frontend
+# ============================================================
+# Copie estas variáveis no Render Dashboard → Environment
+
+# API URL - Backend
+VITE_API_URL=https://resea-backend.onrender.com/api
+
+# Frontend URL - Para redirecionamentos
+VITE_FRONTEND_URL=https://app.smileai.com.br
+
+# Build command
+npm run build
+
+# Start command
+npm run preview

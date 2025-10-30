@@ -1,0 +1,119 @@
+================================================================================
+RESEA AI - INSTRUÇÕES DE UPLOAD
+================================================================================
+
+ESTÁ TUDO PRONTO! Só fazer upload!
+
+================================================================================
+PASSO 1: COMPACTAR (1 minuto)
+================================================================================
+
+No seu computador, compacte a pasta public_html/:
+
+Windows:
+    - Clique com botão direito em "public_html"
+    - Enviar para → Pasta compactada
+    - Renomeie para "upload_completo.zip"
+
+Mac/Linux:
+    zip -r upload_completo.zip public_html/
+
+================================================================================
+PASSO 2: UPLOAD (5 minutos)
+================================================================================
+
+1. Acesse: https://hpanel.hostinger.com/file-manager
+
+2. Navegue até: /domains/app.smileai.com.br/
+
+3. Arraste "upload_completo.zip" para fazer upload
+
+4. Aguarde upload completar
+
+5. Clique com botão direito em "upload_completo.zip" → Extract
+
+6. Entre na pasta "public_html" extraída
+
+7. Selecione TUDO (CTRL+A)
+
+8. Arraste para /domains/app.smileai.com.br/public_html/ (pasta real)
+
+================================================================================
+PASSO 3: CONFIGURAR BACKEND (5 minutos via SSH)
+================================================================================
+
+ssh seu_usuario@seu_servidor
+
+cd /domains/app.smileai.com.br/public_html/backend
+
+npm install --production
+
+npm run build
+
+nano .env
+    (Linha 20: GROQ_API_KEY=sua_chave_aqui)
+    (Salvar: CTRL+O, ENTER, CTRL+X)
+
+pm2 start dist/server.js --name resea-backend
+
+pm2 save
+
+pm2 startup
+    (Execute o comando que aparecer)
+
+================================================================================
+OBTER CHAVE GROQ (2 minutos, GRÁTIS)
+================================================================================
+
+1. Acesse: https://console.groq.com/
+
+2. Login ou Cadastro
+
+3. Vá em "API Keys"
+
+4. Clique "Create API Key"
+
+5. Copie a chave (começa com gsk_)
+
+6. Cole no arquivo backend/.env na linha 20
+
+================================================================================
+VERIFICAR
+================================================================================
+
+curl http://localhost:3001/api/health
+
+Deve retornar: {"status":"ok",...}
+
+pm2 status
+
+Deve mostrar: resea-backend | online
+
+================================================================================
+ACESSAR
+================================================================================
+
+https://app.smileai.com.br
+
+Deve aparecer a página inicial bonita!
+
+================================================================================
+PRONTO! 🎉
+================================================================================
+
+Total: 15 minutos
+
+Custo: $0/mês (Groq é grátis)
+
+================================================================================
+PRECISA DE AJUDA?
+================================================================================
+
+Leia: README_UPLOAD.md (documentação completa)
+
+Comandos úteis:
+    pm2 logs resea-backend    (ver logs)
+    pm2 restart resea-backend (reiniciar)
+    pm2 status                (ver status)
+
+================================================================================
