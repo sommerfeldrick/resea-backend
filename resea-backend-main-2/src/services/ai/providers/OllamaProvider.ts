@@ -9,8 +9,8 @@ import type { AIGenerationOptions, AIResponse } from '../types.js';
 import { logger } from '../../../config/logger.js';
 
 export class OllamaProvider extends BaseAIProvider {
-  constructor(model?: string, baseUrl?: string) {
-    super(undefined, model, baseUrl);
+  constructor(model?: string, baseUrl?: string, apiKey?: string) {
+    super(apiKey, model, baseUrl);
     this.model = model || 'llama2';
     this.baseUrl = baseUrl || 'http://localhost:11434';
   }

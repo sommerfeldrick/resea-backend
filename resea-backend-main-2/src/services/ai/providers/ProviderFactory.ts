@@ -42,7 +42,7 @@ export class ProviderFactory {
         break;
 
       case 'ollama':
-        providerInstance = new OllamaProvider(config.model, config.baseUrl);
+        providerInstance = new OllamaProvider(config.model, config.baseUrl, config.apiKey);
         break;
 
       default:
