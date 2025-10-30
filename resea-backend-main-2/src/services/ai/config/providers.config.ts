@@ -120,7 +120,7 @@ export const modelsByUseCase = {
   },
   quality_fallback: {
     primary: 'gemini',
-    model: 'google/gemini-2.0-flash-exp:free'
+    model: 'gemini-2.0-flash'
   }
 };
 
