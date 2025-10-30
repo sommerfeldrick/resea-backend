@@ -43,6 +43,10 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 // ============================================================
 
+// Trust proxy - Required for Render/Cloudflare
+// This allows Express to trust the X-Forwarded-* headers
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet());
 

@@ -10,6 +10,28 @@ import type {
 } from '../types/index.js';
 
 /**
+ * Clean JSON response from AI (remove markdown code blocks)
+ */
+function cleanJsonResponse(text: string): string {
+  // Remove markdown code blocks (```json ... ``` or ``` ... ```)
+  let cleaned = text.trim();
+
+  // Remove ```json at the start
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.slice(7);
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.slice(3);
+  }
+
+  // Remove ``` at the end
+  if (cleaned.endsWith('```')) {
+    cleaned = cleaned.slice(0, -3);
+  }
+
+  return cleaned.trim();
+}
+
+/**
  * Generate task plan from user query
  */
 export async function generateTaskPlan(query: string): Promise<TaskPlan> {
@@ -40,7 +62,8 @@ Retorne APENAS um objeto JSON válido (sem markdown, sem \`\`\`json) com a segui
       maxTokens: 2000
     });
 
-    const plan = JSON.parse(response.text);
+    const cleanedText = cleanJsonResponse(response.text);
+    const plan = JSON.parse(cleanedText);
     logger.info('Task plan generated successfully', { title: plan.taskTitle });
     return plan;
   } catch (error: any) {
@@ -74,7 +97,8 @@ O idioma deve ser português do Brasil.`;
       maxTokens: 1500
     });
 
-    const mindMapData = JSON.parse(response.text);
+    const cleanedText = cleanJsonResponse(response.text);
+    const mindMapData = JSON.parse(cleanedText);
     logger.info('Mind map generated successfully');
     return mindMapData;
   } catch (error: any) {
