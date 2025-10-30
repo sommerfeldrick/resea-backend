@@ -55,7 +55,7 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
   gemini: {
     provider: 'gemini',
     apiKey: process.env.GEMINI_API_KEY,
-    model: process.env.GEMINI_MODEL || 'google/gemini-2.0-flash-exp:free',
+    model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
     enabled: !!process.env.GEMINI_API_KEY,
     priority: 4, // QUARTA OPÇÃO - Limitado a 250 req/dia
     rateLimits: {

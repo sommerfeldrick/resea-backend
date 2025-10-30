@@ -67,13 +67,13 @@ export const freeModels = {
 
   gemini: {
     quality: [
-      'google/gemini-2.0-flash-exp:free'            // 2.0 Flash - Melhor
+      'gemini-2.0-flash'            // 2.0 Flash - Melhor
     ],
     balanced: [
-      'google/gemini-2.0-flash-exp:free'            // 2.0 Flash
+      'gemini-2.0-flash'            // 2.0 Flash
     ],
     fast: [
-      'google/gemini-2.0-flash-exp:free'            // Flash é rápido
+      'gemini-2.0-flash'            // Flash é rápido
     ]
   }
 };
@@ -293,15 +293,15 @@ export const modelInfo = {
   },
 
   // GEMINI
-  'google/gemini-2.0-flash-exp:free': {
+    'gemini-2.0-flash': {
     provider: 'gemini',
-    name: 'Gemini 2.0 Flash Experimental',
+    name: 'Gemini 2.0 Flash',
     contextWindow: 1000000,
-    speed: 'medium',
-    quality: 'high',
-    freeTokensPerDay: 1000000,
-    freeLimitPerDay: 250
-  }
+    speed: 'very-fast',
+    quality: 'very-high',
+    freeTokensPerDay: null, // Unlimited dentro dos limites de taxa
+    cost: 0 // Grátis
+  },
 };
 
 /**
