@@ -2,6 +2,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { logger } from '../config/logger.js';
 import { withRetry } from '../utils/retry.js';
+import { grobidService } from './grobid.service.js';
 
 export interface AcademicPaper {
   id: string;
@@ -15,6 +16,18 @@ export interface AcademicPaper {
   source: string; // Qual API retornou isso
   isOpenAccess?: boolean;
   pdfUrl?: string;
+  sections?: {
+    introduction?: string;
+    methodology?: string;
+    results?: string;
+    discussion?: string;
+    conclusion?: string;
+  };
+  references?: Array<{
+    title: string;
+    authors: string[];
+    year?: number;
+  }>;
 }
 
 interface SearchOptions {
@@ -502,15 +515,72 @@ export async function buscaAcademicaUniversal(
 }
 
 /**
- * Helper: enriquecer com PDF (compatibilidade com código antigo)
+ * Helper: enriquecer com PDF usando GROBID
  */
 export async function enrichWithPDFContent(
   papers: AcademicPaper[],
   maxPdfs: number = 3
 ): Promise<AcademicPaper[]> {
-  // Já retorna papers enriquecidos do searchAll
-  // Esta função existe apenas para compatibilidade
-  return papers.slice(0, maxPdfs);
+  logger.info(`📄 Starting PDF enrichment for ${Math.min(papers.length, maxPdfs)} papers`);
+
+  const papersWithPdf = papers.filter(p => p.pdfUrl);
+  const toEnrich = papersWithPdf.slice(0, maxPdfs);
+
+  if (toEnrich.length === 0) {
+    logger.warn('No papers with PDF URLs found for enrichment');
+    return papers;
+  }
+
+  const enriched: AcademicPaper[] = [];
+  let successCount = 0;
+
+  for (const paper of toEnrich) {
+    try {
+      logger.info(`Downloading PDF: ${paper.title.substring(0, 60)}...`);
+
+      // Download PDF
+      const pdfResponse = await axios.get(paper.pdfUrl!, {
+        responseType: 'arraybuffer',
+        timeout: 30000,
+        maxContentLength: 50 * 1024 * 1024, // 50MB max
+        headers: {
+          'User-Agent': 'ResearchAssistant/1.0 (mailto:your@email.com)'
+        }
+      });
+
+      const pdfBuffer = Buffer.from(pdfResponse.data);
+      logger.info(`PDF downloaded: ${(pdfBuffer.length / 1024).toFixed(0)}KB`);
+
+      // Extract with GROBID
+      const extraction = await grobidService.extractFromPDF(pdfBuffer, `${paper.id}.pdf`);
+
+      if (extraction) {
+        enriched.push({
+          ...paper,
+          sections: extraction.sections,
+          references: extraction.references
+        });
+        successCount++;
+        logger.info(`✅ Successfully enriched: ${paper.title.substring(0, 60)}...`);
+      } else {
+        enriched.push(paper);
+        logger.warn(`⚠️  GROBID extraction returned null for: ${paper.title.substring(0, 60)}...`);
+      }
+    } catch (error: any) {
+      enriched.push(paper);
+      logger.error(`❌ Failed to enrich paper: ${paper.title.substring(0, 60)}...`, {
+        error: error.message,
+        pdfUrl: paper.pdfUrl
+      });
+    }
+  }
+
+  // Add remaining papers (não processados)
+  const remainingPapers = papers.slice(toEnrich.length);
+  enriched.push(...remainingPapers);
+
+  logger.info(`📄 PDF enrichment completed: ${successCount}/${toEnrich.length} successful`);
+  return enriched;
 }
 
 /**

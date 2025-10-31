@@ -63,12 +63,13 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
     enabled: !!process.env.GROQ_API_KEY
   },
 
-  // Ollama (LOCAL, completamente grátis)
+  // Ollama Cloud (GRÁTIS! Modelos cloud sem GPU necessária)
   ollama: {
     provider: 'ollama',
-    model: process.env.OLLAMA_MODEL || 'llama3.2',
-    baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-    enabled: process.env.OLLAMA_ENABLED === 'true'
+    apiKey: process.env.OLLAMA_API_KEY,
+    model: process.env.OLLAMA_MODEL || 'gpt-oss:120b-cloud',
+    baseUrl: process.env.OLLAMA_BASE_URL || 'https://ollama.com',
+    enabled: !!process.env.OLLAMA_API_KEY
   }
 };
 
@@ -279,26 +280,35 @@ async function generateWithGroq(prompt: string, options: any): Promise<AIRespons
 }
 
 /**
- * Ollama (LOCAL - GRÁTIS!)
+ * Ollama Cloud (GRÁTIS! Sem GPU necessária)
+ * Suporta: gpt-oss:120b-cloud, deepseek-v3.1:671b-cloud, etc.
  */
 async function generateWithOllama(prompt: string, options: any): Promise<AIResponse> {
   const config = aiConfigs.ollama;
 
+  // Ollama Cloud usa /api/chat (compatível com OpenAI)
   const response = await axios.post(
-    `${config.baseUrl}/api/generate`,
+    `${config.baseUrl}/api/chat`,
     {
       model: config.model,
-      prompt: options.systemPrompt
-        ? `${options.systemPrompt}\n\n${prompt}`
-        : prompt,
+      messages: [
+        ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
+        { role: 'user', content: prompt }
+      ],
       stream: false
+    },
+    {
+      headers: {
+        ...(config.apiKey && { 'Authorization': `Bearer ${config.apiKey}` }),
+        'Content-Type': 'application/json'
+      }
     }
   );
 
   return {
-    text: response.data.response,
+    text: response.data.message.content,
     provider: 'ollama',
-    cost: 0 // LOCAL - GRÁTIS!
+    cost: 0 // CLOUD - GRÁTIS!
   };
 }
 
