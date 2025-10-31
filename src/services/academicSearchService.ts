@@ -46,7 +46,14 @@ export class AcademicSearchService {
     doaj: 0,
     pubmed: 0,
     googleScholar: 0,
-    crossref: 0
+    crossref: 0,
+    europePmc: 0,
+    plos: 0,
+    biorxiv: 0,
+    medrxiv: 0,
+    unpaywall: 0,
+    openaire: 0,
+    datacite: 0
   };
 
   /**
@@ -57,7 +64,7 @@ export class AcademicSearchService {
     logger.info(`🔍 Starting comprehensive search for: "${query}"`);
     const startTime = Date.now();
 
-    // Busca em TODAS as fontes gratuitas simultaneamente
+    // Busca em TODAS as fontes gratuitas simultaneamente (15 APIs!)
     const results = await Promise.allSettled([
       this.searchOpenAlex(query, options),
       this.searchSemanticScholar(query, options),
@@ -65,7 +72,13 @@ export class AcademicSearchService {
       this.searchCORE(query, options),
       this.searchDOAJ(query, options),
       this.searchPubMed(query, options),
-      this.searchGoogleScholar(query, options)
+      this.searchEuropePMC(query, options),      // NOVO: 8.1M artigos biomédicos
+      this.searchPLOS(query, options),           // NOVO: 300K artigos OA
+      this.searchBioRxiv(query, options),        // NOVO: Preprints biologia
+      this.searchMedRxiv(query, options),        // NOVO: Preprints medicina
+      this.searchOpenAIRE(query, options),       // NOVO: 150M produtos pesquisa EU
+      this.searchDataCite(query, options),       // NOVO: 45M datasets
+      this.searchGoogleScholar(query, options)   // Backup scraping
     ]);
 
     // Coleta papers de todas as fontes que funcionaram
@@ -73,7 +86,10 @@ export class AcademicSearchService {
     let successCount = 0;
 
     results.forEach((result, index) => {
-      const sources = ['OpenAlex', 'Semantic Scholar', 'arXiv', 'CORE', 'DOAJ', 'PubMed', 'Google Scholar'];
+      const sources = [
+        'OpenAlex', 'Semantic Scholar', 'arXiv', 'CORE', 'DOAJ', 'PubMed',
+        'Europe PMC', 'PLOS', 'bioRxiv', 'medRxiv', 'OpenAIRE', 'DataCite', 'Google Scholar'
+      ];
       if (result.status === 'fulfilled' && result.value.length > 0) {
         allPapers.push(...result.value);
         successCount++;
@@ -439,6 +455,224 @@ export class AcademicSearchService {
       })) || [];
     } catch (error) {
       logger.error('CrossRef (PAID) search failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Europe PMC - 8.1M artigos biomédicos com XML estruturado
+   * https://europepmc.org/RestfulWebService
+   */
+  async searchEuropePMC(query: string, options: SearchOptions = {}): Promise<AcademicPaper[]> {
+    try {
+      this.usageStats.europePmc++;
+
+      let url = `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(query)}&format=json&resultType=core&pageSize=${options.maxResults || 20}`;
+
+      if (options.openAccessOnly) {
+        url += '&OPEN_ACCESS:y';
+      }
+
+      const response = await withRetry(
+        () => axios.get(url, { timeout: 10000 }),
+        { maxAttempts: 3, initialDelay: 1000 },
+        'Europe PMC search'
+      );
+
+      if (!response.data.resultList?.result) return [];
+
+      return response.data.resultList.result.map((article: any) => ({
+        id: article.pmid || article.pmcid || article.doi,
+        title: article.title,
+        authors: article.authorString?.split(', ') || [],
+        year: parseInt(article.pubYear),
+        abstract: article.abstractText,
+        url: `https://europepmc.org/article/${article.source}/${article.pmid || article.pmcid}`,
+        doi: article.doi,
+        citationCount: article.citedByCount,
+        source: 'Europe PMC',
+        isOpenAccess: article.isOpenAccess === 'Y',
+        pdfUrl: article.fullTextUrlList?.fullTextUrl?.find((u: any) => u.documentStyle === 'pdf')?.url
+      }));
+    } catch (error) {
+      logger.error('Europe PMC search failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * PLOS - 300K artigos 100% OA com busca texto completo
+   * https://api.plos.org
+   */
+  async searchPLOS(query: string, options: SearchOptions = {}): Promise<AcademicPaper[]> {
+    try {
+      this.usageStats.plos++;
+
+      const url = `https://api.plos.org/search?q=${encodeURIComponent(query)}&fl=id,title,author,abstract,publication_date,article_type&rows=${options.maxResults || 20}&wt=json`;
+
+      const response = await axios.get(url, { timeout: 10000 });
+
+      if (!response.data.response?.docs) return [];
+
+      return response.data.response.docs.map((doc: any) => ({
+        id: doc.id,
+        title: doc.title?.[0] || 'Untitled',
+        authors: doc.author || [],
+        year: parseInt(doc.publication_date?.substring(0, 4)),
+        abstract: doc.abstract?.[0],
+        url: `https://journals.plos.org/plosone/article?id=${doc.id}`,
+        doi: doc.id,
+        source: 'PLOS',
+        isOpenAccess: true, // PLOS é 100% OA
+        pdfUrl: `https://journals.plos.org/plosone/article/file?id=${doc.id}&type=printable`
+      }));
+    } catch (error) {
+      logger.error('PLOS search failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * bioRxiv - Preprints de biologia
+   * https://api.biorxiv.org
+   */
+  async searchBioRxiv(query: string, options: SearchOptions = {}): Promise<AcademicPaper[]> {
+    try {
+      this.usageStats.biorxiv++;
+
+      // bioRxiv API é baseada em datas, então busca últimos 2 anos
+      const endDate = new Date().toISOString().split('T')[0];
+      const startDate = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const url = `https://api.biorxiv.org/details/biorxiv/${startDate}/${endDate}/0/json`;
+
+      const response = await axios.get(url, { timeout: 15000 });
+
+      if (!response.data.collection) return [];
+
+      // Filtra por query no título ou abstract
+      const filtered = response.data.collection.filter((paper: any) => {
+        const searchText = `${paper.title} ${paper.abstract}`.toLowerCase();
+        return searchText.includes(query.toLowerCase());
+      });
+
+      return filtered.slice(0, options.maxResults || 20).map((paper: any) => ({
+        id: paper.doi,
+        title: paper.title,
+        authors: paper.authors?.split('; ') || [],
+        year: parseInt(paper.date?.substring(0, 4)),
+        abstract: paper.abstract,
+        url: `https://www.biorxiv.org/content/${paper.doi}`,
+        doi: paper.doi,
+        source: 'bioRxiv',
+        isOpenAccess: true,
+        pdfUrl: `https://www.biorxiv.org/content/${paper.doi}.full.pdf`
+      }));
+    } catch (error) {
+      logger.error('bioRxiv search failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * medRxiv - Preprints de medicina
+   * https://api.biorxiv.org (mesma API que bioRxiv)
+   */
+  async searchMedRxiv(query: string, options: SearchOptions = {}): Promise<AcademicPaper[]> {
+    try {
+      this.usageStats.medrxiv++;
+
+      const endDate = new Date().toISOString().split('T')[0];
+      const startDate = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const url = `https://api.biorxiv.org/details/medrxiv/${startDate}/${endDate}/0/json`;
+
+      const response = await axios.get(url, { timeout: 15000 });
+
+      if (!response.data.collection) return [];
+
+      const filtered = response.data.collection.filter((paper: any) => {
+        const searchText = `${paper.title} ${paper.abstract}`.toLowerCase();
+        return searchText.includes(query.toLowerCase());
+      });
+
+      return filtered.slice(0, options.maxResults || 20).map((paper: any) => ({
+        id: paper.doi,
+        title: paper.title,
+        authors: paper.authors?.split('; ') || [],
+        year: parseInt(paper.date?.substring(0, 4)),
+        abstract: paper.abstract,
+        url: `https://www.medrxiv.org/content/${paper.doi}`,
+        doi: paper.doi,
+        source: 'medRxiv',
+        isOpenAccess: true,
+        pdfUrl: `https://www.medrxiv.org/content/${paper.doi}.full.pdf`
+      }));
+    } catch (error) {
+      logger.error('medRxiv search failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * OpenAIRE - 150M produtos de pesquisa (foco Europa)
+   * https://api.openaire.eu
+   */
+  async searchOpenAIRE(query: string, options: SearchOptions = {}): Promise<AcademicPaper[]> {
+    try {
+      this.usageStats.openaire++;
+
+      const url = `https://api.openaire.eu/graph/researchProducts?search=${encodeURIComponent(query)}&size=${options.maxResults || 20}&sortBy=relevance`;
+
+      const response = await axios.get(url, { timeout: 10000 });
+
+      if (!response.data.results) return [];
+
+      return response.data.results.map((item: any) => ({
+        id: item.id,
+        title: item.mainTitle || 'Untitled',
+        authors: item.authors?.map((a: any) => a.fullName) || [],
+        year: parseInt(item.publicationDate?.substring(0, 4)),
+        abstract: item.description,
+        url: item.originalId || `https://explore.openaire.eu/search/publication?pid=${item.id}`,
+        doi: item.pids?.find((p: any) => p.type === 'doi')?.value,
+        source: 'OpenAIRE',
+        isOpenAccess: item.openAccessColor !== 'closed',
+        pdfUrl: item.fulltext
+      }));
+    } catch (error) {
+      logger.error('OpenAIRE search failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * DataCite - 45M datasets de pesquisa
+   * https://api.datacite.org
+   */
+  async searchDataCite(query: string, options: SearchOptions = {}): Promise<AcademicPaper[]> {
+    try {
+      this.usageStats.datacite++;
+
+      const url = `https://api.datacite.org/dois?query=${encodeURIComponent(query)}&page[size]=${options.maxResults || 20}&resource-type-id=dataset`;
+
+      const response = await axios.get(url, { timeout: 10000 });
+
+      if (!response.data.data) return [];
+
+      return response.data.data.map((item: any) => ({
+        id: item.id,
+        title: item.attributes.titles?.[0]?.title || 'Untitled',
+        authors: item.attributes.creators?.map((c: any) => c.name) || [],
+        year: parseInt(item.attributes.publicationYear),
+        abstract: item.attributes.descriptions?.[0]?.description,
+        url: item.attributes.url || `https://doi.org/${item.id}`,
+        doi: item.id,
+        source: 'DataCite (Dataset)',
+        isOpenAccess: true // DataCite é primariamente OA
+      }));
+    } catch (error) {
+      logger.error('DataCite search failed:', error);
       return [];
     }
   }
