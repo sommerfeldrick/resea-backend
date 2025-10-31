@@ -1,26 +1,43 @@
 /**
  * Serviço para gerar embeddings de texto
- * Usa HuggingFace Inference API com modelo multilingual
+ * Usa Ollama local com modelo multilingual
  */
 
-import { HfInference } from '@huggingface/inference';
+import axios from 'axios';
 
 export class EmbeddingsService {
-  private hf: HfInference;
-  private model: string = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2';
+  private ollamaUrl: string;
+  private model: string;
   private cache: Map<string, number[]> = new Map();
   private maxCacheSize: number = 1000;
 
   constructor() {
-    const apiKey = process.env.HUGGINGFACE_API_KEY;
-    if (!apiKey) {
-      console.warn('⚠️ HUGGINGFACE_API_KEY not set, embeddings will fail');
-    }
-    this.hf = new HfInference(apiKey);
+    this.ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    this.model = process.env.EMBEDDING_MODEL || 'nomic-embed-text';
+    
+    console.log(`🤖 Ollama Embeddings configured: ${this.ollamaUrl} with model ${this.model}`);
+    this.ensureModelPulled();
   }
 
   /**
-   * Gera embedding para um texto
+   * Garante que o modelo está baixado
+   */
+  private async ensureModelPulled(): Promise<void> {
+    try {
+      const response = await axios.post(`${this.ollamaUrl}/api/pull`, {
+        name: this.model,
+        stream: false,
+      }, { timeout: 300000 }); // 5 minutos timeout
+      
+      console.log(`✅ Modelo ${this.model} disponível no Ollama`);
+    } catch (error) {
+      console.warn(`⚠️ Não foi possível verificar modelo ${this.model}:`, error instanceof Error ? error.message : 'Unknown error');
+      console.log('💡 Execute: docker exec -it resea-ollama ollama pull nomic-embed-text');
+    }
+  }
+
+  /**
+   * Gera embedding para um texto usando Ollama
    */
   async generateEmbedding(text: string): Promise<number[]> {
     try {
@@ -30,20 +47,27 @@ export class EmbeddingsService {
         return this.cache.get(cacheKey)!;
       }
 
-      // Limita tamanho do texto (modelo suporta ~512 tokens)
-      const truncatedText = this.truncateText(text, 512);
+      // Limita tamanho do texto
+      const truncatedText = this.truncateText(text, 2048);
 
-      // Gera embedding
-      const response = await this.hf.featureExtraction({
-        model: this.model,
-        inputs: truncatedText,
-      });
+      // Gera embedding via Ollama API
+      const response = await axios.post(
+        `${this.ollamaUrl}/api/embeddings`,
+        {
+          model: this.model,
+          prompt: truncatedText,
+        },
+        { timeout: 30000 }
+      );
 
-      // Extrai array de números
-      const embedding = Array.isArray(response) ? response : Array.from(response as any);
+      const embedding = response.data.embedding as number[];
       
+      if (!embedding || !Array.isArray(embedding) || embedding.length === 0) {
+        throw new Error('Invalid embedding response from Ollama');
+      }
+
       // Normaliza o vetor
-      const normalized = this.normalizeVector(embedding as number[]);
+      const normalized = this.normalizeVector(embedding);
 
       // Salva no cache
       this.addToCache(cacheKey, normalized);

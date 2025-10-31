@@ -1,9 +1,9 @@
 /**
- * Serviço de Reranking usando Cross-Encoder
+ * Serviço de Reranking usando Ollama
  * Refina top-K resultados com análise mais profunda
  */
 
-import { HfInference } from '@huggingface/inference';
+import axios from 'axios';
 import { SearchResult } from './hybridSearch.service.js';
 
 export interface RerankResult extends SearchResult {
@@ -12,17 +12,33 @@ export interface RerankResult extends SearchResult {
 }
 
 export class RerankerService {
-  private hf: HfInference;
-  private model: string = 'cross-encoder/ms-marco-MiniLM-L-6-v2';
+  private ollamaUrl: string;
+  private model: string;
   private enabled: boolean = true;
 
   constructor() {
-    const apiKey = process.env.HUGGINGFACE_API_KEY;
-    if (!apiKey) {
-      console.warn('⚠️ HUGGINGFACE_API_KEY not set, reranking disabled');
-      this.enabled = false;
+    this.ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    this.model = process.env.RERANKER_MODEL || 'llama3.2:3b';
+    
+    console.log(`🤖 Ollama Reranker configured: ${this.ollamaUrl} with model ${this.model}`);
+    this.ensureModelPulled();
+  }
+
+  /**
+   * Garante que o modelo está baixado
+   */
+  private async ensureModelPulled(): Promise<void> {
+    try {
+      await axios.post(`${this.ollamaUrl}/api/pull`, {
+        name: this.model,
+        stream: false,
+      }, { timeout: 300000 });
+      
+      console.log(`✅ Modelo ${this.model} disponível no Ollama`);
+    } catch (error) {
+      console.warn(`⚠️ Não foi possível verificar modelo ${this.model}`);
+      console.log('💡 Execute: docker exec -it resea-ollama ollama pull llama3.2:3b');
     }
-    this.hf = new HfInference(apiKey);
   }
 
   /**
@@ -109,31 +125,48 @@ export class RerankerService {
   }
 
   /**
-   * Score para um par query-document
+   * Score para um par query-document usando Ollama
    */
   private async scoreQueryDocumentPair(
     query: string,
     result: SearchResult
   ): Promise<number> {
     try {
-      // Prepara texto do documento (título + abstract)
+      // Prepara texto do documento
       const documentText = this.prepareDocumentText(result);
 
-      // Usa sentence similarity como proxy para cross-encoder
-      // Em produção ideal, usar API de cross-encoder dedicada
-      const response = await this.hf.sentenceSimilarity({
-        model: this.model,
-        inputs: {
-          source_sentence: query,
-          sentences: [documentText],
-        },
-      });
+      // Usa Ollama para avaliar relevância
+      const prompt = `Rate the relevance of this document to the query on a scale of 0-10.
+Query: ${query}
+Document: ${documentText}
 
-      return Array.isArray(response) ? response[0] : 0;
+Relevance score (only number):`;
+
+      const response = await axios.post(
+        `${this.ollamaUrl}/api/generate`,
+        {
+          model: this.model,
+          prompt: prompt,
+          stream: false,
+          options: {
+            temperature: 0.1,
+            num_predict: 10,
+          }
+        },
+        { timeout: 15000 }
+      );
+
+      // Extrai score numérico da resposta
+      const responseText = response.data.response || '5';
+      const scoreMatch = responseText.match(/\d+(\.\d+)?/);
+      const score = scoreMatch ? parseFloat(scoreMatch[0]) : 5;
+
+      // Normaliza para [0, 1]
+      return Math.min(Math.max(score / 10, 0), 1);
 
     } catch (error) {
       console.error('Erro ao calcular score:', error);
-      return 0;
+      return 0.5; // Score neutro em caso de erro
     }
   }
 
