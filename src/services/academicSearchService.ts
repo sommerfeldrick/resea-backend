@@ -1,6 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { logger } from '../config/logger.js';
+import { withRetry } from '../utils/retry.js';
 
 export interface AcademicPaper {
   id: string;
@@ -112,10 +113,14 @@ export class AcademicSearchService {
         url += `&filter=from_publication_date:${options.startYear}-01-01`;
       }
 
-      const response = await axios.get(url, {
-        headers: { 'User-Agent': 'ResearchAssistant/1.0 (mailto:your@email.com)' },
-        timeout: 10000
-      });
+      const response = await withRetry(
+        () => axios.get(url, {
+          headers: { 'User-Agent': 'ResearchAssistant/1.0 (mailto:your@email.com)' },
+          timeout: 10000
+        }),
+        { maxAttempts: 3, initialDelay: 1000 },
+        'OpenAlex search'
+      );
 
       return response.data.results.map((work: any) => ({
         id: work.id,
@@ -155,7 +160,11 @@ export class AcademicSearchService {
         headers['x-api-key'] = process.env.SEMANTIC_SCHOLAR_KEY;
       }
 
-      const response = await axios.get(url, { headers, timeout: 10000 });
+      const response = await withRetry(
+        () => axios.get(url, { headers, timeout: 10000 }),
+        { maxAttempts: 3, initialDelay: 1000 },
+        'Semantic Scholar search'
+      );
 
       if (!response.data.data) return [];
 
@@ -187,7 +196,11 @@ export class AcademicSearchService {
 
       const url = `http://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&max_results=${options.maxResults || 20}&sortBy=relevance&sortOrder=descending`;
 
-      const response = await axios.get(url, { timeout: 10000 });
+      const response = await withRetry(
+        () => axios.get(url, { timeout: 10000 }),
+        { maxAttempts: 3, initialDelay: 1000 },
+        'arXiv search'
+      );
       const xml = response.data;
 
       // Parse XML
@@ -477,3 +490,35 @@ export class AcademicSearchService {
 
 // Singleton
 export const academicSearchService = new AcademicSearchService();
+
+/**
+ * Helper: busca universal (compatibilidade com código antigo)
+ */
+export async function buscaAcademicaUniversal(
+  query: string,
+  options: SearchOptions = {}
+): Promise<AcademicPaper[]> {
+  return academicSearchService.searchAll(query, options);
+}
+
+/**
+ * Helper: enriquecer com PDF (compatibilidade com código antigo)
+ */
+export async function enrichWithPDFContent(
+  papers: AcademicPaper[],
+  maxPdfs: number = 3
+): Promise<AcademicPaper[]> {
+  // Já retorna papers enriquecidos do searchAll
+  // Esta função existe apenas para compatibilidade
+  return papers.slice(0, maxPdfs);
+}
+
+/**
+ * Helper: estatísticas de busca (compatibilidade com código antigo)
+ */
+export function getSearchStats() {
+  return {
+    usageStats: academicSearchService.getUsageStats(),
+    totalSearches: Object.values(academicSearchService.getUsageStats()).reduce((a, b) => a + b, 0)
+  };
+}

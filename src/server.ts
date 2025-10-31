@@ -15,9 +15,10 @@ import documentsRoutes from './routes/documents.js';
 import aiRoutes from './routes/ai.js';
 import fulltextRoutes from './routes/fulltext.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
-import searchRoutes from './routes/search.js';  
+import searchRoutes from './routes/search.js';
 import metricsRoutes from './routes/metrics.js';
 import syncRoutes from './routes/sync.js';
+import healthRoutes from './routes/health.js';
 import { smileaiAuthRequired } from './middleware/smileaiAuth.js';
 import { creditsService } from './services/creditsService.js';
 import { initializeDatabase } from './config/migrations.js';
@@ -138,6 +139,7 @@ app.use('/api/fulltext', smileaiAuthRequired, fulltextRoutes);
 app.use('/api/search', smileaiAuthRequired, searchRoutes); 
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/sync', smileaiAuthRequired, syncRoutes);
+app.use('/api/health', healthRoutes);
 
 // Main API routes
 app.use('/api', apiRoutes);

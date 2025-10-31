@@ -1,5 +1,5 @@
 import { logger } from '../config/logger.js';
-import { buscaAcademicaUniversal, enrichWithPDFContent } from './academicSearch.js';
+import { buscaAcademicaUniversal, enrichWithPDFContent } from './academicSearchService.js';
 import { generateText } from './aiProvider.js';
 import { scrapeArticle, prepareForAI, calculateSavings } from './webScraper.js';
 import type {

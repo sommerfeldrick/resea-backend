@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { logger } from '../config/logger.js';
 import { getCache } from '../utils/cache.js';
-import { getSearchStats } from '../services/academicSearch.js';
+import { getSearchStats } from '../services/academicSearchService.js';
 import * as gemini from '../services/geminiService.js';
 import { getActiveProvider, getAvailableProviders, getProviderStats } from '../services/aiProvider.js';
 import {

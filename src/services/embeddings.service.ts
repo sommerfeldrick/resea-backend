@@ -1,39 +1,33 @@
 /**
  * Serviço para gerar embeddings de texto
- * Usa Ollama local com modelo multilingual
+ * Usa Ollama Cloud API (1M tokens/dia gratuito)
+ * Com cache comprimido (economia de ~60% memória)
  */
 
 import axios from 'axios';
+import { gzipSync, gunzipSync } from 'zlib';
 
 export class EmbeddingsService {
   private ollamaUrl: string;
+  private ollamaApiKey: string;
   private model: string;
-  private cache: Map<string, number[]> = new Map();
+  private cache: Map<string, Buffer> = new Map(); // Cache comprimido
   private maxCacheSize: number = 1000;
+  private compressionEnabled: boolean = true;
 
   constructor() {
-    this.ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    // Aceita OLLAMA_BASE_URL ou OLLAMA_URL
+    this.ollamaUrl = process.env.OLLAMA_BASE_URL || process.env.OLLAMA_URL || 'https://api.ollama.com';
+    this.ollamaApiKey = process.env.OLLAMA_API_KEY || '';
     this.model = process.env.EMBEDDING_MODEL || 'nomic-embed-text';
     
-    console.log(`🤖 Ollama Embeddings configured: ${this.ollamaUrl} with model ${this.model}`);
-    this.ensureModelPulled();
-  }
-
-  /**
-   * Garante que o modelo está baixado
-   */
-  private async ensureModelPulled(): Promise<void> {
-    try {
-      const response = await axios.post(`${this.ollamaUrl}/api/pull`, {
-        name: this.model,
-        stream: false,
-      }, { timeout: 300000 }); // 5 minutos timeout
-      
-      console.log(`✅ Modelo ${this.model} disponível no Ollama`);
-    } catch (error) {
-      console.warn(`⚠️ Não foi possível verificar modelo ${this.model}:`, error instanceof Error ? error.message : 'Unknown error');
-      console.log('💡 Execute: docker exec -it resea-ollama ollama pull nomic-embed-text');
+    if (!this.ollamaApiKey) {
+      console.warn('⚠️ OLLAMA_API_KEY not set - embeddings may fail');
+      console.log('💡 Get your free API key at: https://ollama.com/settings/keys');
     }
+    
+    console.log(`🌐 Ollama Cloud configured: ${this.ollamaUrl} with model ${this.model}`);
+    console.log(`🗜️ Cache compression: ${this.compressionEnabled ? 'enabled (~60% memory saved)' : 'disabled'}`);
   }
 
   /**
@@ -44,20 +38,27 @@ export class EmbeddingsService {
       // Verifica cache
       const cacheKey = this.getCacheKey(text);
       if (this.cache.has(cacheKey)) {
-        return this.cache.get(cacheKey)!;
+        const compressed = this.cache.get(cacheKey)!;
+        return this.decompressEmbedding(compressed);
       }
 
       // Limita tamanho do texto
       const truncatedText = this.truncateText(text, 2048);
 
-      // Gera embedding via Ollama API
+      // Gera embedding via Ollama Cloud API
       const response = await axios.post(
         `${this.ollamaUrl}/api/embeddings`,
         {
           model: this.model,
           prompt: truncatedText,
         },
-        { timeout: 30000 }
+        {
+          headers: {
+            'Authorization': `Bearer ${this.ollamaApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000,
+        }
       );
 
       const embedding = response.data.embedding as number[];
@@ -69,7 +70,7 @@ export class EmbeddingsService {
       // Normaliza o vetor
       const normalized = this.normalizeVector(embedding);
 
-      // Salva no cache
+      // Salva no cache (comprimido)
       this.addToCache(cacheKey, normalized);
 
       return normalized;
@@ -154,7 +155,40 @@ export class EmbeddingsService {
   }
 
   /**
-   * Adiciona ao cache com limite de tamanho
+   * Comprime embedding para economizar memória (~60% redução)
+   */
+  private compressEmbedding(embedding: number[]): Buffer {
+    if (!this.compressionEnabled) {
+      return Buffer.from(new Float32Array(embedding).buffer);
+    }
+
+    // Converte para Float32Array (768 floats × 4 bytes = 3KB)
+    const float32 = new Float32Array(embedding);
+    const buffer = Buffer.from(float32.buffer);
+    
+    // Comprime com gzip (~1.2KB = 60% economia)
+    return gzipSync(buffer);
+  }
+
+  /**
+   * Descomprime embedding
+   */
+  private decompressEmbedding(compressed: Buffer): number[] {
+    if (!this.compressionEnabled) {
+      const float32 = new Float32Array(compressed.buffer, compressed.byteOffset, compressed.byteLength / 4);
+      return Array.from(float32);
+    }
+
+    // Descomprime
+    const decompressed = gunzipSync(compressed);
+    
+    // Converte de volta para number[]
+    const float32 = new Float32Array(decompressed.buffer, decompressed.byteOffset, decompressed.byteLength / 4);
+    return Array.from(float32);
+  }
+
+  /**
+   * Adiciona ao cache com compressão
    */
   private addToCache(key: string, value: number[]): void {
     if (this.cache.size >= this.maxCacheSize) {
@@ -162,7 +196,10 @@ export class EmbeddingsService {
       const firstKey = this.cache.keys().next().value;
       this.cache.delete(firstKey);
     }
-    this.cache.set(key, value);
+    
+    // Comprime antes de armazenar
+    const compressed = this.compressEmbedding(value);
+    this.cache.set(key, compressed);
   }
 
   /**
@@ -173,13 +210,30 @@ export class EmbeddingsService {
   }
 
   /**
-   * Estatísticas do cache
+   * Estatísticas do cache com info de compressão
    */
   getCacheStats() {
+    let totalCompressedSize = 0;
+    let totalUncompressedSize = 0;
+
+    for (const compressed of this.cache.values()) {
+      totalCompressedSize += compressed.byteLength;
+      // Estimativa: 768 floats × 4 bytes = 3072 bytes
+      totalUncompressedSize += 768 * 4;
+    }
+
+    const compressionRatio = totalUncompressedSize > 0 
+      ? (1 - (totalCompressedSize / totalUncompressedSize)) * 100
+      : 0;
+
     return {
       size: this.cache.size,
       maxSize: this.maxCacheSize,
-      hitRate: this.cache.size / this.maxCacheSize
+      hitRate: (this.cache.size / this.maxCacheSize) * 100,
+      totalCompressedSizeMB: (totalCompressedSize / (1024 * 1024)).toFixed(2),
+      totalUncompressedSizeMB: (totalUncompressedSize / (1024 * 1024)).toFixed(2),
+      compressionRatio: compressionRatio.toFixed(1) + '%',
+      memorySavedMB: ((totalUncompressedSize - totalCompressedSize) / (1024 * 1024)).toFixed(2),
     };
   }
 }

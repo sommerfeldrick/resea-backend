@@ -1,5 +1,5 @@
 /**
- * Serviço de Reranking usando Ollama
+ * Serviço de Reranking usando Ollama Cloud
  * Refina top-K resultados com análise mais profunda
  */
 
@@ -13,32 +13,22 @@ export interface RerankResult extends SearchResult {
 
 export class RerankerService {
   private ollamaUrl: string;
+  private ollamaApiKey: string;
   private model: string;
   private enabled: boolean = true;
 
   constructor() {
-    this.ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
-    this.model = process.env.RERANKER_MODEL || 'llama3.2:3b';
+    // Aceita OLLAMA_BASE_URL ou OLLAMA_URL
+    this.ollamaUrl = process.env.OLLAMA_BASE_URL || process.env.OLLAMA_URL || 'https://api.ollama.com';
+    this.ollamaApiKey = process.env.OLLAMA_API_KEY || '';
+    this.model = process.env.RERANKER_MODEL || 'llama3.2';
     
-    console.log(`🤖 Ollama Reranker configured: ${this.ollamaUrl} with model ${this.model}`);
-    this.ensureModelPulled();
-  }
-
-  /**
-   * Garante que o modelo está baixado
-   */
-  private async ensureModelPulled(): Promise<void> {
-    try {
-      await axios.post(`${this.ollamaUrl}/api/pull`, {
-        name: this.model,
-        stream: false,
-      }, { timeout: 300000 });
-      
-      console.log(`✅ Modelo ${this.model} disponível no Ollama`);
-    } catch (error) {
-      console.warn(`⚠️ Não foi possível verificar modelo ${this.model}`);
-      console.log('💡 Execute: docker exec -it resea-ollama ollama pull llama3.2:3b');
+    if (!this.ollamaApiKey) {
+      console.warn('⚠️ OLLAMA_API_KEY not set - reranking disabled');
+      this.enabled = false;
     }
+    
+    console.log(`🌐 Ollama Cloud Reranker configured: ${this.ollamaUrl} with model ${this.model}`);
   }
 
   /**
@@ -153,7 +143,13 @@ Relevance score (only number):`;
             num_predict: 10,
           }
         },
-        { timeout: 15000 }
+        {
+          headers: {
+            'Authorization': `Bearer ${this.ollamaApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 15000,
+        }
       );
 
       // Extrai score numérico da resposta
