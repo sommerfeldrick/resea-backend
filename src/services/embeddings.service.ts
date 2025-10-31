@@ -83,26 +83,84 @@ export class EmbeddingsService {
 
   /**
    * Gera embeddings para múltiplos textos em lote
+   * Otimizado: verifica cache primeiro, trata erros individuais, rate limiting
    */
   async generateBatchEmbeddings(texts: string[]): Promise<number[][]> {
-    const embeddings: number[][] = [];
-    
-    // Processa em lotes de 10 para não sobrecarregar a API
-    const batchSize = 10;
-    for (let i = 0; i < texts.length; i += batchSize) {
-      const batch = texts.slice(i, i + batchSize);
-      const batchResults = await Promise.all(
-        batch.map(text => this.generateEmbedding(text))
-      );
-      embeddings.push(...batchResults);
-      
-      // Pequeno delay entre lotes
-      if (i + batchSize < texts.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+    const startTime = Date.now();
+    let cacheHits = 0;
+    let cacheMisses = 0;
+    let errors = 0;
+
+    // Separa textos em cache e não-cache
+    const toFetch: { index: number; text: string }[] = [];
+    const results: (number[] | null)[] = new Array(texts.length).fill(null);
+
+    // Primeiro: verifica cache (rápido, síncrono)
+    for (let i = 0; i < texts.length; i++) {
+      const cacheKey = this.getCacheKey(texts[i]);
+      if (this.cache.has(cacheKey)) {
+        try {
+          const compressed = this.cache.get(cacheKey)!;
+          results[i] = this.decompressEmbedding(compressed);
+          cacheHits++;
+        } catch (error) {
+          console.warn(`Cache decompression failed for text ${i}, will re-fetch`);
+          toFetch.push({ index: i, text: texts[i] });
+          cacheMisses++;
+        }
+      } else {
+        toFetch.push({ index: i, text: texts[i] });
+        cacheMisses++;
       }
     }
-    
-    return embeddings;
+
+    // Segundo: busca embeddings faltantes em lotes de 10
+    const batchSize = 10;
+    for (let i = 0; i < toFetch.length; i += batchSize) {
+      const batch = toFetch.slice(i, i + batchSize);
+
+      // Promise.allSettled para não falhar o batch inteiro se 1 falhar
+      const batchResults = await Promise.allSettled(
+        batch.map(({ text }) => this.generateEmbedding(text))
+      );
+
+      // Processa resultados individuais
+      batchResults.forEach((result, batchIndex) => {
+        const { index } = batch[batchIndex];
+
+        if (result.status === 'fulfilled') {
+          results[index] = result.value;
+        } else {
+          console.error(
+            `Failed to generate embedding for text ${index}:`,
+            result.reason?.message || 'Unknown error'
+          );
+          // Fallback: vetor zero (ou poderia usar embedding de texto vazio)
+          results[index] = new Array(768).fill(0);
+          errors++;
+        }
+      });
+
+      // Rate limiting: delay progressivo entre lotes
+      if (i + batchSize < toFetch.length) {
+        const delay = Math.min(100 + (i / batchSize) * 50, 500); // 100ms -> 500ms
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(
+      `📊 Batch embeddings completed: ${texts.length} texts in ${duration}ms`,
+      {
+        cacheHits,
+        cacheMisses,
+        errors,
+        hitRate: ((cacheHits / texts.length) * 100).toFixed(1) + '%'
+      }
+    );
+
+    // Remove nulls (não deveria haver, mas por segurança)
+    return results.filter((r): r is number[] => r !== null);
   }
 
   /**

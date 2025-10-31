@@ -31,15 +31,18 @@ export class MemoryCache {
     return entry.data as T;
   }
 
-  async set<T>(key: string, data: T, ttl?: number): Promise<void> {
+  async set<T>(key: string, data: T, ttl?: number | null): Promise<void> {
     const entry: CacheEntry<T> = {
       data,
       timestamp: Date.now(),
-      ttl: ttl || this.defaultTTL
+      ttl: ttl === null ? Infinity : (ttl ?? this.defaultTTL) // null = persistent (Infinity TTL)
     };
 
     this.cache.set(key, entry);
-    logger.debug('Cache set', { key, ttl: entry.ttl });
+    logger.debug('Cache set', {
+      key,
+      ttl: entry.ttl === Infinity ? 'persistent' : `${entry.ttl}ms`
+    });
   }
 
   async delete(key: string): Promise<void> {
@@ -55,8 +58,15 @@ export class MemoryCache {
   private cleanup(): void {
     const now = Date.now();
     let removed = 0;
+    let persistent = 0;
 
     for (const [key, entry] of this.cache.entries()) {
+      // Não remove entradas persistentes (ttl === Infinity)
+      if (entry.ttl === Infinity) {
+        persistent++;
+        continue;
+      }
+
       if (now - entry.timestamp > entry.ttl) {
         this.cache.delete(key);
         removed++;
@@ -64,14 +74,31 @@ export class MemoryCache {
     }
 
     if (removed > 0) {
-      logger.debug('Cache cleanup completed', { removed, remaining: this.cache.size });
+      logger.debug('Cache cleanup completed', {
+        removed,
+        persistent,
+        remaining: this.cache.size
+      });
     }
   }
 
   getStats() {
+    let persistent = 0;
+    let expiring = 0;
+
+    for (const entry of this.cache.values()) {
+      if (entry.ttl === Infinity) {
+        persistent++;
+      } else {
+        expiring++;
+      }
+    }
+
     return {
       size: this.cache.size,
-      keys: Array.from(this.cache.keys())
+      persistent,
+      expiring,
+      keys: Array.from(this.cache.keys()).slice(0, 10) // Mostra apenas 10 primeiras chaves
     };
   }
 
