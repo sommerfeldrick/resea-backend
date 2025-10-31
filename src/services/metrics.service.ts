@@ -3,30 +3,31 @@
  * Monitora performance e uso do sistema
  */
 
-import { Register, Counter, Histogram, Gauge, collectDefaultMetrics } from 'prom-client';
+import promClient from 'prom-client';
+const { Registry, Counter, Histogram, Gauge, collectDefaultMetrics } = promClient;
 
 export class MetricsService {
-  private register: Register;
+  private register: promClient.Registry;
 
   // Contadores
-  public searchesTotal: Counter;
-  public extractionsTotal: Counter;
-  public indexingTotal: Counter;
-  public errorsTotal: Counter;
+  public searchesTotal: promClient.Counter;
+  public extractionsTotal: promClient.Counter;
+  public indexingTotal: promClient.Counter;
+  public errorsTotal: promClient.Counter;
 
   // Histogramas (latência)
-  public searchDuration: Histogram;
-  public extractionDuration: Histogram;
-  public indexingDuration: Histogram;
-  public rerankDuration: Histogram;
+  public searchDuration: promClient.Histogram;
+  public extractionDuration: promClient.Histogram;
+  public indexingDuration: promClient.Histogram;
+  public rerankDuration: promClient.Histogram;
 
   // Gauges (estado atual)
-  public indexedPapers: Gauge;
-  public cacheSize: Gauge;
-  public activeRequests: Gauge;
+  public indexedPapers: promClient.Gauge;
+  public cacheSize: promClient.Gauge;
+  public activeRequests: promClient.Gauge;
 
   constructor() {
-    this.register = new Register();
+    this.register = new Registry();
     
     // Métricas padrão do Node.js
     collectDefaultMetrics({ register: this.register });
@@ -218,7 +219,7 @@ export class MetricsService {
   /**
    * Retorna registro para uso customizado
    */
-  getRegister(): Register {
+  getRegister(): promClient.Registry {
     return this.register;
   }
 }

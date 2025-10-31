@@ -38,4 +38,5 @@ export const getClient = async () => {
 
 export const isConnected = () => !!pool;
 
+export { pool };
 export default pool;

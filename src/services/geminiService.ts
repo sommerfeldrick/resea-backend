@@ -156,12 +156,12 @@ export async function performResearchStep(
     const enriched = await enrichWithPDFContent(academicResults, 3);
 
     const sources: AcademicSource[] = enriched.map((res) => ({
-      uri: res.link,
-      title: res.titulo,
-      authors: res.autores,
-      year: res.ano,
-      summary: res.resumo,
-      sourceProvider: res.fonte,
+      uri: res.url,
+      title: res.title,
+      authors: res.authors.join(', '),
+      year: res.year,
+      summary: res.abstract || '',
+      sourceProvider: res.source,
       citationCount: res.citationCount,
       doi: res.doi,
       pdfUrl: res.pdfUrl

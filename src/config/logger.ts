@@ -8,7 +8,7 @@ const consoleFormat = printf(({ level, message, timestamp, stack, service, userI
 
   // Add context identifiers
   if (service) msg += ` [${service}]`;
-  if (requestId) msg += ` [req:${requestId.substring(0, 8)}]`;
+  if (requestId && typeof requestId === 'string') msg += ` [req:${requestId.substring(0, 8)}]`;
   if (userId) msg += ` [user:${userId}]`;
 
   msg += `: ${message}`;
