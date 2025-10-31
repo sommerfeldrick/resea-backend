@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { hybridSearchService } from '../services/hybridSearch.service.js';
 import { rerankerService } from '../services/reranker.service.js';
+import { queryExpansionService } from '../services/queryExpansion.service.js';
 import { metricsService, measureDuration } from '../services/metrics.service.js';
 import { FullPaper } from '../types/fullPaper.js';
 
@@ -12,20 +13,40 @@ const router = Router();
  */
 router.post('/hybrid', async (req: Request, res: Response) => {
   try {
-    const { query, limit = 20, useReranker = true } = req.body;
+    const { query, limit = 20, useReranker = true, expandQuery = true } = req.body;
 
     if (!query) {
       return res.status(400).json({ error: 'Query is required' });
     }
 
-    console.log(`🔍 Hybrid search: "${query}" (limit: ${limit}, reranker: ${useReranker})`);
+    console.log(`🔍 Hybrid search: "${query}" (limit: ${limit}, reranker: ${useReranker}, expansion: ${expandQuery})`);
 
     metricsService.incrementActiveRequests('search');
 
     try {
-      // 1. Busca híbrida
+      // 1. Query Expansion (automático por padrão)
+      let searchQuery = query;
+      let expansionData = null;
+      
+      if (expandQuery) {
+        const { result: expanded, durationSeconds: expansionDuration } = 
+          await measureDuration(() => queryExpansionService.expandQuery(query));
+        
+        // Usa top 3 termos expandidos
+        searchQuery = [query, ...expanded.expanded.slice(1, 4)].join(' ');
+        expansionData = {
+          original: query,
+          expanded: expanded.expanded,
+          synonyms: expanded.synonyms,
+          durationSeconds: expansionDuration,
+        };
+        
+        console.log(`📝 Query expandida em ${expansionDuration.toFixed(2)}s: ${expanded.expanded.slice(0, 3).join(', ')}`);
+      }
+
+      // 2. Busca híbrida (com query expandida)
       const { result: searchResults, durationSeconds: searchDuration } = 
-        await measureDuration(() => hybridSearchService.search(query, limit * 5));
+        await measureDuration(() => hybridSearchService.search(searchQuery, limit * 5));
 
       metricsService.recordSearch('hybrid', searchDuration, true);
 
@@ -50,13 +71,15 @@ router.post('/hybrid', async (req: Request, res: Response) => {
 
       return res.json({
         query,
+        expansion: expansionData,
         totalFound: searchResults.length,
         returned: finalResults.length,
         results: finalResults,
         timing: {
+          expansionSeconds: expansionData?.durationSeconds || 0,
           searchSeconds: searchDuration,
           rerankSeconds: rerankDuration,
-          totalSeconds: searchDuration + rerankDuration,
+          totalSeconds: (expansionData?.durationSeconds || 0) + searchDuration + rerankDuration,
         },
       });
 

@@ -17,10 +17,12 @@ import fulltextRoutes from './routes/fulltext.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import searchRoutes from './routes/search.js';  
 import metricsRoutes from './routes/metrics.js';
+import syncRoutes from './routes/sync.js';
 import { smileaiAuthRequired } from './middleware/smileaiAuth.js';
 import { creditsService } from './services/creditsService.js';
 import { initializeDatabase } from './config/migrations.js';
 import { getEnabledProviders } from './services/ai/index.js';
+import { incrementalIndexingService } from './services/incrementalIndexing.service.js';
 
 // Load environment variables first
 config();
@@ -135,6 +137,7 @@ app.use('/api/documents', smileaiAuthRequired, documentsRoutes);
 app.use('/api/fulltext', smileaiAuthRequired, fulltextRoutes);
 app.use('/api/search', smileaiAuthRequired, searchRoutes); 
 app.use('/api/metrics', metricsRoutes);
+app.use('/api/sync', smileaiAuthRequired, syncRoutes);
 
 // Main API routes
 app.use('/api', apiRoutes);
@@ -249,17 +252,25 @@ app.listen(PORT, () => {
   logger.info(`🕷️  Web Scraping: Enabled ✓`);
   logger.info(`📊 Research API: /api/research/*`);
   logger.info(`🩺 AI Health Check: GET /api/ai/health`);
+  
+  // 🔄 Inicia Incremental Indexing automático
+  const syncInterval = process.env.SYNC_INTERVAL_MINUTES || '60';
+  logger.info(`🔄 Starting Incremental Indexing (every ${syncInterval} minutes)...`);
+  incrementalIndexingService.start();
+  logger.info(`✅ Incremental Indexing started - papers will sync automatically`);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
+  incrementalIndexingService.stop();
   await creditsService.disconnect();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully');
+  incrementalIndexingService.stop();
   await creditsService.disconnect();
   process.exit(0);
 });
