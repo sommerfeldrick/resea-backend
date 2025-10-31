@@ -15,6 +15,8 @@ import documentsRoutes from './routes/documents.js';
 import aiRoutes from './routes/ai.js';
 import fulltextRoutes from './routes/fulltext.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import searchRoutes from './routes/search.js';  
+import metricsRoutes from './routes/metrics.js';
 import { smileaiAuthRequired } from './middleware/smileaiAuth.js';
 import { creditsService } from './services/creditsService.js';
 import { initializeDatabase } from './config/migrations.js';
@@ -131,6 +133,8 @@ app.use('/api/research', smileaiAuthRequired, researchRoutes);
 // Documents routes (history, statistics)
 app.use('/api/documents', smileaiAuthRequired, documentsRoutes);
 app.use('/api/fulltext', smileaiAuthRequired, fulltextRoutes);
+app.use('/api/search', smileaiAuthRequired, searchRoutes); 
+app.use('/api/metrics', metricsRoutes);
 
 // Main API routes
 app.use('/api', apiRoutes);
