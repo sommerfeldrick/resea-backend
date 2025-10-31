@@ -2,6 +2,7 @@ import { logger } from '../config/logger.js';
 import { buscaAcademicaUniversal, enrichWithPDFContent } from './academicSearchService.js';
 import { generateText } from './aiProvider.js';
 import { scrapeArticle, prepareForAI, calculateSavings } from './webScraper.js';
+import { filterRelevantPapers } from '../utils/relevanceFilter.js';
 import type {
   TaskPlan,
   MindMapData,
@@ -152,8 +153,27 @@ export async function performResearchStep(
       };
     }
 
+    // 🆕 Filtrar papers por relevância (score mínimo: 0.3)
+    const relevantPapers = filterRelevantPapers(academicResults, originalQuery, 0.3);
+
+    if (relevantPapers.length === 0) {
+      logger.warn('No relevant papers found after filtering', {
+        step,
+        originalCount: academicResults.length
+      });
+      return {
+        summary: `Nenhum artigo relevante encontrado para: "${originalQuery}". Os ${academicResults.length} papers encontrados não são relacionados ao tema.`,
+        sources: []
+      };
+    }
+
+    logger.info(`Filtered ${academicResults.length} papers → ${relevantPapers.length} relevant`, {
+      query: originalQuery,
+      filteredOut: academicResults.length - relevantPapers.length
+    });
+
     // Optionally enrich top results with full PDF content
-    const enriched = await enrichWithPDFContent(academicResults, 3);
+    const enriched = await enrichWithPDFContent(relevantPapers, 3);
 
     const sources: AcademicSource[] = enriched.map((res) => ({
       uri: res.url,
@@ -397,20 +417,48 @@ export async function* generateContentStream(
     - Título: ${plan.taskTitle}
     - Descrição: ${JSON.stringify(plan.taskDescription)}
 
-    FONTES DE PESQUISA:
+    FONTES DE PESQUISA (${uniqueSources.length} papers científicos):
     ${researchContext}
 
-    Escreva um documento acadêmico completo em português do Brasil, seguindo:
+    ⚠️ ATENÇÃO: Você DEVE citar TODAS as fontes acima ao longo do texto usando o formato [CITE:FONTE_X] (AUTOR, ANO).
 
-    1. **Estrutura ABNT**: Introdução, Desenvolvimento (capítulos numerados), Conclusão
-    2. **Citações**: Use [CITE:FONTE_X] seguido de (AUTOR, ANO)
-       Exemplo: "...resultados significativos [CITE:FONTE_1] (SILVA et al., 2022)."
-    3. **Linguagem**: Formal, impessoal, clara e acadêmica
-    4. **Formato**: Markdown com seções numeradas
-    5. **Referências**: Seção final com TODAS as fontes em formato ABNT:
-       SOBRENOME, N. **Título do artigo**. Disponível em: <URL>. Acesso em: ${new Date().toLocaleDateString('pt-BR')}.
+    Escreva um documento acadêmico completo em português do Brasil, seguindo RIGOROSAMENTE:
 
-    Comece agora com o título principal.
+    1. **Estrutura ABNT Completa**:
+       - Título principal (# Título)
+       - Resumo executivo (## Resumo)
+       - Introdução (## 1. Introdução)
+       - Desenvolvimento com capítulos numerados (## 2. ..., ## 3. ...)
+       - Conclusão (## ${uniqueSources.length + 2}. Conclusão)
+       - Referências Bibliográficas (## Referências)
+
+    2. **Citações OBRIGATÓRIAS em CADA parágrafo**:
+       Formato: "...afirmação científica [CITE:FONTE_1] (SILVA et al., 2022)."
+
+       EXEMPLO CORRETO:
+       "A análise de elementos finitos (AEF) tem sido amplamente utilizada na biomecânica oral [CITE:FONTE_1] (YANG et al., 2020). Estudos recentes demonstram sua eficácia na simulação de forças oclusais [CITE:FONTE_2] (FERREIRA; SANTOS, 2021)."
+
+       ❌ INCORRETO (sem citações): "A análise de elementos finitos é importante na odontologia."
+       ✅ CORRETO (com citações): "A análise de elementos finitos é importante na odontologia [CITE:FONTE_1] (YANG et al., 2020)."
+
+    3. **Linguagem Acadêmica**:
+       - Tom formal e impessoal
+       - Verbos no presente do indicativo ou pretérito perfeito
+       - Evite opinião pessoal, use "observa-se que", "verificou-se que"
+
+    4. **Formato Markdown**:
+       - Títulos com ## (h2) e ### (h3)
+       - Parágrafos com quebras de linha duplas
+       - Negrito em termos técnicos importantes
+
+    5. **Seção de Referências COMPLETA**:
+       Liste TODAS as ${uniqueSources.length} fontes em formato ABNT:
+
+       SOBRENOME, Prenome. **Título do artigo**. _Nome da revista_, v. X, n. Y, p. Z-W, ano. Disponível em: <URL>. Acesso em: ${new Date().toLocaleDateString('pt-BR')}.
+
+    6. **Tamanho Mínimo**: ${plan.taskDescription.wordCount || '3000-5000 palavras'}
+
+    COMECE AGORA COM O DOCUMENTO COMPLETO. NÃO ESQUEÇA DE CITAR CADA FONTE!
     `;
 
     // Use multi-AI provider
