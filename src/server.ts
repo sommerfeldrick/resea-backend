@@ -13,6 +13,7 @@ import templatesRoutes from './routes/templates.js';
 import researchRoutes from './routes/research.js';
 import documentsRoutes from './routes/documents.js';
 import aiRoutes from './routes/ai.js';
+import fulltextRoutes from './routes/fulltext.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { smileaiAuthRequired } from './middleware/smileaiAuth.js';
 import { creditsService } from './services/creditsService.js';
@@ -129,6 +130,7 @@ app.use('/api/research', smileaiAuthRequired, researchRoutes);
 
 // Documents routes (history, statistics)
 app.use('/api/documents', smileaiAuthRequired, documentsRoutes);
+app.use('/api/fulltext', smileaiAuthRequired, fulltextRoutes);
 
 // Main API routes
 app.use('/api', apiRoutes);
