@@ -49,8 +49,27 @@ export class HybridSearchService {
             size: vectorSize,
             distance: 'Cosine',
           },
+          // 🆕 Quantização para economizar 75% de memória
+          quantization_config: {
+            scalar: {
+              type: 'int8',
+              quantile: 0.99,
+              always_ram: true
+            }
+          },
+          // 🆕 Otimizações de performance
+          optimizers_config: {
+            default_segment_number: 2,
+            indexing_threshold: 20000,
+          },
+          // 🆕 HNSW para busca rápida
+          hnsw_config: {
+            m: 16,
+            ef_construct: 100,
+            full_scan_threshold: 10000
+          }
         });
-        console.log(`✅ Coleção '${this.collectionName}' criada no Qdrant`);
+        console.log(`✅ Coleção '${this.collectionName}' criada no Qdrant com quantização int8 (75% economia memória)`);
       } else {
         console.log(`✅ Coleção '${this.collectionName}' já existe`);
       }

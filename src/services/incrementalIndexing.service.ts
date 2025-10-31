@@ -6,6 +6,7 @@
 import { hybridSearchService } from './hybridSearch.service.js';
 import { FullTextExtractorService } from './fullTextExtractor.service.js';
 import { metricsService } from './metrics.service.js';
+import { smartCache } from './smartCache.service.js';
 import axios from 'axios';
 
 // Instância do extractor
@@ -152,20 +153,40 @@ export class IncrementalIndexingService {
    * Busca novos papers de uma fonte específica
    */
   private async fetchNewPapersFromSource(source: string): Promise<any[]> {
+    // 🆕 Busca último timestamp de sync do cache
+    const lastSyncKey = `last_sync:${source}`;
+    const lastSyncTimestamp = await smartCache.get<number>(lastSyncKey);
+
     const now = new Date();
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const since = lastSyncTimestamp
+      ? new Date(lastSyncTimestamp)
+      : new Date(now.getTime() - 24 * 60 * 60 * 1000); // Default: 24h ago
+
+    console.log(`📅 Fetching ${source} papers since ${since.toISOString()}`);
+
+    let papers: any[] = [];
 
     switch (source) {
       case 'semanticScholar':
-        return this.fetchFromSemanticScholar(oneDayAgo);
-      
+        papers = await this.fetchFromSemanticScholar(since);
+        break;
+
       case 'arxiv':
-        return this.fetchFromArxiv(oneDayAgo);
-      
+        papers = await this.fetchFromArxiv(since);
+        break;
+
       default:
         console.warn(`⚠️ Fonte desconhecida: ${source}`);
         return [];
     }
+
+    // 🆕 Salva timestamp atual no cache (7 dias de TTL)
+    if (papers.length > 0) {
+      await smartCache.set(lastSyncKey, now.getTime(), 7 * 24 * 60 * 60);
+      console.log(`✅ Saved sync timestamp for ${source}`);
+    }
+
+    return papers;
   }
 
   /**
