@@ -20,6 +20,7 @@ import metricsRoutes from './routes/metrics.js';
 import syncRoutes from './routes/sync.js';
 import healthRoutes from './routes/health.js';
 import { smileaiAuthRequired } from './middleware/smileaiAuth.js';
+import { requestTracing, errorLogging } from './middleware/requestTracing.js';
 import { creditsService } from './services/creditsService.js';
 import { initializeDatabase } from './config/migrations.js';
 import { getEnabledProviders } from './services/ai/index.js';
@@ -83,6 +84,9 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization']
   })
 );
+
+// Request tracing (correlation IDs)
+app.use(requestTracing);
 
 // Compression
 app.use(compression());
@@ -203,6 +207,7 @@ app.get('/', (req, res) => {
 // ============================================================
 
 app.use(notFoundHandler);
+app.use(errorLogging); // Log errors with request context
 app.use(errorHandler);
 
 // ============================================================
