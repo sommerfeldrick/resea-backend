@@ -252,3 +252,50 @@ export function getPriorityFromScore(score: number): ArticlePriority {
   if (score >= 50) return 'P2';  // Bom
   return 'P3';                   // Aceitável
 }
+
+// ============================================
+// QUALITY METRICS TYPES
+// ============================================
+
+/**
+ * Métricas detalhadas de qualidade de um artigo
+ */
+export interface ArticleQualityMetrics {
+  citationCount: number;
+  citationsPerYear: number;
+  journalImpactFactor?: number;
+  recency: number;                    // Years since publication
+  semanticRelevance: number;          // 0-1 (cosine similarity with query)
+  authorHIndex?: number;
+  qualityScore: number;               // 0-100
+  formatQuality?: number;             // Bonus for structured formats
+  bestFormat?: ArticleFormat;
+}
+
+/**
+ * Artigo enriquecido com métricas de qualidade e prioridade
+ */
+export interface EnrichedArticle extends AcademicArticle {
+  metrics: ArticleQualityMetrics;
+  priority: 1 | 2 | 3;               // P1=1, P2=2, P3=3
+}
+
+// ============================================
+// COMPATIBILITY ALIASES
+// ============================================
+
+/**
+ * Aliases para compatibilidade com código legado
+ * Mapeia nomes antigos para novos campos
+ */
+export interface AcademicArticleCompat extends AcademicArticle {
+  // Aliases para código que usa nomes em português
+  titulo?: string;        // Alias para title
+  resumo?: string;        // Alias para abstract
+  autores?: string[];     // Alias para authors
+  ano?: number;           // Alias para year
+  fonte?: string;         // Alias para journal
+  link?: string;          // Alias para url
+  citacoes?: number;      // Alias para citationCount
+  score?: number;         // Alias para searchMetadata.relevanceScore
+}

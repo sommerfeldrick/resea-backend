@@ -53,6 +53,113 @@ export const YEAR_RECENCY = {
   OLDER: 1,                 // Older than 10 years
 } as const;
 
+/**
+ * Quality weights for advanced scoring (alternative system)
+ * Used by QualityScorer service
+ */
+export const QUALITY_WEIGHTS_ADVANCED = {
+  citations: 0.30,    // 30% weight for citation count
+  trend: 0.20,        // 20% weight for citation trend (cit/year)
+  impact: 0.20,       // 20% weight for journal impact factor
+  recency: 0.15,      // 15% weight for recency
+  relevance: 0.10,    // 10% weight for semantic relevance
+  author: 0.05,       // 5% weight for author H-index
+} as const;
+
+/**
+ * Recency scores by age brackets
+ */
+export const RECENCY_SCORES = {
+  veryRecent: { maxYears: 1, score: 15 },    // < 1 year
+  recent: { maxYears: 3, score: 12 },        // 1-3 years
+  medium: { maxYears: 5, score: 9 },         // 3-5 years
+  old: { maxYears: 10, score: 5 },           // 5-10 years
+  veryOld: { maxYears: Infinity, score: 2 }, // 10+ years
+} as const;
+
+/**
+ * Format quality bonuses (0-8 points)
+ */
+export const FORMAT_BONUS: Record<string, number> = {
+  jats: 8,      // JATS XML (best structure)
+  tei: 7,       // TEI XML (GROBID output)
+  latex: 6,     // LaTeX source
+  json: 5,      // JSON structured
+  html: 4,      // HTML semantic
+  epub: 3,      // EPUB
+  pdf: 2,       // PDF (requires parsing)
+  plain: 0,     // Plain text (no bonus)
+} as const;
+
+/**
+ * Journal and conference tiers for impact scoring
+ */
+export const JOURNAL_TIERS = {
+  tier1: {
+    score: 20,
+    journals: [
+      'NATURE',
+      'SCIENCE',
+      'CELL',
+      'LANCET',
+      'NEW ENGLAND JOURNAL OF MEDICINE',
+      'NEJM',
+      'JAMA',
+      'BMJ',
+      'PNAS',
+      'NATURE COMMUNICATIONS',
+      'NATURE METHODS',
+      'NATURE BIOTECHNOLOGY',
+    ],
+    conferences: [
+      'NEURIPS',
+      'ICML',
+      'ICLR',
+      'CVPR',
+      'ICCV',
+      'ECCV',
+      'ACL',
+      'EMNLP',
+      'NAACL',
+      'SIGMOD',
+      'VLDB',
+      'KDD',
+    ],
+  },
+  tier2: {
+    score: 12,
+    journals: [
+      'PLOS',
+      'SCIENTIFIC REPORTS',
+      'ELIFE',
+      'FRONTIERS',
+      'BMC',
+      'SPRINGER',
+      'ELSEVIER',
+      'WILEY',
+      'OXFORD',
+      'CAMBRIDGE',
+    ],
+    conferences: [
+      'AAAI',
+      'IJCAI',
+      'ICRA',
+      'IROS',
+      'RSS',
+      'SIGGRAPH',
+      'CHI',
+      'WWW',
+      'ICSE',
+      'ASE',
+    ],
+  },
+  tier3: {
+    score: 5,
+    journals: [],  // Default for unknown journals
+    conferences: [],
+  },
+} as const;
+
 // ============================================
 // ARTICLE TYPE REQUIREMENTS
 // ============================================
