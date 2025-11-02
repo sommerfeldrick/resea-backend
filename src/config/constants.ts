@@ -92,6 +92,22 @@ export const FORMAT_BONUS: Record<string, number> = {
 } as const;
 
 /**
+ * Format priorities for content acquisition (1-10, higher = better)
+ * Used by multi-format-detector to prioritize download attempts
+ */
+export const FORMAT_PRIORITY: Record<string, number> = {
+  'jats-xml': 10,        // JATS XML (best structure)
+  'tei-xml': 9,          // TEI XML (GROBID)
+  'latex-source': 8,     // LaTeX source
+  'json-structured': 7,  // JSON structured
+  'html-semantic': 6,    // HTML semantic
+  'epub': 5,             // EPUB
+  'pdf': 4,              // PDF
+  'docx': 3,             // Word document
+  'txt': 2,              // Plain text
+} as const;
+
+/**
  * Journal and conference tiers for impact scoring
  */
 export const JOURNAL_TIERS = {

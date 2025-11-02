@@ -49,6 +49,11 @@ export interface AcademicArticle {
   title: string;
   authors: string[];
 
+  // IDs externos (para full-text access)
+  pmcid?: string;              // PubMed Central ID (para JATS XML)
+  arxivId?: string;            // arXiv ID (para LaTeX source)
+  pmid?: string;               // PubMed ID
+
   // Metadata
   abstract?: string;
   year?: number;
@@ -109,11 +114,7 @@ export interface AcademicArticle {
   };
 
   // Formatos disponíveis
-  availableFormats?: {
-    format: ArticleFormat;
-    url: string;
-    quality: 'high' | 'medium' | 'low';  // Qualidade do parsing
-  }[];
+  availableFormats?: AvailableFormat[];
 
   // Texto completo estruturado
   fullText?: {
@@ -269,7 +270,7 @@ export interface ArticleQualityMetrics {
   authorHIndex?: number;
   qualityScore: number;               // 0-100
   formatQuality?: number;             // Bonus for structured formats
-  bestFormat?: ArticleFormat;
+  bestFormat?: ArticleFormat | string;
 }
 
 /**
@@ -278,6 +279,23 @@ export interface ArticleQualityMetrics {
 export interface EnrichedArticle extends AcademicArticle {
   metrics: ArticleQualityMetrics;
   priority: 1 | 2 | 3;               // P1=1, P2=2, P3=3
+}
+
+// ============================================
+// AVAILABLE FORMAT TYPES
+// ============================================
+
+/**
+ * Formato disponível para download/parsing
+ */
+export interface AvailableFormat {
+  format: ArticleFormat | string;  // jats, latex, pdf, etc
+  url?: string;                    // URL para download
+  content?: string;                // Conteúdo direto (CORE)
+  priority: number;                // 1-10 (maior = melhor)
+  validated: boolean;              // URL testada?
+  size?: number;                   // Bytes
+  quality?: 'high' | 'medium' | 'low';
 }
 
 // ============================================

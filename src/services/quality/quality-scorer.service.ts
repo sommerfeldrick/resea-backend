@@ -80,7 +80,7 @@ export class QualityScorerService {
 
     // Structured format bonus (+0-8 points)
     let formatQuality: number | undefined;
-    let bestFormat: ArticleFormat | undefined;
+    let bestFormat: ArticleFormat | string | undefined;
 
     if (article.availableFormats && article.availableFormats.length > 0) {
       bestFormat = article.availableFormats[0].format;
