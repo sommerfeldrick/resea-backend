@@ -7,7 +7,8 @@ import { getActiveProvider, getAvailableProviders, getProviderStats } from '../s
 import {
   GenerateTaskPlanRequestSchema,
   TaskPlanSchema,
-  ResearchStepRequestSchema
+  ResearchStepRequestSchema,
+  TaskPlan
 } from '../types/index.js';
 
 const router = Router();
@@ -53,7 +54,7 @@ router.post('/generate-plan', async (req: Request, res: Response) => {
  */
 router.post('/generate-mindmap', async (req: Request, res: Response) => {
   try {
-    const plan = TaskPlanSchema.parse(req.body);
+    const plan = TaskPlanSchema.parse(req.body) as TaskPlan;
 
     logger.info('API: Generate mindmap request', { title: plan.taskTitle });
 
