@@ -260,11 +260,18 @@ app.listen(PORT, () => {
   logger.info(`📊 Research API: /api/research/*`);
   logger.info(`🩺 AI Health Check: GET /api/ai/health`);
   
-  // 🔄 Inicia Incremental Indexing automático
-  const syncInterval = process.env.SYNC_INTERVAL_MINUTES || '60';
-  logger.info(`🔄 Starting Incremental Indexing (every ${syncInterval} minutes)...`);
-  incrementalIndexingService.start();
-  logger.info(`✅ Incremental Indexing started - papers will sync automatically`);
+  // 🔄 Incremental Indexing (opcional - baseado em histórico de buscas dos usuários)
+  const autoIndexingEnabled = process.env.ENABLE_AUTO_INDEXING === 'true';
+  if (autoIndexingEnabled) {
+    const syncInterval = process.env.SYNC_INTERVAL_MINUTES || '60';
+    logger.info(`🔄 Starting Incremental Indexing (every ${syncInterval} minutes)...`);
+    logger.info(`   Mode: User-driven (indexes based on search history)`);
+    incrementalIndexingService.start();
+    logger.info(`✅ Incremental Indexing started - papers will sync based on user searches`);
+  } else {
+    logger.info(`⏸️  Incremental Indexing disabled (set ENABLE_AUTO_INDEXING=true to enable)`);
+    logger.info(`   Papers will be indexed on-demand when users search`);
+  }
 });
 
 // Graceful shutdown

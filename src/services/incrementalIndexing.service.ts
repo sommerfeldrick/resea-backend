@@ -7,6 +7,7 @@ import { hybridSearchService } from './hybridSearch.service.js';
 import { FullTextExtractorService } from './fullTextExtractor.service.js';
 import { metricsService } from './metrics.service.js';
 import { smartCache } from './smartCache.service.js';
+import { PostgresService } from './database/postgres.service.js';
 import axios from 'axios';
 
 // Instância do extractor
@@ -33,8 +34,10 @@ export class IncrementalIndexingService {
   private status: SyncStatus;
   private intervalId: NodeJS.Timeout | null = null;
   private lastProcessedIds: Set<string> = new Set();
+  private postgres: PostgresService;
 
   constructor() {
+    this.postgres = new PostgresService();
     this.config = {
       sources: ['semanticScholar', 'arxiv'],
       interval: parseInt(process.env.SYNC_INTERVAL_MINUTES || '60'), // 1 hora padrão
@@ -190,40 +193,87 @@ export class IncrementalIndexingService {
   }
 
   /**
-   * Busca papers recentes do Semantic Scholar
+   * Busca queries populares do histórico de pesquisas dos usuários
+   */
+  private async getPopularQueries(limit: number = 10): Promise<string[]> {
+    try {
+      // Busca sessions recentes ao invés de search_history
+      const result = await this.postgres['pool'].query(`
+        SELECT query, COUNT(*) as count
+        FROM research_sessions
+        WHERE created_at > NOW() - INTERVAL '7 days'
+        GROUP BY query
+        ORDER BY count DESC
+        LIMIT $1
+      `, [limit]);
+
+      if (result.rows.length === 0) {
+        console.log('📭 Nenhuma busca no histórico ainda');
+        return [];
+      }
+
+      return result.rows.map((row: any) => row.query);
+    } catch (error) {
+      console.error('❌ Erro ao buscar queries populares:', error);
+      // Retorna array vazio se houver erro - não indexa nada sem histórico
+      return [];
+    }
+  }
+
+  /**
+   * Busca papers recentes do Semantic Scholar baseado em histórico de usuários
    */
   private async fetchFromSemanticScholar(since: Date): Promise<any[]> {
     try {
       const apiKey = process.env.SEMANTIC_SCHOLAR_KEY;
       const headers = apiKey ? { 'x-api-key': apiKey } : {};
 
-      // Busca papers recentes em áreas relevantes
+      // 🎯 Busca queries do histórico de pesquisas dos usuários
+      const popularQueries = await this.getPopularQueries(5);
+
+      if (popularQueries.length === 0) {
+        console.log('📭 Nenhuma query no histórico - pulando sync');
+        return [];
+      }
+
+      console.log(`📊 Top queries dos usuários: ${popularQueries.join(', ')}`);
+
       const fields = 'paperId,title,abstract,year,citationCount,authors,publicationDate';
-      const query = 'computer science OR artificial intelligence';
-      
-      // Semantic Scholar date format: year only or range (YYYY-MM-DD:YYYY-MM-DD)
-      const now = new Date();
-      const sinceDate = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, '0')}-${String(since.getDate()).padStart(2, '0')}`;
-      const nowDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const allPapers: any[] = [];
 
-      const response = await axios.get(
-        `https://api.semanticscholar.org/graph/v1/paper/search`,
-        {
-          params: {
-            query,
-            fields,
-            limit: this.config.maxPapersPerSync,
-            publicationDateOrYear: `${sinceDate}:${nowDate}`,
-          },
-          headers,
-          timeout: 30000,
+      // Busca papers para cada query popular (sem filtro de data)
+      for (const query of popularQueries) {
+        try {
+          const response = await axios.get(
+            `https://api.semanticscholar.org/graph/v1/paper/search`,
+            {
+              params: {
+                query,
+                fields,
+                limit: Math.floor(this.config.maxPapersPerSync / popularQueries.length),
+                // SEM filtro de data - busca papers de qualquer ano!
+              },
+              headers,
+              timeout: 30000,
+            }
+          );
+
+          const papers = response.data.data || [];
+          allPapers.push(...papers);
+
+          // Delay entre requisições para respeitar rate limit
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error: any) {
+          console.error(`⚠️ Erro ao buscar "${query}": ${error.message}`);
+          // Continua com as outras queries
         }
-      );
+      }
 
-      const papers = response.data.data || [];
-      
       // Filtra papers já processados
-      return papers.filter((p: any) => !this.lastProcessedIds.has(p.paperId));
+      const uniquePapers = allPapers.filter((p: any) => !this.lastProcessedIds.has(p.paperId));
+      console.log(`✅ Encontrados ${uniquePapers.length} papers únicos baseados em buscas dos usuários`);
+
+      return uniquePapers;
 
     } catch (error) {
       console.error('Erro ao buscar Semantic Scholar:', error);
