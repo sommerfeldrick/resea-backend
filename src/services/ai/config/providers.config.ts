@@ -11,7 +11,7 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
     provider: 'ollama',
     apiKey: process.env.OLLAMA_API_KEY, // Chave para Ollama Cloud
     model: process.env.OLLAMA_MODEL || 'gpt-oss:120b-cloud', // Modelo default
-    baseUrl: process.env.OLLAMA_BASE_URL || 'https://ollama.com', // Nuvem por default
+    baseUrl: process.env.OLLAMA_BASE_URL || 'https://api.ollama.com', // API Cloud correta
     enabled: !!process.env.OLLAMA_API_KEY, // Habilitado se tiver API key
     priority: 1, // PRIMEIRA OPÇÃO - Maior capacidade
     rateLimits: {
