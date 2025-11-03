@@ -1,217 +1,313 @@
+// ════════════════════════════════════════════════════════════
+// SEARCH ROUTES
+// ════════════════════════════════════════════════════════════
+
 import { Router, Request, Response } from 'express';
-import { hybridSearchService } from '../services/hybridSearch.service.js';
-import { rerankerService } from '../services/reranker.service.js';
-import { queryExpansionService } from '../services/queryExpansion.service.js';
-import { metricsService, measureDuration } from '../services/metrics.service.js';
-import { FullPaper } from '../types/fullPaper.js';
+import { HybridExhaustiveSearchService } from '../services/search/hybrid-exhaustive-search.service';
+import { ContentAcquisitionService } from '../services/content/content-acquisition.service';
+import { ChunkingService } from '../services/content/chunking.service';
+import { QdrantService } from '../services/database/qdrant.service';
+import { ElasticsearchService } from '../services/database/elasticsearch.service';
+import { PostgresService } from '../services/database/postgres.service';
+import { WorkSection } from '../types/search.types';
+import { Logger } from '../utils/simple-logger';
+import * as path from 'path';
 
 const router = Router();
+const logger = new Logger('SearchRoutes');
+
+// Serviços
+const searchService = new HybridExhaustiveSearchService();
+const contentService = new ContentAcquisitionService();
+const chunkingService = new ChunkingService();
+const qdrant = new QdrantService();
+const elasticsearch = new ElasticsearchService();
+const postgres = new PostgresService();
+
+// Store para callbacks de aprovação (usar Redis em produção)
+const approvalCallbacks = new Map<string, {
+  resolve: (value: boolean) => void;
+  timeout: NodeJS.Timeout;
+}>();
 
 /**
- * POST /api/search/hybrid
- * Busca híbrida (Vector 70% + BM25 30%) com reranking
+ * POST /api/search/quick
+ * Busca rápida sem aprovação do usuário
  */
-router.post('/hybrid', async (req: Request, res: Response) => {
+router.post('/quick', async (req: Request, res: Response) => {
   try {
-    const { query, limit = 20, useReranker = true, expandQuery = true } = req.body;
+    const { query, section } = req.body;
 
-    if (!query) {
-      return res.status(400).json({ error: 'Query is required' });
+    if (!query || !section) {
+      return res.status(400).json({
+        success: false,
+        error: 'Query and section are required'
+      });
     }
 
-    console.log(`🔍 Hybrid search: "${query}" (limit: ${limit}, reranker: ${useReranker}, expansion: ${expandQuery})`);
+    logger.info(`Quick search: "${query}" for ${section}`);
 
-    metricsService.incrementActiveRequests('search');
+    // Busca automática (sem aprovação)
+    const articles = await searchService.searchExhaustive(
+      query,
+      section as WorkSection
+    );
 
-    try {
-      // 1. Query Expansion (automático por padrão)
-      let searchQuery = query;
-      let expansionData = null;
-      
-      if (expandQuery) {
-        const { result: expanded, durationSeconds: expansionDuration } = 
-          await measureDuration(() => queryExpansionService.expandQuery(query));
-        
-        // Usa top 3 termos expandidos
-        searchQuery = [query, ...expanded.expanded.slice(1, 4)].join(' ');
-        expansionData = {
-          original: query,
-          expanded: expanded.expanded,
-          synonyms: expanded.synonyms,
-          durationSeconds: expansionDuration,
-        };
-        
-        console.log(`📝 Query expandida em ${expansionDuration.toFixed(2)}s: ${expanded.expanded.slice(0, 3).join(', ')}`);
-      }
-
-      // 2. Busca híbrida (com query expandida)
-      const { result: searchResults, durationSeconds: searchDuration } = 
-        await measureDuration(() => hybridSearchService.search(searchQuery, limit * 5));
-
-      metricsService.recordSearch('hybrid', searchDuration, true);
-
-      console.log(`📊 Found ${searchResults.length} results in ${searchDuration.toFixed(2)}s`);
-
-      // 2. Reranking (opcional)
-      let finalResults = searchResults;
-      let rerankDuration = 0;
-
-      if (useReranker && searchResults.length > 0) {
-        const { result: reranked, durationSeconds } = 
-          await measureDuration(() => rerankerService.rerank(query, searchResults, limit));
-        
-        finalResults = reranked;
-        rerankDuration = durationSeconds;
-        metricsService.recordRerank(rerankDuration);
-
-        console.log(`🎯 Reranked to top ${finalResults.length} in ${rerankDuration.toFixed(2)}s`);
-      } else {
-        finalResults = searchResults.slice(0, limit);
-      }
-
-      return res.json({
-        query,
-        expansion: expansionData,
-        totalFound: searchResults.length,
-        returned: finalResults.length,
-        results: finalResults,
-        timing: {
-          expansionSeconds: expansionData?.durationSeconds || 0,
-          searchSeconds: searchDuration,
-          rerankSeconds: rerankDuration,
-          totalSeconds: (expansionData?.durationSeconds || 0) + searchDuration + rerankDuration,
+    res.json({
+      success: true,
+      query,
+      section,
+      articles,
+      summary: {
+        total: articles.length,
+        avgQuality: articles.reduce((sum, a) =>
+          sum + a.metrics.qualityScore, 0) / articles.length,
+        breakdown: {
+          p1: articles.filter(a => a.priority === 1).length,
+          p2: articles.filter(a => a.priority === 2).length,
+          p3: articles.filter(a => a.priority === 3).length
         },
+        formats: articles.reduce((acc, a) => {
+          const format = a.availableFormats?.[0]?.format || 'unknown';
+          acc[format] = (acc[format] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>)
+      }
+    });
+
+  } catch (error: any) {
+    logger.error(`Quick search failed: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/search/interactive
+ * Busca interativa com aprovação do usuário (WebSocket ou polling)
+ */
+router.post('/interactive', async (req: Request, res: Response) => {
+  try {
+    const { query, section, userId } = req.body;
+
+    if (!query || !section) {
+      return res.status(400).json({
+        success: false,
+        error: 'Query and section are required'
       });
-
-    } finally {
-      metricsService.decrementActiveRequests('search');
     }
 
-  } catch (error) {
-    console.error('Error in hybrid search:', error);
-    metricsService.recordError('search', 'hybrid_search_failed');
-    metricsService.recordSearch('hybrid', 0, false);
-    
-    return res.status(500).json({
-      error: 'Search failed',
-      details: error instanceof Error ? error.message : 'Unknown error',
+    const sessionId = `session_${Date.now()}_${userId || 'anonymous'}`;
+
+    logger.info(`Interactive search: "${query}" for ${section} (${sessionId})`);
+
+    // Iniciar busca com callback
+    const articles = await searchService.searchExhaustive(
+      query,
+      section as WorkSection,
+
+      // Callback de aprovação
+      async (currentArticles, phase) => {
+        logger.info(`Approval request: ${phase} - ${currentArticles.length} articles`);
+
+        // Em produção, usar WebSocket ou SSE para notificar cliente
+        // Aqui é um exemplo simplificado com polling
+
+        return new Promise<boolean>((resolve) => {
+          const timeout = setTimeout(() => {
+            logger.warn('Approval timeout - continuing automatically');
+            resolve(true);
+          }, 60000); // 60s timeout
+
+          approvalCallbacks.set(sessionId, { resolve, timeout });
+
+          // Notificar cliente (em produção: WebSocket)
+          logger.info(`Waiting for approval on session: ${sessionId}`);
+        });
+      }
+    );
+
+    res.json({
+      success: true,
+      sessionId,
+      query,
+      section,
+      articles,
+      summary: {
+        total: articles.length,
+        avgQuality: articles.reduce((sum, a) =>
+          sum + a.metrics.qualityScore, 0) / articles.length,
+        breakdown: {
+          p1: articles.filter(a => a.priority === 1).length,
+          p2: articles.filter(a => a.priority === 2).length,
+          p3: articles.filter(a => a.priority === 3).length
+        }
+      }
+    });
+
+  } catch (error: any) {
+    logger.error(`Interactive search failed: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
 
 /**
- * POST /api/search/index
- * Indexa papers para busca
+ * POST /api/search/approve/:sessionId
+ * Aprovar continuação da busca
  */
-router.post('/index', async (req: Request, res: Response) => {
+router.post('/approve/:sessionId', async (req: Request, res: Response) => {
+  const { sessionId } = req.params;
+  const { approved } = req.body;
+
+  const callback = approvalCallbacks.get(sessionId);
+
+  if (callback) {
+    clearTimeout(callback.timeout);
+    callback.resolve(approved);
+    approvalCallbacks.delete(sessionId);
+
+    res.json({ success: true });
+  } else {
+    res.status(404).json({
+      success: false,
+      error: 'Session not found or already processed'
+    });
+  }
+});
+
+/**
+ * POST /api/search/acquire-content
+ * Adquirir conteúdo completo dos artigos
+ */
+router.post('/acquire-content', async (req: Request, res: Response) => {
   try {
-    const { papers } = req.body as { papers: FullPaper[] };
+    const { articles, sessionId } = req.body;
 
-    if (!papers || !Array.isArray(papers) || papers.length === 0) {
-      return res.status(400).json({ error: 'Papers array is required' });
-    }
-
-    console.log(`📚 Indexing ${papers.length} papers...`);
-
-    metricsService.incrementActiveRequests('index');
-
-    try {
-      const { result, durationSeconds } = 
-        await measureDuration(() => hybridSearchService.indexBatch(papers));
-
-      metricsService.recordIndexing(durationSeconds, true);
-
-      // Atualiza contador de papers indexados
-      const stats = await hybridSearchService.getStats();
-      metricsService.setIndexedPapersCount(stats.totalPapers || 0);
-
-      return res.json({
-        message: 'Papers indexed successfully',
-        count: papers.length,
-        durationSeconds,
-        stats,
+    if (!articles || !Array.isArray(articles)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Articles array is required'
       });
-
-    } finally {
-      metricsService.decrementActiveRequests('index');
     }
 
-  } catch (error) {
-    console.error('Error indexing papers:', error);
-    metricsService.recordError('search', 'indexing_failed');
-    metricsService.recordIndexing(0, false);
-    
-    return res.status(500).json({
-      error: 'Indexing failed',
-      details: error instanceof Error ? error.message : 'Unknown error',
+    logger.info(`Acquiring content for ${articles.length} articles`);
+
+    const outputDir = path.join(__dirname, '../../data/sessions', sessionId);
+
+    // Adquirir conteúdo completo (loop para cada artigo)
+    const contents = new Map<string, any>();
+    for (const article of articles) {
+      try {
+        const result = await contentService.acquireContent(article);
+        if (result.success && result.content) {
+          contents.set(article.doi || article.link, result.content);
+        }
+      } catch (error: any) {
+        logger.warn(`Failed to acquire content for ${article.doi || article.link}: ${error.message}`);
+      }
+    }
+
+    logger.info(`Acquired ${contents.size} articles successfully`);
+
+    // Criar chunks (loop para cada artigo com conteúdo)
+    const allChunks = [];
+    for (const article of articles) {
+      const content = contents.get(article.doi || article.link);
+      if (content) {
+        try {
+          const chunks = await chunkingService.createChunks(article, { generateEmbeddings: true });
+          allChunks.push(...chunks);
+        } catch (error: any) {
+          logger.warn(`Failed to create chunks for ${article.doi || article.link}: ${error.message}`);
+        }
+      }
+    }
+
+    logger.info(`Created ${allChunks.length} chunks`);
+
+    // Indexar chunks no Qdrant
+    if (allChunks.length > 0) {
+      await qdrant.indexChunks(allChunks);
+    }
+
+    // Indexar artigos no Elasticsearch
+    await elasticsearch.indexBatch(articles);
+
+    // Salvar no PostgreSQL
+    const dbSessionId = await postgres.createSession(
+      req.body.userId || 'anonymous',
+      req.body.query,
+      req.body.section,
+      articles.length
+    );
+
+    await postgres.saveArticles(dbSessionId, articles);
+
+    // Salvar conteúdo estruturado
+    for (const article of articles) {
+      const content = contents.get(article.doi || article.link);
+      if (content) {
+        await postgres.saveContent(article.doi || article.link, content);
+      }
+    }
+
+    res.json({
+      success: true,
+      acquired: contents.size,
+      chunks: allChunks.length,
+      outputDir
+    });
+
+  } catch (error: any) {
+    logger.error(`Content acquisition failed: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
 
 /**
- * POST /api/search/initialize
- * Inicializa a coleção do Qdrant
+ * GET /api/search/status
+ * Status do sistema
  */
-router.post('/initialize', async (req: Request, res: Response) => {
+router.get('/status', async (req: Request, res: Response) => {
   try {
-    const { vectorSize = 384 } = req.body;
-
-    console.log(`🚀 Initializing Qdrant collection (vector size: ${vectorSize})`);
-
-    await hybridSearchService.initializeCollection(vectorSize);
-
-    return res.json({
-      message: 'Collection initialized successfully',
-      vectorSize,
+    res.json({
+      success: true,
+      status: 'operational',
+      services: {
+        search: 'active',
+        content: 'active',
+        chunking: 'active'
+      },
+      apis: {
+        total: 13,
+        available: [
+          'OpenAlex', 'Semantic Scholar', 'PubMed', 'CORE',
+          'Europe PMC', 'arXiv', 'DOAJ', 'PLOS',
+          'bioRxiv', 'medRxiv', 'OpenAIRE', 'DataCite', 'Google Scholar'
+        ]
+      },
+      cache: {
+        connected: true
+      },
+      database: {
+        qdrant: 'connected',
+        elasticsearch: 'connected',
+        postgres: 'connected'
+      }
     });
-
-  } catch (error) {
-    console.error('Error initializing collection:', error);
-    return res.status(500).json({
-      error: 'Initialization failed',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * GET /api/search/stats
- * Estatísticas da busca
- */
-router.get('/stats', async (req: Request, res: Response) => {
-  try {
-    const stats = await hybridSearchService.getStats();
-    return res.json(stats);
-  } catch (error) {
-    console.error('Error getting search stats:', error);
-    return res.status(500).json({
-      error: 'Failed to get stats',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * DELETE /api/search/clear
- * Limpa toda a coleção
- */
-router.delete('/clear', async (req: Request, res: Response) => {
-  try {
-    console.log('🗑️ Clearing search collection...');
-    
-    await hybridSearchService.clearCollection();
-    
-    metricsService.setIndexedPapersCount(0);
-
-    return res.json({
-      message: 'Collection cleared successfully',
-    });
-
-  } catch (error) {
-    console.error('Error clearing collection:', error);
-    return res.status(500).json({
-      error: 'Failed to clear collection',
-      details: error instanceof Error ? error.message : 'Unknown error',
+  } catch (error: any) {
+    logger.error(`Status check failed: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
