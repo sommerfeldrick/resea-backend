@@ -339,6 +339,7 @@ export const SECTION_PATTERNS = {
  */
 export const CACHE_TTL = {
   SEARCH_RESULTS: 3600000,     // 1 hour
+  SEMANTIC_CACHE: 7200000,     // 2 hours (for semantic query cache)
   EMBEDDINGS: Infinity,        // Persistent (never expire)
   PDF_CONTENT: 86400000,       // 24 hours
   API_RESPONSE: 1800000,       // 30 minutes
