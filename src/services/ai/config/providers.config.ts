@@ -25,7 +25,7 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
   groq: {
     provider: 'groq',
     apiKey: process.env.GROQ_API_KEY,
-    model: process.env.GROQ_MODEL || 'llama-3.1-70b-versatile',
+    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', // Atualizado - modelo ativo
     baseUrl: 'https://api.groq.com/openai/v1',
     enabled: !!process.env.GROQ_API_KEY,
     priority: 2, // SEGUNDA OPÇÃO
@@ -112,7 +112,7 @@ export const modelsByUseCase = {
   },
   fast_generation: {
     primary: 'groq',
-    model: 'llama-3.1-70b-versatile'
+    model: 'llama-3.3-70b-versatile' // Atualizado - modelo ativo
   },
   flexible_fallback: {
     primary: 'openrouter',
