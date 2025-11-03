@@ -16,19 +16,19 @@ export type ModelQuality = 'fast' | 'balanced' | 'quality';
 export const freeModels = {
   ollama: {
     quality: [
-      'gpt-oss:120b-cloud',           // 120B - Melhor qualidade
-      'deepseek-v3.1:671b-cloud',     // 671B - Ultra-poderoso
+      'deepseek-v3.1:671b-cloud',     // 671B - Ultra-poderoso (PRIMARY)
+      'gpt-oss:120b-cloud',           // 120B - Ótima qualidade
       'qwen3-coder:480b-cloud'        // 480B - Code specialization
     ],
     balanced: [
-      'gpt-oss:120b-cloud',           // 120B - Bom balanço
+      'deepseek-v3.1:671b-cloud',     // 671B - Melhor balanço (PRIMARY)
       'glm-4.6:cloud',                // GLM 4.6 - Speed/quality balance
       'kimi-k2:cloud'                 // Kimi K2 - Alternativa
     ],
     fast: [
       'glm-4.6:cloud',                // GLM 4.6 - Rápido
       'minimax-m2:cloud',             // MiniMax M2 - Ultra-rápido
-      'gpt-oss:120b-cloud'            // Fallback
+      'deepseek-v3.1:671b-cloud'      // Fallback (ainda poderoso)
     ]
   },
 

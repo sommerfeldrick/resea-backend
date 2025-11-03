@@ -67,8 +67,8 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
   ollama: {
     provider: 'ollama',
     apiKey: process.env.OLLAMA_API_KEY,
-    model: process.env.OLLAMA_MODEL || 'gpt-oss:120b-cloud',
-    baseUrl: process.env.OLLAMA_BASE_URL || 'https://ollama.com',
+    model: process.env.OLLAMA_MODEL || 'deepseek-v3.1:671b-cloud',
+    baseUrl: process.env.OLLAMA_BASE_URL || 'https://api.ollama.com',
     enabled: !!process.env.OLLAMA_API_KEY
   }
 };
@@ -281,7 +281,7 @@ async function generateWithGroq(prompt: string, options: any): Promise<AIRespons
 
 /**
  * Ollama Cloud (GRÁTIS! Sem GPU necessária)
- * Suporta: gpt-oss:120b-cloud, deepseek-v3.1:671b-cloud, etc.
+ * Suporta: deepseek-v3.1:671b-cloud (primary), gpt-oss:120b-cloud, etc.
  */
 async function generateWithOllama(prompt: string, options: any): Promise<AIResponse> {
   const config = aiConfigs.ollama;

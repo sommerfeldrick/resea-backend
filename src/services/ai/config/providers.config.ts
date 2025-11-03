@@ -10,7 +10,7 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
   ollama: {
     provider: 'ollama',
     apiKey: process.env.OLLAMA_API_KEY, // Chave para Ollama Cloud
-    model: process.env.OLLAMA_MODEL || 'gpt-oss:120b-cloud', // Modelo default
+    model: process.env.OLLAMA_MODEL || 'deepseek-v3.1:671b-cloud', // DeepSeek V3.1 (671B params)
     baseUrl: process.env.OLLAMA_BASE_URL || 'https://api.ollama.com', // API Cloud correta
     enabled: !!process.env.OLLAMA_API_KEY, // Habilitado se tiver API key
     priority: 1, // PRIMEIRA OPÇÃO - Maior capacidade
@@ -108,7 +108,7 @@ export const providerPricing: Record<AIProvider, { input: number; output: number
 export const modelsByUseCase = {
   academic_writing: {
     primary: 'ollama',
-    model: 'gpt-oss:120b-cloud'
+    model: 'deepseek-v3.1:671b-cloud' // DeepSeek V3.1 - Excelente para escrita acadêmica
   },
   fast_generation: {
     primary: 'groq',
