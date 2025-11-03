@@ -4,7 +4,7 @@
  */
 
 // Constants and thresholds
-export * from './constants';
+export * from './constants.js';
 
 // API configurations
-export * from './apis.config';
+export * from './apis.config.js';
