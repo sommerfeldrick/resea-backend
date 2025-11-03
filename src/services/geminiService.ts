@@ -11,11 +11,15 @@ import type {
 } from '../types/index.js';
 
 /**
- * Clean JSON response from AI (remove markdown code blocks)
+ * Clean JSON response from AI (remove markdown code blocks and thinking tags)
  */
 function cleanJsonResponse(text: string): string {
   // Remove markdown code blocks (```json ... ``` or ``` ... ```)
+  // AND remove thinking tags (<think>...</think>) from models like Llama 4 Maverick
   let cleaned = text.trim();
+
+  // Remove <think>...</think> tags (from reasoning models)
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
   // Remove ```json at the start
   if (cleaned.startsWith('```json')) {
