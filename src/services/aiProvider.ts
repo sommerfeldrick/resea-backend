@@ -385,7 +385,8 @@ function calculateCost(provider: AIProvider, tokens: number): number {
     openai: 0.20,      // GPT-4o-mini: $0.15 input + $0.60 output
     claude: 0.50,      // Haiku: $0.25 input + $1.25 output
     groq: 0,           // GRÁTIS
-    ollama: 0          // LOCAL - GRÁTIS
+    openrouter: 0,     // GRÁTIS (modelos free)
+    ollama: 0          // CLOUD - GRÁTIS
   };
 
   return (tokens / 1_000_000) * prices[provider];
