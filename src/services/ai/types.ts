@@ -2,7 +2,7 @@
  * AI Service Types and Interfaces
  */
 
-export type AIProvider = 'gemini' | 'groq' | 'openrouter' | 'ollama';
+export type AIProvider = 'gemini' | 'groq' | 'openrouter' | 'ollama' | 'deepseek';
 
 export interface AIGenerationOptions {
   provider?: AIProvider;

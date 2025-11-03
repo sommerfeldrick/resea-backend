@@ -52,7 +52,7 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
     }
   },
 
-  // 3️⃣ GOOGLE GEMINI (250 REQ/DIA - ÚLTIMO RECURSO) - TERTIARY
+  // 3️⃣ GOOGLE GEMINI (250 REQ/DIA) - TERTIARY
   gemini: {
     provider: 'gemini',
     apiKey: process.env.GEMINI_API_KEY,
@@ -64,6 +64,21 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
       tokensPerDay: 1000000, // 1M tokens/dia grátis
       tokensPerMinute: 20000
     }
+  },
+
+  // 4️⃣ DEEPSEEK (5M TOKENS/MÊS GRÁTIS) - QUATERNARY
+  deepseek: {
+    provider: 'deepseek',
+    apiKey: process.env.DEEPSEEK_API_KEY,
+    model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', // V3.1 (671B params)
+    baseUrl: 'https://api.deepseek.com',
+    enabled: !!process.env.DEEPSEEK_API_KEY,
+    priority: 4, // QUARTA OPÇÃO - 5M tokens free/mês
+    rateLimits: {
+      requestsPerMinute: 60,
+      tokensPerDay: 166666, // ~5M tokens/mês ÷ 30 dias
+      tokensPerMinute: 10000
+    }
   }
 };
 
@@ -71,12 +86,14 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
  * Ordem de fallback dos provedores
  * 1. Groq: 100k tokens/dia + 30 req/min (super rápido) - Llama 4 Maverick 17B
  * 2. OpenRouter: Créditos flexíveis + muitos modelos gratuitos
- * 3. Gemini: 250 req/dia (último recurso)
+ * 3. Gemini: 250 req/dia + 1M tokens/dia
+ * 4. DeepSeek: 5M tokens/mês grátis - DeepSeek V3.1 (671B)
  */
 export const fallbackOrder: AIProvider[] = [
   'groq',         // 1️⃣ Primary - Ultra-fast
   'openrouter',   // 2️⃣ Secondary - Flexível
-  'gemini'        // 3️⃣ Tertiary - Limitado
+  'gemini',       // 3️⃣ Tertiary - Google
+  'deepseek'      // 4️⃣ Quaternary - Ultra-poderoso
 ];
 
 /**
@@ -98,6 +115,10 @@ export const providerPricing: Record<AIProvider, { input: number; output: number
   ollama: {
     input: 0,        // LOCAL - GRÁTIS
     output: 0
+  },
+  deepseek: {
+    input: 0.28,     // $0.28 per 1M input tokens
+    output: 0.42     // $0.42 per 1M output tokens
   }
 };
 

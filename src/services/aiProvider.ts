@@ -7,7 +7,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import axios from 'axios';
 import { logger } from '../config/logger.js';
 
-export type AIProvider = 'gemini' | 'openai' | 'claude' | 'groq' | 'openrouter' | 'ollama';
+export type AIProvider = 'gemini' | 'openai' | 'claude' | 'groq' | 'openrouter' | 'ollama' | 'deepseek';
 
 export interface AIConfig {
   provider: AIProvider;
@@ -79,6 +79,15 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
     model: process.env.OLLAMA_MODEL || 'deepseek-v3.1:671b-cloud',
     baseUrl: process.env.OLLAMA_BASE_URL || 'https://api.ollama.com',
     enabled: false // DESABILITADO
+  },
+
+  // DeepSeek (5M TOKENS/MÊS GRÁTIS - DeepSeek V3.1 671B)
+  deepseek: {
+    provider: 'deepseek',
+    apiKey: process.env.DEEPSEEK_API_KEY,
+    model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+    baseUrl: 'https://api.deepseek.com',
+    enabled: !!process.env.DEEPSEEK_API_KEY
   }
 };
 
@@ -86,7 +95,7 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
  * Ordem de prioridade dos provedores
  * Ollama desabilitado devido a problemas de DNS no Render
  */
-const providerPriority: AIProvider[] = ['groq', 'openrouter', 'gemini', 'openai', 'claude'];
+const providerPriority: AIProvider[] = ['groq', 'openrouter', 'gemini', 'deepseek', 'openai', 'claude'];
 
 /**
  * Get active AI provider
@@ -146,6 +155,9 @@ export async function generateText(
 
       case 'ollama':
         return await generateWithOllama(prompt, options);
+
+      case 'deepseek':
+        return await generateWithDeepSeek(prompt, options);
 
       default:
         throw new Error(`Provider não suportado: ${provider}`);
@@ -364,6 +376,46 @@ async function generateWithOllama(prompt: string, options: any): Promise<AIRespo
 }
 
 /**
+ * DeepSeek (5M TOKENS/MÊS GRÁTIS - DeepSeek V3.1 671B)
+ */
+async function generateWithDeepSeek(prompt: string, options: any): Promise<AIResponse> {
+  const config = aiConfigs.deepseek;
+
+  const response = await axios.post(
+    `${config.baseUrl}/v1/chat/completions`,
+    {
+      model: config.model,
+      messages: [
+        ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
+        { role: 'user', content: prompt }
+      ],
+      temperature: options.temperature || 0.7,
+      max_tokens: options.maxTokens || 4096
+    },
+    {
+      headers: {
+        'Authorization': `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+
+  const promptTokens = response.data.usage?.prompt_tokens || 0;
+  const completionTokens = response.data.usage?.completion_tokens || 0;
+  const tokensUsed = response.data.usage?.total_tokens || 0;
+
+  // Calcular custo: $0.28/1M input + $0.42/1M output
+  const cost = (promptTokens / 1_000_000) * 0.28 + (completionTokens / 1_000_000) * 0.42;
+
+  return {
+    text: response.data.choices[0].message.content,
+    provider: 'deepseek',
+    tokensUsed,
+    cost
+  };
+}
+
+/**
  * Get next available provider for fallback
  */
 function getNextProvider(current: AIProvider): AIProvider | null {
@@ -390,7 +442,8 @@ function calculateCost(provider: AIProvider, tokens: number): number {
     claude: 0.50,      // Haiku: $0.25 input + $1.25 output
     groq: 0,           // GRÁTIS
     openrouter: 0,     // GRÁTIS (modelos free)
-    ollama: 0          // CLOUD - GRÁTIS
+    ollama: 0,         // CLOUD - GRÁTIS
+    deepseek: 0.35     // $0.28 input + $0.42 output (média)
   };
 
   return (tokens / 1_000_000) * prices[provider];
