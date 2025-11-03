@@ -7,7 +7,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import axios from 'axios';
 import { logger } from '../config/logger.js';
 
-export type AIProvider = 'gemini' | 'openai' | 'claude' | 'groq' | 'openrouter' | 'ollama' | 'deepseek';
+export type AIProvider = 'gemini' | 'openai' | 'claude' | 'groq' | 'ollama' | 'deepseek';
 
 export interface AIConfig {
   provider: AIProvider;
@@ -26,9 +26,19 @@ export interface AIResponse {
 
 /**
  * Configuração de múltiplas IAs
+ * PRIORIDADE: DeepSeek (1º) → Gemini (2º) → Groq (3º)
  */
 export const aiConfigs: Record<AIProvider, AIConfig> = {
-  // Google Gemini (pago, mas com free tier generoso)
+  // 1️⃣ DeepSeek (5M TOKENS/MÊS GRÁTIS - PRIMARY)
+  deepseek: {
+    provider: 'deepseek',
+    apiKey: process.env.DEEPSEEK_API_KEY,
+    model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+    baseUrl: 'https://api.deepseek.com',
+    enabled: !!process.env.DEEPSEEK_API_KEY
+  },
+
+  // 2️⃣ Google Gemini (250 req/dia - SECONDARY)
   gemini: {
     provider: 'gemini',
     apiKey: process.env.GEMINI_API_KEY,
@@ -36,25 +46,7 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
     enabled: !!process.env.GEMINI_API_KEY
   },
 
-  // OpenAI (pago, mas poderoso)
-  openai: {
-    provider: 'openai',
-    apiKey: process.env.OPENAI_API_KEY,
-    model: process.env.OPENAI_MODEL || 'gpt-4o-mini', // Mais barato
-    baseUrl: 'https://api.openai.com/v1',
-    enabled: !!process.env.OPENAI_API_KEY
-  },
-
-  // Anthropic Claude (pago, muito bom)
-  claude: {
-    provider: 'claude',
-    apiKey: process.env.CLAUDE_API_KEY,
-    model: process.env.CLAUDE_MODEL || 'claude-3-5-haiku-20241022', // Mais barato
-    baseUrl: 'https://api.anthropic.com/v1',
-    enabled: !!process.env.CLAUDE_API_KEY
-  },
-
-  // Groq (Llama 4 Maverick 17B - GRÁTIS!)
+  // 3️⃣ Groq (100k tokens/dia - TERTIARY)
   groq: {
     provider: 'groq',
     apiKey: process.env.GROQ_API_KEY,
@@ -63,39 +55,39 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
     enabled: !!process.env.GROQ_API_KEY
   },
 
-  // OpenRouter (GRÁTIS! Múltiplos modelos)
-  openrouter: {
-    provider: 'openrouter',
-    apiKey: process.env.OPENROUTER_API_KEY,
-    model: process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3.1:free',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    enabled: !!process.env.OPENROUTER_API_KEY
+  // OpenAI (pago)
+  openai: {
+    provider: 'openai',
+    apiKey: process.env.OPENAI_API_KEY,
+    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    baseUrl: 'https://api.openai.com/v1',
+    enabled: !!process.env.OPENAI_API_KEY
   },
 
-  // Ollama Cloud (DESABILITADO - DNS issues on Render)
+  // Claude (pago)
+  claude: {
+    provider: 'claude',
+    apiKey: process.env.CLAUDE_API_KEY,
+    model: process.env.CLAUDE_MODEL || 'claude-3-5-haiku-20241022',
+    baseUrl: 'https://api.anthropic.com/v1',
+    enabled: !!process.env.CLAUDE_API_KEY
+  },
+
+  // ❌ REMOVIDOS
   ollama: {
     provider: 'ollama',
-    apiKey: process.env.OLLAMA_API_KEY,
-    model: process.env.OLLAMA_MODEL || 'deepseek-v3.1:671b-cloud',
-    baseUrl: process.env.OLLAMA_BASE_URL || 'https://api.ollama.com',
-    enabled: false // DESABILITADO
-  },
-
-  // DeepSeek (5M TOKENS/MÊS GRÁTIS - DeepSeek V3.1 671B)
-  deepseek: {
-    provider: 'deepseek',
-    apiKey: process.env.DEEPSEEK_API_KEY,
-    model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
-    baseUrl: 'https://api.deepseek.com',
-    enabled: !!process.env.DEEPSEEK_API_KEY
+    apiKey: undefined,
+    model: undefined,
+    baseUrl: 'https://api.ollama.com',
+    enabled: false
   }
 };
 
 /**
  * Ordem de prioridade dos provedores
- * Ollama desabilitado devido a problemas de DNS no Render
+ * OpenRouter removido, foco em DeepSeek + Gemini
  */
-const providerPriority: AIProvider[] = ['groq', 'openrouter', 'gemini', 'deepseek', 'openai', 'claude'];
+const providerPriority: AIProvider[] = ['deepseek', 'gemini', 'groq', 'openai', 'claude'];
 
 /**
  * Get active AI provider
@@ -150,14 +142,11 @@ export async function generateText(
       case 'groq':
         return await generateWithGroq(prompt, options);
 
-      case 'openrouter':
-        return await generateWithOpenRouter(prompt, options);
-
-      case 'ollama':
-        return await generateWithOllama(prompt, options);
-
       case 'deepseek':
         return await generateWithDeepSeek(prompt, options);
+
+      case 'ollama':
+        throw new Error('Ollama provider foi removido');
 
       default:
         throw new Error(`Provider não suportado: ${provider}`);
@@ -304,76 +293,7 @@ async function generateWithGroq(prompt: string, options: any): Promise<AIRespons
   };
 }
 
-/**
- * OpenRouter (GRÁTIS! Múltiplos modelos)
- */
-async function generateWithOpenRouter(prompt: string, options: any): Promise<AIResponse> {
-  const config = aiConfigs.openrouter;
-
-  const response = await axios.post(
-    `${config.baseUrl}/chat/completions`,
-    {
-      model: config.model,
-      messages: [
-        ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
-        { role: 'user', content: prompt }
-      ],
-      temperature: options.temperature || 0.7,
-      max_tokens: options.maxTokens || 4096
-    },
-    {
-      headers: {
-        'Authorization': `Bearer ${config.apiKey}`,
-        'HTTP-Referer': process.env.FRONTEND_URL || 'https://app.smileai.com.br',
-        'X-Title': 'SmileAI Research Assistant',
-        'Content-Type': 'application/json'
-      }
-    }
-  );
-
-  return {
-    text: response.data.choices[0].message.content,
-    provider: 'openrouter',
-    tokensUsed: response.data.usage?.total_tokens,
-    cost: 0 // GRÁTIS!
-  };
-}
-
-/**
- * Ollama Cloud (GRÁTIS! Sem GPU necessária)
- * Suporta: deepseek-v3.1:671b-cloud (primary), gpt-oss:120b-cloud, etc.
- */
-async function generateWithOllama(prompt: string, options: any): Promise<AIResponse> {
-  const config = aiConfigs.ollama;
-
-  // Ollama Cloud usa /v1/chat/completions (compatível com OpenAI)
-  const response = await axios.post(
-    `${config.baseUrl}/v1/chat/completions`,
-    {
-      model: config.model,
-      messages: [
-        ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
-        { role: 'user', content: prompt }
-      ],
-      temperature: options.temperature || 0.7,
-      max_tokens: options.maxTokens || 4096,
-      stream: false
-    },
-    {
-      headers: {
-        ...(config.apiKey && { 'Authorization': `Bearer ${config.apiKey}` }),
-        'Content-Type': 'application/json'
-      }
-    }
-  );
-
-  return {
-    text: response.data.choices[0].message.content,
-    provider: 'ollama',
-    tokensUsed: response.data.usage?.total_tokens,
-    cost: 0 // CLOUD - GRÁTIS!
-  };
-}
+// OpenRouter e Ollama REMOVIDOS
 
 /**
  * DeepSeek (5M TOKENS/MÊS GRÁTIS - DeepSeek V3.1 671B)
@@ -437,13 +357,12 @@ function getNextProvider(current: AIProvider): AIProvider | null {
 function calculateCost(provider: AIProvider, tokens: number): number {
   // Preços aproximados por 1M tokens (input + output médio)
   const prices: Record<AIProvider, number> = {
+    deepseek: 0.35,    // $0.28 input + $0.42 output (média)
     gemini: 0.15,      // Flash: $0.075 input + $0.30 output
+    groq: 0,           // GRÁTIS
     openai: 0.20,      // GPT-4o-mini: $0.15 input + $0.60 output
     claude: 0.50,      // Haiku: $0.25 input + $1.25 output
-    groq: 0,           // GRÁTIS
-    openrouter: 0,     // GRÁTIS (modelos free)
-    ollama: 0,         // CLOUD - GRÁTIS
-    deepseek: 0.35     // $0.28 input + $0.42 output (média)
+    ollama: 0          // REMOVIDO
   };
 
   return (tokens / 1_000_000) * prices[provider];

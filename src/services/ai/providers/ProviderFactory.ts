@@ -5,7 +5,6 @@
 
 import { GeminiProvider } from './GeminiProvider.js';
 import { GroqProvider } from './GroqProvider.js';
-import { OpenRouterProvider } from './OpenRouterProvider.js';
 import { OllamaProvider } from './OllamaProvider.js';
 import { DeepSeekProvider } from './DeepSeekProvider.js';
 import { BaseAIProvider } from './BaseAIProvider.js';
@@ -36,10 +35,6 @@ export class ProviderFactory {
 
       case 'groq':
         providerInstance = new GroqProvider(config.apiKey, config.model);
-        break;
-
-      case 'openrouter':
-        providerInstance = new OpenRouterProvider(config.apiKey, config.model);
         break;
 
       case 'ollama':
