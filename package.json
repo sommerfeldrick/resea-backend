@@ -13,10 +13,12 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@elastic/elasticsearch": "^9.2.0",
     "@google/generative-ai": "^0.2.0",
     "@huggingface/inference": "^2.5.0",
     "@qdrant/js-client-rest": "^1.15.1",
     "@types/multer": "^2.0.0",
+    "@types/xml2js": "^0.4.14",
     "@xmldom/xmldom": "^0.8.11",
     "axios": "^1.6.0",
     "cheerio": "^1.1.2",
