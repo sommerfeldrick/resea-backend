@@ -21,7 +21,13 @@ export class ElasticsearchService {
     const username = process.env.ELASTICSEARCH_USERNAME;
     const password = process.env.ELASTICSEARCH_PASSWORD;
 
-    const clientConfig: any = { node };
+    const clientConfig: any = {
+      node,
+      // Use compatibility mode for older Elasticsearch versions
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    };
 
     if (apiKey) {
       clientConfig.auth = { apiKey };
