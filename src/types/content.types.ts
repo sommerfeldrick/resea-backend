@@ -290,3 +290,82 @@ export const CONTENT_PATTERNS = {
   // Section heading pattern
   heading: /^#{1,6}\s+(.+)$/gm,
 };
+
+// ============================================
+// PARSER-SPECIFIC TYPES
+// ============================================
+
+/**
+ * Content section from parser
+ */
+export interface ContentSection {
+  heading?: string;
+  text: string;
+  wordCount: number;
+  citations?: string[];
+  subsections?: ContentSection[];
+}
+
+/**
+ * Reference from parser
+ */
+export interface Reference {
+  id: string;
+  citation: string;
+  doi?: string;
+  pmid?: string;
+  url?: string;
+}
+
+/**
+ * Figure from parser
+ */
+export interface Figure {
+  id: string;
+  caption: string;
+  url?: string;
+}
+
+/**
+ * Table from parser
+ */
+export interface Table {
+  id: string;
+  caption: string;
+  data: string[][];
+}
+
+/**
+ * Full content structure from parsers
+ */
+export interface FullContent {
+  abstract?: ContentSection;
+  introduction?: ContentSection;
+  literatureReview?: ContentSection;
+  methodology?: ContentSection;
+  results?: ContentSection;
+  discussion?: ContentSection;
+  conclusion?: ContentSection;
+  sections?: ContentSection[];
+  references?: Reference[];
+  figures?: Figure[];
+  tables?: Table[];
+}
+
+/**
+ * Parser output structure (alternative to StructuredContent)
+ */
+export interface ParserOutput {
+  metadata: {
+    titulo?: string;
+    autores?: string[];
+    ano?: number;
+    doi?: string;
+    fonte?: string;
+    keywords?: string[];
+  };
+  fullContent: FullContent;
+  format: string;
+  quality: number;
+  extractionDate: Date;
+}
