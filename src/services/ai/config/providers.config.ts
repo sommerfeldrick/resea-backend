@@ -40,7 +40,7 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
   openrouter: {
     provider: 'openrouter',
     apiKey: process.env.OPENROUTER_API_KEY,
-    model: process.env.OPENROUTER_MODEL || 'nousresearch/hermes-3-llama-3.1-405b:free',
+    model: process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3.1:free',
     baseUrl: 'https://openrouter.ai/api/v1',
     enabled: !!process.env.OPENROUTER_API_KEY,
     priority: 3, // TERCEIRA OPÇÃO
@@ -116,7 +116,7 @@ export const modelsByUseCase = {
   },
   flexible_fallback: {
     primary: 'openrouter',
-    model: 'nousresearch/hermes-3-llama-3.1-405b:free'
+    model: 'deepseek/deepseek-chat-v3.1:free'
   },
   quality_fallback: {
     primary: 'gemini',

@@ -46,8 +46,8 @@ export const freeModels = {
 
   openrouter: {
     quality: [
+      'deepseek/deepseek-chat-v3.1:free',           // Ultra-poderoso (PRIMARY)
       'nousresearch/hermes-3-llama-3.1-405b:free',  // 405B - Frontier
-      'deepseek/deepseek-chat-v3.1:free',           // Ultra-poderoso
       'meta-llama/llama-3.3-70b-instruct:free',     // 70B alternativa
       'qwen/qwen-2.5-72b-instruct:free'             // 72B alternativa
     ],
