@@ -1,49 +1,20 @@
 /**
  * AI Providers Configuration
- * NOVA PRIORIDADE: Ollama (1M tokens/dia) → Groq (100k tokens/dia) → OpenRouter (flexível) → Gemini (250 req/dia)
+ * NOVA PRIORIDADE: Groq (100k tokens/dia) → OpenRouter (flexível) → Gemini (250 req/dia)
+ * Ollama DESABILITADO (DNS resolution issues on Render)
  */
 
 import { ProviderConfig, AIProvider } from '../types.js';
 
 export const providerConfigs: Record<AIProvider, ProviderConfig> = {
-  // 1️⃣ OLLAMA CLOUD (1M TOKENS/DIA - MÁXIMA CAPACIDADE)
+  // ❌ OLLAMA CLOUD - DESABILITADO (DNS resolution issues on Render)
   ollama: {
     provider: 'ollama',
-    apiKey: process.env.OLLAMA_API_KEY, // Chave para Ollama Cloud
-    model: process.env.OLLAMA_MODEL || 'deepseek-v3.1:671b-cloud', // DeepSeek V3.1 (671B params)
-    baseUrl: process.env.OLLAMA_BASE_URL || 'https://api.ollama.com', // API Cloud correta
-    enabled: !!process.env.OLLAMA_API_KEY, // Habilitado se tiver API key
-    priority: 1, // PRIMEIRA OPÇÃO - Maior capacidade
-    rateLimits: {
-      requestsPerMinute: 60,
-      tokensPerDay: 1000000, // 1M tokens/dia no plano free
-      tokensPerMinute: 20000
-    }
-  },
-
-  // 2️⃣ GROQ (100K TOKENS/DIA - MUITO RÁPIDO)
-  groq: {
-    provider: 'groq',
-    apiKey: process.env.GROQ_API_KEY,
-    model: process.env.GROQ_MODEL || 'qwen/qwen3-32b', // Qwen3 32B - 131K context (PAGO)
-    baseUrl: 'https://api.groq.com/openai/v1',
-    enabled: !!process.env.GROQ_API_KEY,
-    priority: 2, // SEGUNDA OPÇÃO
-    rateLimits: {
-      requestsPerMinute: 30,
-      tokensPerDay: 100000, // 100k tokens/dia grátis (modelos free tier)
-      tokensPerMinute: 1667
-    }
-  },
-
-  // 3️⃣ OPENROUTER (CRÉDITOS FLEXÍVEIS - MUITOS MODELOS GRÁTIS)
-  openrouter: {
-    provider: 'openrouter',
-    apiKey: process.env.OPENROUTER_API_KEY,
-    model: process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3.1:free',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    enabled: !!process.env.OPENROUTER_API_KEY,
-    priority: 3, // TERCEIRA OPÇÃO
+    apiKey: process.env.OLLAMA_API_KEY,
+    model: process.env.OLLAMA_MODEL || 'deepseek-v3.1:671b-cloud',
+    baseUrl: process.env.OLLAMA_BASE_URL || 'https://api.ollama.com',
+    enabled: false, // DESABILITADO - DNS issues
+    priority: 99, // Desabilitado
     rateLimits: {
       requestsPerMinute: 60,
       tokensPerDay: 1000000,
@@ -51,13 +22,43 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
     }
   },
 
-  // 4️⃣ GOOGLE GEMINI (250 REQ/DIA - ÚLTIMO RECURSO)
+  // 1️⃣ GROQ (100K TOKENS/DIA - ULTRA-FAST) - PRIMARY
+  groq: {
+    provider: 'groq',
+    apiKey: process.env.GROQ_API_KEY,
+    model: process.env.GROQ_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct', // Llama 4 Maverick 17B
+    baseUrl: 'https://api.groq.com/openai/v1',
+    enabled: !!process.env.GROQ_API_KEY,
+    priority: 1, // PRIMEIRA OPÇÃO
+    rateLimits: {
+      requestsPerMinute: 30,
+      tokensPerDay: 100000, // 100k tokens/dia grátis
+      tokensPerMinute: 1667
+    }
+  },
+
+  // 2️⃣ OPENROUTER (CRÉDITOS FLEXÍVEIS - MUITOS MODELOS GRÁTIS) - SECONDARY
+  openrouter: {
+    provider: 'openrouter',
+    apiKey: process.env.OPENROUTER_API_KEY,
+    model: process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3.1:free',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    enabled: !!process.env.OPENROUTER_API_KEY,
+    priority: 2, // SEGUNDA OPÇÃO
+    rateLimits: {
+      requestsPerMinute: 60,
+      tokensPerDay: 1000000,
+      tokensPerMinute: 20000
+    }
+  },
+
+  // 3️⃣ GOOGLE GEMINI (250 REQ/DIA - ÚLTIMO RECURSO) - TERTIARY
   gemini: {
     provider: 'gemini',
     apiKey: process.env.GEMINI_API_KEY,
     model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
     enabled: !!process.env.GEMINI_API_KEY,
-    priority: 4, // QUARTA OPÇÃO - Limitado a 250 req/dia
+    priority: 3, // TERCEIRA OPÇÃO - Limitado a 250 req/dia
     rateLimits: {
       requestsPerMinute: 60,
       tokensPerDay: 1000000, // 1M tokens/dia grátis
@@ -67,17 +68,15 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
 };
 
 /**
- * Ordem de fallback dos provedores (nova prioridade por capacidade free tier)
- * 1. Ollama Cloud: 1M tokens/dia
- * 2. Groq: 100k tokens/dia + 30 req/min (super rápido)
- * 3. OpenRouter: Créditos flexíveis + muitos modelos gratuitos
- * 4. Gemini: 250 req/dia (último recurso)
+ * Ordem de fallback dos provedores
+ * 1. Groq: 100k tokens/dia + 30 req/min (super rápido) - Llama 4 Maverick 17B
+ * 2. OpenRouter: Créditos flexíveis + muitos modelos gratuitos
+ * 3. Gemini: 250 req/dia (último recurso)
  */
 export const fallbackOrder: AIProvider[] = [
-  'ollama',       // 1️⃣ Máxima capacidade
-  'groq',         // 2️⃣ Muito rápido
-  'openrouter',   // 3️⃣ Flexível
-  'gemini'        // 4️⃣ Limitado
+  'groq',         // 1️⃣ Primary - Ultra-fast
+  'openrouter',   // 2️⃣ Secondary - Flexível
+  'gemini'        // 3️⃣ Tertiary - Limitado
 ];
 
 /**
@@ -107,12 +106,12 @@ export const providerPricing: Record<AIProvider, { input: number; output: number
  */
 export const modelsByUseCase = {
   academic_writing: {
-    primary: 'ollama',
-    model: 'deepseek-v3.1:671b-cloud' // DeepSeek V3.1 - Excelente para escrita acadêmica
+    primary: 'groq',
+    model: 'meta-llama/llama-4-maverick-17b-128e-instruct' // Llama 4 Maverick - Excelente para escrita acadêmica
   },
   fast_generation: {
     primary: 'groq',
-    model: 'qwen/qwen3-32b' // Qwen3 32B - 131K context
+    model: 'meta-llama/llama-4-maverick-17b-128e-instruct' // Llama 4 Maverick - Ultra-fast
   },
   flexible_fallback: {
     primary: 'openrouter',

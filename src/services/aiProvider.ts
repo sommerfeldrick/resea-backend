@@ -54,11 +54,11 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
     enabled: !!process.env.CLAUDE_API_KEY
   },
 
-  // Groq (Qwen3 32B - PAGO)
+  // Groq (Llama 4 Maverick 17B - GRÁTIS!)
   groq: {
     provider: 'groq',
     apiKey: process.env.GROQ_API_KEY,
-    model: process.env.GROQ_MODEL || 'qwen/qwen3-32b',
+    model: process.env.GROQ_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct',
     baseUrl: 'https://api.groq.com/openai/v1',
     enabled: !!process.env.GROQ_API_KEY
   },
@@ -72,20 +72,21 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
     enabled: !!process.env.OPENROUTER_API_KEY
   },
 
-  // Ollama Cloud (GRÁTIS! Modelos cloud sem GPU necessária)
+  // Ollama Cloud (DESABILITADO - DNS issues on Render)
   ollama: {
     provider: 'ollama',
     apiKey: process.env.OLLAMA_API_KEY,
     model: process.env.OLLAMA_MODEL || 'deepseek-v3.1:671b-cloud',
     baseUrl: process.env.OLLAMA_BASE_URL || 'https://api.ollama.com',
-    enabled: !!process.env.OLLAMA_API_KEY
+    enabled: false // DESABILITADO
   }
 };
 
 /**
- * Ordem de prioridade dos provedores (do mais barato para o mais caro)
+ * Ordem de prioridade dos provedores
+ * Ollama desabilitado devido a problemas de DNS no Render
  */
-const providerPriority: AIProvider[] = ['ollama', 'groq', 'openrouter', 'gemini', 'openai', 'claude'];
+const providerPriority: AIProvider[] = ['groq', 'openrouter', 'gemini', 'openai', 'claude'];
 
 /**
  * Get active AI provider

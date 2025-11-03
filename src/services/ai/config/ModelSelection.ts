@@ -34,13 +34,13 @@ export const freeModels = {
 
   groq: {
     quality: [
-      'qwen/qwen3-32b'                // 32B - Qwen3 com 131K context (PAGO)
+      'meta-llama/llama-4-maverick-17b-128e-instruct'  // Llama 4 Maverick 17B
     ],
     balanced: [
-      'qwen/qwen3-32b'                // 32B - Qwen3 (PAGO)
+      'meta-llama/llama-4-maverick-17b-128e-instruct'  // Llama 4 Maverick 17B
     ],
     fast: [
-      'qwen/qwen3-32b'                // 32B - Qwen3 (PAGO)
+      'meta-llama/llama-4-maverick-17b-128e-instruct'  // Llama 4 Maverick 17B (ultra-fast)
     ]
   },
 
