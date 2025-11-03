@@ -25,13 +25,13 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
   groq: {
     provider: 'groq',
     apiKey: process.env.GROQ_API_KEY,
-    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', // Atualizado - modelo ativo
+    model: process.env.GROQ_MODEL || 'qwen/qwen3-32b', // Qwen3 32B - 131K context (PAGO)
     baseUrl: 'https://api.groq.com/openai/v1',
     enabled: !!process.env.GROQ_API_KEY,
     priority: 2, // SEGUNDA OPÇÃO
     rateLimits: {
       requestsPerMinute: 30,
-      tokensPerDay: 100000, // 100k tokens/dia grátis
+      tokensPerDay: 100000, // 100k tokens/dia grátis (modelos free tier)
       tokensPerMinute: 1667
     }
   },
@@ -112,7 +112,7 @@ export const modelsByUseCase = {
   },
   fast_generation: {
     primary: 'groq',
-    model: 'llama-3.3-70b-versatile' // Atualizado - modelo ativo
+    model: 'qwen/qwen3-32b' // Qwen3 32B - 131K context
   },
   flexible_fallback: {
     primary: 'openrouter',

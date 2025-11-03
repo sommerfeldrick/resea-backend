@@ -34,13 +34,13 @@ export const freeModels = {
 
   groq: {
     quality: [
-      'llama-3.3-70b-versatile'       // 70B - Melhor qualidade (ATUALIZADO)
+      'qwen/qwen3-32b'                // 32B - Qwen3 com 131K context (PAGO)
     ],
     balanced: [
-      'mixtral-8x7b-32768'            // 56B equiv - Balanceado
+      'qwen/qwen3-32b'                // 32B - Qwen3 (PAGO)
     ],
     fast: [
-      'llama-3.1-8b-instant'          // 8B - Mais rápido (ATUALIZADO)
+      'qwen/qwen3-32b'                // 32B - Qwen3 (PAGO)
     ]
   },
 

@@ -54,11 +54,11 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
     enabled: !!process.env.CLAUDE_API_KEY
   },
 
-  // Groq (GRÁTIS! Muito rápido)
+  // Groq (Qwen3 32B - PAGO)
   groq: {
     provider: 'groq',
     apiKey: process.env.GROQ_API_KEY,
-    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+    model: process.env.GROQ_MODEL || 'qwen/qwen3-32b',
     baseUrl: 'https://api.groq.com/openai/v1',
     enabled: !!process.env.GROQ_API_KEY
   },
