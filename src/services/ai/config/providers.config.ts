@@ -51,17 +51,32 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
     }
   },
 
-  // 3️⃣ GROQ (100K TOKENS/DIA - ULTRA-FAST) - TERTIARY
+  // 3️⃣ OPENAI (PAGO - GPT-4o-mini) - TERTIARY
+  openai: {
+    provider: 'openai',
+    apiKey: process.env.OPENAI_API_KEY,
+    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    baseUrl: 'https://api.openai.com/v1',
+    enabled: !!process.env.OPENAI_API_KEY,
+    priority: 3, // TERCEIRA OPÇÃO
+    rateLimits: {
+      requestsPerMinute: 60,
+      tokensPerDay: 1000000,
+      tokensPerMinute: 20000
+    }
+  },
+
+  // GROQ (100K TOKENS/DIA - GRÁTIS) - QUATERNARY
   groq: {
     provider: 'groq',
     apiKey: process.env.GROQ_API_KEY,
-    model: process.env.GROQ_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct', // Llama 4 Maverick 17B
+    model: process.env.GROQ_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct',
     baseUrl: 'https://api.groq.com/openai/v1',
     enabled: !!process.env.GROQ_API_KEY,
-    priority: 3, // TERCEIRA OPÇÃO
+    priority: 4, // QUARTA OPÇÃO
     rateLimits: {
       requestsPerMinute: 30,
-      tokensPerDay: 100000, // 100k tokens/dia grátis
+      tokensPerDay: 100000,
       tokensPerMinute: 1667
     }
   }
@@ -71,12 +86,12 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
  * Ordem de fallback dos provedores
  * 1. DeepSeek: 5M tokens/mês grátis - DeepSeek V3.2-Exp (deepseek-chat ou deepseek-reasoner)
  * 2. Gemini: 250 req/dia + 1M tokens/dia
- * 3. Groq: 100k tokens/dia + 30 req/min (super rápido) - Llama 4 Maverick 17B
+ * 3. OpenAI: GPT-4o-mini (pago)
  */
 export const fallbackOrder: AIProvider[] = [
   'deepseek',     // 1️⃣ Primary - Ultra-poderoso
   'gemini',       // 2️⃣ Secondary - Google
-  'groq'          // 3️⃣ Tertiary - Ultra-fast
+  'openai'        // 3️⃣ Tertiary - OpenAI (pago)
 ];
 
 /**
@@ -90,6 +105,10 @@ export const providerPricing: Record<AIProvider, { input: number; output: number
   gemini: {
     input: 0.075,    // Flash: $0.075 per 1M
     output: 0.30     // Flash: $0.30 per 1M
+  },
+  openai: {
+    input: 0.15,     // GPT-4o-mini: $0.15 per 1M
+    output: 0.60     // GPT-4o-mini: $0.60 per 1M
   },
   groq: {
     input: 0,        // GRÁTIS

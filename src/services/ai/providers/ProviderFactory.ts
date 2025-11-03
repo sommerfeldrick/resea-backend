@@ -7,6 +7,7 @@ import { GeminiProvider } from './GeminiProvider.js';
 import { GroqProvider } from './GroqProvider.js';
 import { OllamaProvider } from './OllamaProvider.js';
 import { DeepSeekProvider } from './DeepSeekProvider.js';
+import { OpenAIProvider } from './OpenAIProvider.js';
 import { BaseAIProvider } from './BaseAIProvider.js';
 import type { AIProvider } from '../types.js';
 import { getProviderConfig } from '../config/providers.config.js';
@@ -43,6 +44,10 @@ export class ProviderFactory {
 
       case 'deepseek':
         providerInstance = new DeepSeekProvider(config.apiKey, config.model);
+        break;
+
+      case 'openai':
+        providerInstance = new OpenAIProvider(config.apiKey, config.model);
         break;
 
       default:

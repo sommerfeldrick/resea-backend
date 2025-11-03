@@ -85,9 +85,9 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
 
 /**
  * Ordem de prioridade dos provedores
- * OpenRouter removido, foco em DeepSeek + Gemini
+ * DeepSeek (1º) → Gemini (2º) → OpenAI (3º)
  */
-const providerPriority: AIProvider[] = ['deepseek', 'gemini', 'groq', 'openai', 'claude'];
+const providerPriority: AIProvider[] = ['deepseek', 'gemini', 'openai', 'groq', 'claude'];
 
 /**
  * Get active AI provider
