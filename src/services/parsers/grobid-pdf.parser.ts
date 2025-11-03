@@ -3,11 +3,11 @@
  * Uses GROBID service to extract structured content from PDFs
  */
 
-import { BaseParser } from './base.parser';
-import type { ParserOutput } from '../../types/content.types';
+import { BaseParser } from './base.parser.js';
+import type { ParserOutput } from '../../types/content.types.js';
 import axios from 'axios';
 import FormData from 'form-data';
-import { TEIXMLParser } from './tei-xml.parser';
+import { TEIXMLParser } from './tei-xml.parser.js';
 
 export class GROBIDParser extends BaseParser {
   private grobidUrl: string;

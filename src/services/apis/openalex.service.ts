@@ -9,8 +9,8 @@
  * - Rate limit: 10 req/s (100K/day)
  */
 
-import { BaseAPIService } from './base-api.service';
-import type { AcademicArticle } from '../../types/article.types';
+import { BaseAPIService } from './base-api.service.js';
+import type { AcademicArticle } from '../../types/article.types.js';
 
 interface OpenAlexWork {
   id: string;

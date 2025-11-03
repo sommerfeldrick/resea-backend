@@ -4,9 +4,9 @@
  * Uses minimax/minimax-m2:free model
  */
 
-import { OpenRouterService } from './openrouter.service';
-import type { StructuredContent } from '../../types/content.types';
-import { Logger } from '../../utils/simple-logger';
+import { OpenRouterService } from './openrouter.service.js';
+import type { StructuredContent } from '../../types/content.types.js';
+import { Logger } from '../../utils/simple-logger.js';
 
 export class NLPEnrichmentService {
   private openRouter: OpenRouterService;

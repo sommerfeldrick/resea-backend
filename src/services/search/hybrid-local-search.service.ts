@@ -4,12 +4,12 @@
  * Uses Reciprocal Rank Fusion (RRF) for result merging
  */
 
-import type { AcademicArticle } from '../../types/article.types';
-import { QdrantService } from '../database/qdrant.service';
-import { ElasticsearchService } from '../database/elasticsearch.service';
-import { embeddingsService } from '../embeddings.service';
-import { Logger } from '../../utils/simple-logger';
-import { RRF_CONSTANT } from '../../config/constants';
+import type { AcademicArticle } from '../../types/article.types.js';
+import { QdrantService } from '../database/qdrant.service.js';
+import { ElasticsearchService } from '../database/elasticsearch.service.js';
+import { embeddingsService } from '../embeddings.service.js';
+import { Logger } from '../../utils/simple-logger.js';
+import { RRF_CONSTANT } from '../../config/constants.js';
 
 export class HybridLocalSearchService {
   private qdrant: QdrantService;

@@ -3,8 +3,8 @@
  * Parses TEI XML format from GROBID PDF processing
  */
 
-import { BaseParser } from './base.parser';
-import type { ParserOutput, ContentSection } from '../../types/content.types';
+import { BaseParser } from './base.parser.js';
+import type { ParserOutput, ContentSection } from '../../types/content.types.js';
 import { DOMParser } from '@xmldom/xmldom';
 import { select, SelectedValue } from 'xpath';
 

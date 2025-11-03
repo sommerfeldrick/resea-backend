@@ -4,8 +4,8 @@
  * Uses text-embedding-3-small model (1536 dimensions)
  */
 
-import { OpenRouterService } from './openrouter.service';
-import { Logger } from '../../utils/simple-logger';
+import { OpenRouterService } from './openrouter.service.js';
+import { Logger } from '../../utils/simple-logger.js';
 
 export class EmbeddingService {
   private openRouter: OpenRouterService;

@@ -12,8 +12,8 @@
  * If you have access to SerpAPI or similar, implement it here.
  */
 
-import { BaseAPIService } from './base-api.service';
-import type { AcademicArticle } from '../../types/article.types';
+import { BaseAPIService } from './base-api.service.js';
+import type { AcademicArticle } from '../../types/article.types.js';
 
 export class GoogleScholarService extends BaseAPIService {
   private serpApiKey?: string;

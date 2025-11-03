@@ -4,14 +4,14 @@
  * Based on citations, trend, impact factor, recency, relevance, and author H-index
  */
 
-import type { AcademicArticle, ArticleQualityMetrics, EnrichedArticle, ArticleFormat } from '../../types';
+import type { AcademicArticle, ArticleQualityMetrics, EnrichedArticle, ArticleFormat } from '../../types/index.js';
 import {
   QUALITY_WEIGHTS_ADVANCED,
   JOURNAL_TIERS,
   RECENCY_SCORES,
   FORMAT_BONUS,
   QUALITY_THRESHOLDS,
-} from '../../config';
+} from '../../config/index.js';
 
 export class QualityScorerService {
   /**

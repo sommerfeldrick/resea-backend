@@ -4,10 +4,10 @@
  * Supports section-aware chunking, overlapping chunks, and automatic embeddings
  */
 
-import type { AcademicArticle, ContentChunk, ChunkType, StandardSection } from '../../types';
-import { embeddingsService } from '../embeddings.service';
-import { CHUNKING_CONFIG } from '../../config/constants';
-import { Logger } from '../../utils/simple-logger';
+import type { AcademicArticle, ContentChunk, ChunkType, StandardSection } from '../../types/index.js';
+import { embeddingsService } from '../embeddings.service.js';
+import { CHUNKING_CONFIG } from '../../config/constants.js';
+import { Logger } from '../../utils/simple-logger.js';
 
 export interface ChunkingOptions {
   chunkSize?: number;        // Characters per chunk (default: 1000)

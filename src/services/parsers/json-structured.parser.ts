@@ -3,8 +3,8 @@
  * Parses JSON-structured full-text from CORE API
  */
 
-import { BaseParser } from './base.parser';
-import type { ParserOutput, ContentSection } from '../../types/content.types';
+import { BaseParser } from './base.parser.js';
+import type { ParserOutput, ContentSection } from '../../types/content.types.js';
 
 export class JSONStructuredParser extends BaseParser {
   async parse(content: Buffer | string): Promise<ParserOutput> {

@@ -6,9 +6,9 @@
  */
 
 import { QdrantClient } from '@qdrant/js-client-rest';
-import type { AcademicArticle } from '../../types/article.types';
-import type { ContentChunk } from '../../types/content.types';
-import { Logger } from '../../utils/simple-logger';
+import type { AcademicArticle } from '../../types/article.types.js';
+import type { ContentChunk } from '../../types/content.types.js';
+import { Logger } from '../../utils/simple-logger.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export class QdrantService {

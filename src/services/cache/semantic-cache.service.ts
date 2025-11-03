@@ -5,11 +5,11 @@
  */
 
 import { createClient, RedisClientType } from 'redis';
-import type { EnrichedArticle } from '../../types/article.types';
-import type { WorkSection } from '../../types/search.types';
-import { EmbeddingService } from '../nlp/embedding.service';
-import { Logger } from '../../utils/simple-logger';
-import { CACHE_TTL } from '../../config/constants';
+import type { EnrichedArticle } from '../../types/article.types.js';
+import type { WorkSection } from '../../types/search.types.js';
+import { EmbeddingService } from '../nlp/embedding.service.js';
+import { Logger } from '../../utils/simple-logger.js';
+import { CACHE_TTL } from '../../config/constants.js';
 
 interface CachedSearchResult {
   query: string;

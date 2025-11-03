@@ -7,8 +7,8 @@
  */
 
 import axios from 'axios';
-import type { AcademicArticle } from '../../types';
-import { Logger } from '../../utils/simple-logger';
+import type { AcademicArticle } from '../../types/index.js';
+import { Logger } from '../../utils/simple-logger.js';
 
 export interface FullTextLocation {
   source: 'unpaywall' | 'arxiv' | 'pmc' | 'doi' | 'other';

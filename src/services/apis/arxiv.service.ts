@@ -10,8 +10,8 @@
  * - Rate limit: 3 req/s
  */
 
-import { BaseAPIService } from './base-api.service';
-import type { AcademicArticle } from '../../types/article.types';
+import { BaseAPIService } from './base-api.service.js';
+import type { AcademicArticle } from '../../types/article.types.js';
 import * as xml2js from 'xml2js';
 
 interface ArXivEntry {

@@ -5,8 +5,8 @@
  */
 
 import axios from 'axios';
-import type { EnrichedArticle } from '../../types';
-import { Logger } from '../../utils/simple-logger';
+import type { EnrichedArticle } from '../../types/index.js';
+import { Logger } from '../../utils/simple-logger.js';
 
 export class CrossEncoderService {
   private logger: Logger;

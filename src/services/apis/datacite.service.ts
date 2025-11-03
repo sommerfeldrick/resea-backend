@@ -9,8 +9,8 @@
  * - Rate limit: Be conservative
  */
 
-import { BaseAPIService } from './base-api.service';
-import type { AcademicArticle } from '../../types/article.types';
+import { BaseAPIService } from './base-api.service.js';
+import type { AcademicArticle } from '../../types/article.types.js';
 
 interface DataCiteWork {
   id: string;

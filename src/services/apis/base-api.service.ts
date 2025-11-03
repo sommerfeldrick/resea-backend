@@ -9,8 +9,8 @@
  */
 
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
-import type { AcademicArticle } from '../../types/article.types';
-import { Logger } from '../../utils/simple-logger';
+import type { AcademicArticle } from '../../types/article.types.js';
+import { Logger } from '../../utils/simple-logger.js';
 
 export interface RateLimiterConfig {
   tokensPerSecond: number; // Tokens refilled per second

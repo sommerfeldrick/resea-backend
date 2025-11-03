@@ -4,18 +4,18 @@
  * Combines local (Qdrant + Elasticsearch) and external (13 APIs) sources
  */
 
-import type { EnrichedArticle, AcademicArticle } from '../../types/article.types';
-import type { WorkSection, UserApprovalCallback } from '../../types/search.types';
-import { ARTICLE_COUNT_BY_SECTION } from '../../config/constants';
-import { HybridLocalSearchService } from './hybrid-local-search.service';
-import { ExternalAPIsService } from '../apis/external-apis.service';
-import { QualityScorerService } from '../quality/quality-scorer.service';
-import { CrossEncoderService } from '../quality/cross-encoder.service';
-import { MultiFormatDetectorService } from '../content/multi-format-detector.service';
-import { FullTextValidatorService } from '../content/full-text-validator.service';
-import { QueryExpansionService } from './query-expansion.service';
-import { SemanticCacheService } from '../cache/semantic-cache.service';
-import { Logger } from '../../utils/simple-logger';
+import type { EnrichedArticle, AcademicArticle } from '../../types/article.types.js';
+import type { WorkSection, UserApprovalCallback } from '../../types/search.types.js';
+import { ARTICLE_COUNT_BY_SECTION } from '../../config/constants.js';
+import { HybridLocalSearchService } from './hybrid-local-search.service.js';
+import { ExternalAPIsService } from '../apis/external-apis.service.js';
+import { QualityScorerService } from '../quality/quality-scorer.service.js';
+import { CrossEncoderService } from '../quality/cross-encoder.service.js';
+import { MultiFormatDetectorService } from '../content/multi-format-detector.service.js';
+import { FullTextValidatorService } from '../content/full-text-validator.service.js';
+import { QueryExpansionService } from './query-expansion.service.js';
+import { SemanticCacheService } from '../cache/semantic-cache.service.js';
+import { Logger } from '../../utils/simple-logger.js';
 
 export class HybridExhaustiveSearchService {
   private localSearch: HybridLocalSearchService;

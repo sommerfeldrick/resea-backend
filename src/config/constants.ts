@@ -3,7 +3,7 @@
  * Centralized configuration for quality scoring, thresholds, and article requirements
  */
 
-import type { ArticlePriority, StandardSection } from '../types';
+import type { ArticlePriority, StandardSection } from '../types/index.js';
 
 // ============================================
 // QUALITY SCORING THRESHOLDS

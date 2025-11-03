@@ -4,8 +4,8 @@
  * for phased search (P1 → P2 → P3)
  */
 
-import type { QueryExpansionStrategy } from '../../types/search.types';
-import { Logger } from '../../utils/simple-logger';
+import type { QueryExpansionStrategy } from '../../types/search.types.js';
+import { Logger } from '../../utils/simple-logger.js';
 
 export class QueryExpansionService {
   private logger: Logger;

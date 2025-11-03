@@ -6,21 +6,21 @@
  * - bioRxiv, medRxiv, OpenAIRE, DataCite, Google Scholar
  */
 
-import type { AcademicArticle } from '../../types/article.types';
-import { Logger } from '../../utils/simple-logger';
-import { OpenAlexService } from './openalex.service';
-import { SemanticScholarService } from './semantic-scholar.service';
-import { PubMedService } from './pubmed.service';
-import { COREService } from './core.service';
-import { EuropePMCService } from './europepmc.service';
-import { ArXivService } from './arxiv.service';
-import { DOAJService } from './doaj.service';
-import { PLOSService } from './plos.service';
-import { BioRxivService } from './biorxiv.service';
-import { MedRxivService } from './medrxiv.service';
-import { OpenAIREService } from './openaire.service';
-import { DataCiteService } from './datacite.service';
-import { GoogleScholarService } from './google-scholar.service';
+import type { AcademicArticle } from '../../types/article.types.js';
+import { Logger } from '../../utils/simple-logger.js';
+import { OpenAlexService } from './openalex.service.js';
+import { SemanticScholarService } from './semantic-scholar.service.js';
+import { PubMedService } from './pubmed.service.js';
+import { COREService } from './core.service.js';
+import { EuropePMCService } from './europepmc.service.js';
+import { ArXivService } from './arxiv.service.js';
+import { DOAJService } from './doaj.service.js';
+import { PLOSService } from './plos.service.js';
+import { BioRxivService } from './biorxiv.service.js';
+import { MedRxivService } from './medrxiv.service.js';
+import { OpenAIREService } from './openaire.service.js';
+import { DataCiteService } from './datacite.service.js';
+import { GoogleScholarService } from './google-scholar.service.js';
 
 export class ExternalAPIsService {
   private logger: Logger;

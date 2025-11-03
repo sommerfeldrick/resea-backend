@@ -3,7 +3,7 @@
  * Suporta busca em fases (P1 → P2 → P3), filtros avançados e estratégias
  */
 
-import { ArticlePriority, ArticleFormat, LicenseType } from './article.types';
+import { ArticlePriority, ArticleFormat, LicenseType } from './article.types.js';
 
 /**
  * Estratégias de busca

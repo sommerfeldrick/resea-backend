@@ -3,7 +3,7 @@
  * Suporta parsing de múltiplos formatos e chunking para RAG
  */
 
-import { ArticleFormat } from './article.types';
+import { ArticleFormat } from './article.types.js';
 
 /**
  * Seções padrão de artigo científico

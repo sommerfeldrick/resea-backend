@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import axios from 'axios'
-import { oauthConfig } from '../../config/oauth'
+import { oauthConfig } from '../../config/oauth.js'
 
 // Mock axios
 vi.mock('axios')

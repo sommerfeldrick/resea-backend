@@ -9,8 +9,8 @@
  * - Rate limit: 3 req/s without API key, 10 req/s with key
  */
 
-import { BaseAPIService } from './base-api.service';
-import type { AcademicArticle } from '../../types/article.types';
+import { BaseAPIService } from './base-api.service.js';
+import type { AcademicArticle } from '../../types/article.types.js';
 
 interface PubMedArticle {
   uid: string;

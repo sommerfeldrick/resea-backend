@@ -5,8 +5,8 @@
  */
 
 import { Client } from '@elastic/elasticsearch';
-import type { AcademicArticle } from '../../types/article.types';
-import { Logger } from '../../utils/simple-logger';
+import type { AcademicArticle } from '../../types/article.types.js';
+import { Logger } from '../../utils/simple-logger.js';
 
 export class ElasticsearchService {
   private client: Client;

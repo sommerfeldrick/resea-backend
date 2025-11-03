@@ -3,16 +3,16 @@
  * Creates appropriate parser for different content formats
  */
 
-import type { ArticleFormat } from '../../types';
-import type { ParserOutput } from '../../types/content.types';
-import { Logger } from '../../utils/simple-logger';
-import { ContentParser } from '../parsers/base.parser';
-import { JATSXMLParser } from '../parsers/jats-xml.parser';
-import { LaTeXParser } from '../parsers/latex.parser';
-import { JSONStructuredParser } from '../parsers/json-structured.parser';
-import { SemanticHTMLParser } from '../parsers/semantic-html.parser';
-import { TEIXMLParser } from '../parsers/tei-xml.parser';
-import { GROBIDParser } from '../parsers/grobid-pdf.parser';
+import type { ArticleFormat } from '../../types/index.js';
+import type { ParserOutput } from '../../types/content.types.js';
+import { Logger } from '../../utils/simple-logger.js';
+import { ContentParser } from '../parsers/base.parser.js';
+import { JATSXMLParser } from '../parsers/jats-xml.parser.js';
+import { LaTeXParser } from '../parsers/latex.parser.js';
+import { JSONStructuredParser } from '../parsers/json-structured.parser.js';
+import { SemanticHTMLParser } from '../parsers/semantic-html.parser.js';
+import { TEIXMLParser } from '../parsers/tei-xml.parser.js';
+import { GROBIDParser } from '../parsers/grobid-pdf.parser.js';
 
 /**
  * Legacy ParsedContent interface for backward compatibility

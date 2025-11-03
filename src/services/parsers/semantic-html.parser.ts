@@ -3,8 +3,8 @@
  * Parses semantic HTML from publisher websites
  */
 
-import { BaseParser } from './base.parser';
-import type { ParserOutput, ContentSection } from '../../types/content.types';
+import { BaseParser } from './base.parser.js';
+import type { ParserOutput, ContentSection } from '../../types/content.types.js';
 import * as cheerio from 'cheerio';
 
 export class SemanticHTMLParser extends BaseParser {

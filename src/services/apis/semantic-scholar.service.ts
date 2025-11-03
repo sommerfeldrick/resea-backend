@@ -10,8 +10,8 @@
  * - Rate limit: 100 req/s with API key, 1 req/s without
  */
 
-import { BaseAPIService } from './base-api.service';
-import type { AcademicArticle } from '../../types/article.types';
+import { BaseAPIService } from './base-api.service.js';
+import type { AcademicArticle } from '../../types/article.types.js';
 
 interface SemanticScholarPaper {
   paperId: string;

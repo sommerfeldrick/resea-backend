@@ -5,9 +5,9 @@
  */
 
 import axios from 'axios';
-import type { AcademicArticle, AvailableFormat, ArticleFormat } from '../../types';
-import { FORMAT_PRIORITY } from '../../config/constants';
-import { Logger } from '../../utils/simple-logger';
+import type { AcademicArticle, AvailableFormat, ArticleFormat } from '../../types/index.js';
+import { FORMAT_PRIORITY } from '../../config/constants.js';
+import { Logger } from '../../utils/simple-logger.js';
 
 export class MultiFormatDetectorService {
   private logger: Logger;

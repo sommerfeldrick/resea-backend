@@ -3,8 +3,8 @@
  * Parses LaTeX source files from arXiv
  */
 
-import { BaseParser } from './base.parser';
-import type { ParserOutput, ContentSection } from '../../types/content.types';
+import { BaseParser } from './base.parser.js';
+import type { ParserOutput, ContentSection } from '../../types/content.types.js';
 import * as tar from 'tar';
 import * as zlib from 'zlib';
 import { promisify } from 'util';

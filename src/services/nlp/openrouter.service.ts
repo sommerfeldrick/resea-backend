@@ -5,7 +5,7 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
-import { Logger } from '../../utils/simple-logger';
+import { Logger } from '../../utils/simple-logger.js';
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';

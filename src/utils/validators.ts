@@ -2,8 +2,8 @@
 // VALIDATORS
 // ════════════════════════════════════════════════════════════
 
-import type { WorkSection } from '../types/search.types';
-import { ARTICLE_REQUIREMENTS } from '../config/constants';
+import type { WorkSection } from '../types/search.types.js';
+import { ARTICLE_REQUIREMENTS } from '../config/constants.js';
 
 // Valid work sections
 const VALID_SECTIONS: WorkSection[] = [

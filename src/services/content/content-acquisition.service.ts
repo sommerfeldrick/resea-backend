@@ -5,10 +5,10 @@
  */
 
 import axios from 'axios';
-import type { AcademicArticle, AvailableFormat } from '../../types';
-import { parserFactory, type ParsedContent } from './parser-factory.service';
-import { multiFormatDetector } from './multi-format-detector.service';
-import { Logger } from '../../utils/simple-logger';
+import type { AcademicArticle, AvailableFormat } from '../../types/index.js';
+import { parserFactory, type ParsedContent } from './parser-factory.service.js';
+import { multiFormatDetector } from './multi-format-detector.service.js';
+import { Logger } from '../../utils/simple-logger.js';
 
 export interface AcquisitionResult {
   success: boolean;

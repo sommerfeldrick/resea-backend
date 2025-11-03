@@ -3,7 +3,7 @@
  * All parsers extend this base class
  */
 
-import type { ParserOutput } from '../../types/content.types';
+import type { ParserOutput } from '../../types/content.types.js';
 
 export interface ContentParser {
   /**

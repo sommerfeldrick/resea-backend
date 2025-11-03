@@ -3,8 +3,8 @@
  * Parses JATS XML format from PubMed Central
  */
 
-import { BaseParser } from './base.parser';
-import type { ParserOutput, ContentSection, Reference, Figure, Table } from '../../types/content.types';
+import { BaseParser } from './base.parser.js';
+import type { ParserOutput, ContentSection, Reference, Figure, Table } from '../../types/content.types.js';
 import * as xml2js from 'xml2js';
 import { select } from 'xpath';
 import { DOMParser } from '@xmldom/xmldom';

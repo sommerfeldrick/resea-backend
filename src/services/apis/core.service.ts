@@ -9,8 +9,8 @@
  * - Rate limit: Depends on plan (typically 1000 req/day free tier)
  */
 
-import { BaseAPIService } from './base-api.service';
-import type { AcademicArticle } from '../../types/article.types';
+import { BaseAPIService } from './base-api.service.js';
+import type { AcademicArticle } from '../../types/article.types.js';
 
 interface CORESummary {
   id: number;
