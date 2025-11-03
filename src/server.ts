@@ -8,6 +8,7 @@ import { config } from 'dotenv';
 import { logger } from './config/logger.js';
 import apiRoutes from './routes/api.js';
 import authRoutes from './routes/auth.js';
+import userRoutes from './routes/user.js';
 import filesRoutes from './routes/files.js';
 import templatesRoutes from './routes/templates.js';
 import researchRoutes from './routes/research.js';
@@ -124,6 +125,9 @@ app.use('/api', limiter);
 
 // Auth routes (SmileAI SSO)
 app.use('/api/auth', authRoutes);
+
+// User routes (profile, settings)
+app.use('/api/user', userRoutes);
 
 // AI Health routes (monitoring)
 app.use('/api/ai', aiRoutes);
