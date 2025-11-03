@@ -27,7 +27,7 @@ export class PostgresService {
       connectionString,
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 30000, // 30s timeout para conexões cloud (Render)
     });
 
     this.logger.info('Postgres client initialized');
