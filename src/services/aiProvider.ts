@@ -333,15 +333,17 @@ async function generateWithOpenRouter(prompt: string, options: any): Promise<AIR
 async function generateWithOllama(prompt: string, options: any): Promise<AIResponse> {
   const config = aiConfigs.ollama;
 
-  // Ollama Cloud usa /api/chat (compatível com OpenAI)
+  // Ollama Cloud usa /v1/chat/completions (compatível com OpenAI)
   const response = await axios.post(
-    `${config.baseUrl}/api/chat`,
+    `${config.baseUrl}/v1/chat/completions`,
     {
       model: config.model,
       messages: [
         ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
         { role: 'user', content: prompt }
       ],
+      temperature: options.temperature || 0.7,
+      max_tokens: options.maxTokens || 4096,
       stream: false
     },
     {
@@ -353,8 +355,9 @@ async function generateWithOllama(prompt: string, options: any): Promise<AIRespo
   );
 
   return {
-    text: response.data.message.content,
+    text: response.data.choices[0].message.content,
     provider: 'ollama',
+    tokensUsed: response.data.usage?.total_tokens,
     cost: 0 // CLOUD - GRÁTIS!
   };
 }
