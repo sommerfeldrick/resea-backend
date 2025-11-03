@@ -3,14 +3,14 @@
 // ════════════════════════════════════════════════════════════
 
 import { Router, Request, Response } from 'express';
-import { HybridExhaustiveSearchService } from '../services/search/hybrid-exhaustive-search.service';
-import { ContentAcquisitionService } from '../services/content/content-acquisition.service';
-import { ChunkingService } from '../services/content/chunking.service';
-import { QdrantService } from '../services/database/qdrant.service';
-import { ElasticsearchService } from '../services/database/elasticsearch.service';
-import { PostgresService } from '../services/database/postgres.service';
-import { WorkSection } from '../types/search.types';
-import { Logger } from '../utils/simple-logger';
+import { HybridExhaustiveSearchService } from '../services/search/hybrid-exhaustive-search.service.js';
+import { ContentAcquisitionService } from '../services/content/content-acquisition.service.js';
+import { ChunkingService } from '../services/content/chunking.service.js';
+import { QdrantService } from '../services/database/qdrant.service.js';
+import { ElasticsearchService } from '../services/database/elasticsearch.service.js';
+import { PostgresService } from '../services/database/postgres.service.js';
+import { WorkSection } from '../types/search.types.js';
+import { Logger } from '../utils/simple-logger.js';
 import * as path from 'path';
 
 const router = Router();
