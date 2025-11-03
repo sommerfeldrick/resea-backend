@@ -4,16 +4,16 @@
  */
 
 // Article types
-export * from './article.types';
+export * from './article.types.js';
 
 // Search types
-export * from './search.types';
+export * from './search.types.js';
 
 // Content types
-export * from './content.types';
+export * from './content.types.js';
 
 // Legacy types (backward compatibility)
-export * from './legacy.types';
+export * from './legacy.types.js';
 
 // Full paper types (existing)
-export * from './fullPaper';
+export * from './fullPaper.js';
