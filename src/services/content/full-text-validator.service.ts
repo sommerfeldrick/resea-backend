@@ -213,6 +213,22 @@ export class FullTextValidatorService {
   }
 
   /**
+   * Validate batch of articles
+   */
+  async validateBatch(articles: AcademicArticle[]): Promise<AcademicArticle[]> {
+    this.logger.info(`Validating ${articles.length} articles in batch`);
+
+    const validatedArticles = await Promise.all(
+      articles.map(article => this.enrichArticle(article))
+    );
+
+    // Filter articles that have at least one validated format
+    return validatedArticles.filter(
+      article => article.availableFormats && article.availableFormats.length > 0
+    );
+  }
+
+  /**
    * Get priority for format based on source
    */
   private getFormatPriority(format?: string, source?: string): number {

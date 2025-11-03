@@ -272,3 +272,46 @@ export function isValidSearchOptions(obj: any): obj is SearchOptions {
 
   return true;
 }
+
+// ============================================
+// SEARCH SERVICE TYPES
+// ============================================
+
+/**
+ * Seções do trabalho acadêmico
+ */
+export type WorkSection =
+  | 'introduction'
+  | 'literatureReview'
+  | 'methodology'
+  | 'results'
+  | 'discussion'
+  | 'conclusion';
+
+/**
+ * Status da busca exaustiva
+ */
+export type ExhaustiveSearchStatus =
+  | 'P1_COMPLETE'      // Meta atingida apenas com P1
+  | 'P1_INCOMPLETE'    // P1 não atingiu meta, indo para P2
+  | 'P2_COMPLETE'      // Meta atingida com P1 + P2
+  | 'P2_INCOMPLETE'    // P2 não atingiu meta, indo para P3
+  | 'P3_COMPLETE'      // Meta atingida com P1 + P2 + P3
+  | 'COMPLETE';        // Busca finalizada
+
+/**
+ * Callback para aprovação do usuário durante busca exaustiva
+ */
+export type UserApprovalCallback = (
+  currentResults: import('./article.types').EnrichedArticle[],
+  status: ExhaustiveSearchStatus
+) => Promise<boolean>;
+
+/**
+ * Estratégia de expansão de query
+ */
+export interface QueryExpansionStrategy {
+  primaryQuery: string;           // Query original
+  secondaryQueries: string[];     // Sinônimos e variações
+  tertiaryQueries: string[];      // Queries mais amplas
+}

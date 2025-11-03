@@ -219,6 +219,25 @@ export const ARTICLE_REQUIREMENTS = {
 // ============================================
 
 /**
+ * RRF (Reciprocal Rank Fusion) constant for hybrid search
+ * Score = weight / (RRF_CONSTANT + rank)
+ */
+export const RRF_CONSTANT = 60;
+
+/**
+ * Target article count by work section
+ * Used by exhaustive search to determine when to stop
+ */
+export const ARTICLE_COUNT_BY_SECTION: Record<string, number> = {
+  introduction: 20,
+  literatureReview: 50,
+  methodology: 15,
+  results: 10,
+  discussion: 20,
+  conclusion: 10,
+} as const;
+
+/**
  * Default search limits
  */
 export const SEARCH_LIMITS = {
