@@ -7,7 +7,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import axios from 'axios';
 import { logger } from '../config/logger.js';
 
-export type AIProvider = 'gemini' | 'openai' | 'claude' | 'groq' | 'ollama';
+export type AIProvider = 'gemini' | 'openai' | 'claude' | 'groq' | 'openrouter' | 'ollama';
 
 export interface AIConfig {
   provider: AIProvider;
@@ -63,6 +63,15 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
     enabled: !!process.env.GROQ_API_KEY
   },
 
+  // OpenRouter (GRÁTIS! Múltiplos modelos)
+  openrouter: {
+    provider: 'openrouter',
+    apiKey: process.env.OPENROUTER_API_KEY,
+    model: process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3.1:free',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    enabled: !!process.env.OPENROUTER_API_KEY
+  },
+
   // Ollama Cloud (GRÁTIS! Modelos cloud sem GPU necessária)
   ollama: {
     provider: 'ollama',
@@ -76,7 +85,7 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
 /**
  * Ordem de prioridade dos provedores (do mais barato para o mais caro)
  */
-const providerPriority: AIProvider[] = ['ollama', 'groq', 'gemini', 'openai', 'claude'];
+const providerPriority: AIProvider[] = ['ollama', 'groq', 'openrouter', 'gemini', 'openai', 'claude'];
 
 /**
  * Get active AI provider
@@ -130,6 +139,9 @@ export async function generateText(
 
       case 'groq':
         return await generateWithGroq(prompt, options);
+
+      case 'openrouter':
+        return await generateWithOpenRouter(prompt, options);
 
       case 'ollama':
         return await generateWithOllama(prompt, options);
@@ -274,6 +286,41 @@ async function generateWithGroq(prompt: string, options: any): Promise<AIRespons
   return {
     text: response.data.choices[0].message.content,
     provider: 'groq',
+    tokensUsed: response.data.usage?.total_tokens,
+    cost: 0 // GRÁTIS!
+  };
+}
+
+/**
+ * OpenRouter (GRÁTIS! Múltiplos modelos)
+ */
+async function generateWithOpenRouter(prompt: string, options: any): Promise<AIResponse> {
+  const config = aiConfigs.openrouter;
+
+  const response = await axios.post(
+    `${config.baseUrl}/chat/completions`,
+    {
+      model: config.model,
+      messages: [
+        ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
+        { role: 'user', content: prompt }
+      ],
+      temperature: options.temperature || 0.7,
+      max_tokens: options.maxTokens || 4096
+    },
+    {
+      headers: {
+        'Authorization': `Bearer ${config.apiKey}`,
+        'HTTP-Referer': process.env.FRONTEND_URL || 'https://app.smileai.com.br',
+        'X-Title': 'SmileAI Research Assistant',
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+
+  return {
+    text: response.data.choices[0].message.content,
+    provider: 'openrouter',
     tokensUsed: response.data.usage?.total_tokens,
     cost: 0 // GRÁTIS!
   };
