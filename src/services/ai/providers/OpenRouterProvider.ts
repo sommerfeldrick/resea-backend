@@ -113,8 +113,9 @@ export class OpenRouterProvider extends BaseAIProvider {
   ): number {
     // Preços aproximados (USD por 1M tokens)
     const pricing: Record<string, { prompt: number; completion: number }> = {
+      'deepseek/deepseek-chat-v3.1:free': { prompt: 0, completion: 0 },
       'meta-llama/llama-3.1-8b-instruct:free': { prompt: 0, completion: 0 },
-      'meta-llama/llama-3.1-70b-instruct:free': { prompt: 0, completion: 0 },
+      'meta-llama/llama-3.3-70b-instruct:free': { prompt: 0, completion: 0 },
       'openai/gpt-4o-mini': { prompt: 0.15, completion: 0.60 },
       'openai/gpt-4o': { prompt: 5, completion: 15 },
       'anthropic/claude-3.5-sonnet': { prompt: 3, completion: 15 },

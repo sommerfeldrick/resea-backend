@@ -1,6 +1,6 @@
 /**
  * Ollama Provider
- * Modelos open-source locais - 100% grátis, totalmente offline
+ * Suporta Ollama Local (localhost) e Ollama Cloud (api.ollama.com)
  */
 
 import axios from 'axios';
@@ -9,10 +9,22 @@ import type { AIGenerationOptions, AIResponse } from '../types.js';
 import { logger } from '../../../config/logger.js';
 
 export class OllamaProvider extends BaseAIProvider {
+  private isCloud: boolean;
+
   constructor(model?: string, baseUrl?: string, apiKey?: string) {
     super(apiKey, model, baseUrl);
     this.model = model || 'llama2';
     this.baseUrl = baseUrl || 'http://localhost:11434';
+
+    // Detecta se é Ollama Cloud ou Local
+    this.isCloud = this.baseUrl.includes('api.ollama.com');
+
+    logger.info('OllamaProvider initialized', {
+      mode: this.isCloud ? 'cloud' : 'local',
+      baseUrl: this.baseUrl,
+      model: this.model,
+      hasApiKey: !!this.apiKey
+    });
   }
 
   getProviderName(): string {
@@ -21,12 +33,25 @@ export class OllamaProvider extends BaseAIProvider {
 
   async isAvailable(): Promise<boolean> {
     try {
-      const response = await axios.get(`${this.baseUrl}/api/tags`, {
-        timeout: 5000
+      if (this.isCloud) {
+        // Ollama Cloud: verifica se tem API key
+        if (!this.apiKey) {
+          logger.warn('Ollama Cloud requires API key');
+          return false;
+        }
+        return true;
+      } else {
+        // Ollama Local: testa conexão
+        const response = await axios.get(`${this.baseUrl}/api/tags`, {
+          timeout: 5000
+        });
+        return response.status === 200;
+      }
+    } catch (error: any) {
+      logger.warn('Ollama server not available', {
+        baseUrl: this.baseUrl,
+        error: error.message
       });
-      return response.status === 200;
-    } catch {
-      logger.warn('Ollama server not available at', { baseUrl: this.baseUrl });
       return false;
     }
   }
@@ -37,53 +62,127 @@ export class OllamaProvider extends BaseAIProvider {
   ): Promise<AIResponse> {
     try {
       if (!await this.isAvailable()) {
-        throw new Error(`Ollama server not available at ${this.baseUrl}`);
+        throw new Error(
+          this.isCloud
+            ? 'Ollama Cloud requires API key'
+            : `Ollama server not available at ${this.baseUrl}`
+        );
       }
-
-      const systemPrompt = this.formatSystemPrompt(options.systemPrompt);
-      const fullPrompt = `${systemPrompt}\n\n${prompt}`;
 
       const startTime = Date.now();
 
-      const response = await axios.post(
-        `${this.baseUrl}/api/generate`,
-        {
-          model: this.model,
-          prompt: fullPrompt,
-          stream: false,
-          temperature: options.temperature || 0.7,
-          top_p: options.topP || 1,
-          num_predict: options.maxTokens || 4096
-        },
-        {
-          timeout: 120000 // 2 minutos para modelos grandes
-        }
-      );
-
-      const text = response.data.response || '';
-      const latency = Date.now() - startTime;
-
-      logger.info('Ollama generation successful', {
-        model: this.model,
-        latency: `${latency}ms`,
-        textLength: text.length
-      });
-
-      return {
-        text,
-        provider: 'ollama',
-        model: this.model,
-        tokensUsed: 0,
-        cost: 0, // LOCAL - GRÁTIS!
-        timestamp: new Date()
-      };
+      if (this.isCloud) {
+        // Ollama Cloud: usa endpoint compatível com OpenAI
+        return await this.generateCloud(prompt, options, startTime);
+      } else {
+        // Ollama Local: usa endpoint nativo
+        return await this.generateLocal(prompt, options, startTime);
+      }
     } catch (error: any) {
       logger.error('Ollama generation failed', {
         error: error.message,
         model: this.model,
-        baseUrl: this.baseUrl
+        baseUrl: this.baseUrl,
+        mode: this.isCloud ? 'cloud' : 'local'
       });
       throw error;
     }
+  }
+
+  /**
+   * Geração usando Ollama Cloud (OpenAI-compatible API)
+   */
+  private async generateCloud(
+    prompt: string,
+    options: AIGenerationOptions,
+    startTime: number
+  ): Promise<AIResponse> {
+    const systemPrompt = this.formatSystemPrompt(options.systemPrompt);
+
+    const response = await axios.post(
+      `${this.baseUrl}/v1/chat/completions`,
+      {
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: options.temperature || 0.7,
+        max_tokens: options.maxTokens || 4096,
+        top_p: options.topP || 1
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 120000
+      }
+    );
+
+    const text = response.data.choices[0]?.message?.content || '';
+    const tokensUsed = response.data.usage?.total_tokens || 0;
+    const latency = Date.now() - startTime;
+
+    logger.info('Ollama Cloud generation successful', {
+      model: this.model,
+      latency: `${latency}ms`,
+      tokensUsed,
+      textLength: text.length
+    });
+
+    return {
+      text,
+      provider: 'ollama',
+      model: this.model,
+      tokensUsed,
+      cost: 0, // CLOUD - GRÁTIS!
+      timestamp: new Date()
+    };
+  }
+
+  /**
+   * Geração usando Ollama Local (native API)
+   */
+  private async generateLocal(
+    prompt: string,
+    options: AIGenerationOptions,
+    startTime: number
+  ): Promise<AIResponse> {
+    const systemPrompt = this.formatSystemPrompt(options.systemPrompt);
+    const fullPrompt = `${systemPrompt}\n\n${prompt}`;
+
+    const response = await axios.post(
+      `${this.baseUrl}/api/generate`,
+      {
+        model: this.model,
+        prompt: fullPrompt,
+        stream: false,
+        temperature: options.temperature || 0.7,
+        top_p: options.topP || 1,
+        num_predict: options.maxTokens || 4096
+      },
+      {
+        timeout: 120000 // 2 minutos para modelos grandes
+      }
+    );
+
+    const text = response.data.response || '';
+    const latency = Date.now() - startTime;
+
+    logger.info('Ollama Local generation successful', {
+      model: this.model,
+      latency: `${latency}ms`,
+      textLength: text.length
+    });
+
+    return {
+      text,
+      provider: 'ollama',
+      model: this.model,
+      tokensUsed: 0,
+      cost: 0, // LOCAL - GRÁTIS!
+      timestamp: new Date()
+    };
   }
 }
