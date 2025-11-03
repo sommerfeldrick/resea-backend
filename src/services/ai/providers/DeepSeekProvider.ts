@@ -1,8 +1,12 @@
 /**
  * DeepSeek Provider
- * API própria da DeepSeek com modelos V3/V3.1
+ * API própria da DeepSeek com modelo V3.2-Exp
  * Free tier: 5M tokens/mês (refresh mensal)
  * OpenAI-compatible API
+ *
+ * Modelos:
+ * - deepseek-chat: Modo normal (recomendado)
+ * - deepseek-reasoner: Modo thinking com raciocínio explícito (tasks complexas)
  */
 
 import OpenAI from 'openai';

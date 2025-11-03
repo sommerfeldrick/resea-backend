@@ -70,7 +70,7 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
   deepseek: {
     provider: 'deepseek',
     apiKey: process.env.DEEPSEEK_API_KEY,
-    model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', // V3.1 (671B params)
+    model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', // V3.2-Exp: deepseek-chat (normal) ou deepseek-reasoner (thinking mode)
     baseUrl: 'https://api.deepseek.com',
     enabled: !!process.env.DEEPSEEK_API_KEY,
     priority: 4, // QUARTA OPÇÃO - 5M tokens free/mês
@@ -87,7 +87,7 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
  * 1. Groq: 100k tokens/dia + 30 req/min (super rápido) - Llama 4 Maverick 17B
  * 2. OpenRouter: Créditos flexíveis + muitos modelos gratuitos
  * 3. Gemini: 250 req/dia + 1M tokens/dia
- * 4. DeepSeek: 5M tokens/mês grátis - DeepSeek V3.1 (671B)
+ * 4. DeepSeek: 5M tokens/mês grátis - DeepSeek V3.2-Exp (deepseek-chat ou deepseek-reasoner)
  */
 export const fallbackOrder: AIProvider[] = [
   'groq',         // 1️⃣ Primary - Ultra-fast
