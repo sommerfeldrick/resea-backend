@@ -201,6 +201,11 @@ export class IncrementalIndexingService {
       const fields = 'paperId,title,abstract,year,citationCount,authors,publicationDate';
       const query = 'computer science OR artificial intelligence';
       
+      // Semantic Scholar date format: year only or range (YYYY-MM-DD:YYYY-MM-DD)
+      const now = new Date();
+      const sinceDate = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, '0')}-${String(since.getDate()).padStart(2, '0')}`;
+      const nowDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
       const response = await axios.get(
         `https://api.semanticscholar.org/graph/v1/paper/search`,
         {
@@ -208,7 +213,7 @@ export class IncrementalIndexingService {
             query,
             fields,
             limit: this.config.maxPapersPerSync,
-            publicationDateOrYear: `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, '0')}-${String(since.getDate()).padStart(2, '0')}:`,
+            publicationDateOrYear: `${sinceDate}:${nowDate}`,
           },
           headers,
           timeout: 30000,
