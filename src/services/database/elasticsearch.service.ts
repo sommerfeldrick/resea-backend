@@ -101,7 +101,7 @@ export class ElasticsearchService {
    */
   async search(
     query: string,
-    size: number,
+    size: number = 100,
     filters?: { requireFullText?: boolean }
   ): Promise<AcademicArticle[]> {
     try {
@@ -111,7 +111,7 @@ export class ElasticsearchService {
         {
           multi_match: {
             query,
-            fields: ['title^3', 'abstract^2', 'fullText'],
+            fields: ['title^3', 'abstract^2', 'fullText', 'authors'],
             type: 'best_fields',
             operator: 'or',
             fuzziness: 'AUTO',
@@ -119,9 +119,11 @@ export class ElasticsearchService {
         },
       ];
 
+      const filter: any[] = [];
+
       // Apply filters
       if (filters?.requireFullText) {
-        must.push({
+        filter.push({
           term: { hasFullText: true },
         });
       }
@@ -132,6 +134,7 @@ export class ElasticsearchService {
         query: {
           bool: {
             must,
+            filter: filter.length > 0 ? filter : undefined,
           },
         },
         sort: [{ _score: 'desc' }],
@@ -139,7 +142,7 @@ export class ElasticsearchService {
 
       return response.hits.hits.map((hit: any) => ({
         ...hit._source,
-        score: hit._score,
+        score: (hit._score || 0) / 100, // Normalize to 0-1
       })) as AcademicArticle[];
     } catch (error: any) {
       this.logger.error(`BM25 search failed: ${error.message}`);
