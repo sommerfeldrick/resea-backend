@@ -362,16 +362,16 @@ export const CACHE_LIMITS = {
 // ============================================
 
 /**
- * Embeddings service configuration
+ * Embeddings service configuration (OpenRouter)
  */
 export const EMBEDDINGS_CONFIG = {
-  MODEL: 'nomic-embed-text',   // Ollama model
-  DIMENSION: 768,              // Embedding dimension
-  MAX_TEXT_LENGTH: 2048,       // Max tokens to embed
-  BATCH_SIZE: 10,              // Batch size for parallel generation
-  RATE_LIMIT_DELAY: 100,       // Initial delay between batches (ms)
-  MAX_RATE_LIMIT_DELAY: 500,   // Max delay between batches (ms)
-  ENABLE_COMPRESSION: true,    // Gzip compression (~60% savings)
+  MODEL: 'text-embedding-3-small',  // OpenRouter embedding model
+  DIMENSION: 1536,                  // Embedding dimension (text-embedding-3-small)
+  MAX_TEXT_LENGTH: 8000,            // Max tokens to embed (~32k chars)
+  BATCH_SIZE: 100,                  // Batch size for parallel generation
+  RATE_LIMIT_DELAY: 100,            // Initial delay between batches (ms)
+  MAX_RATE_LIMIT_DELAY: 500,        // Max delay between batches (ms)
+  ENABLE_COMPRESSION: true,         // Gzip compression (~60% savings)
 } as const;
 
 /**
@@ -390,14 +390,28 @@ export const SIMILARITY_THRESHOLDS = {
 // ============================================
 
 /**
+ * OpenRouter configuration
+ */
+export const OPENROUTER_CONFIG = {
+  API_KEY: process.env.OPENROUTER_API_KEY,
+  BASE_URL: 'https://openrouter.ai/api/v1',
+  SITE_URL: 'https://smileai.com.br',
+  SITE_NAME: 'SmileAI',
+  DEFAULT_MODEL: 'minimax/minimax-m2:free',
+  EMBEDDING_MODEL: 'text-embedding-3-small',
+  TIMEOUT: 60000,              // 60 seconds
+} as const;
+
+/**
  * AI provider priorities (higher = try first)
  */
 export const AI_PROVIDER_PRIORITY = {
-  ollama: 10,      // Preferred (free, local/cloud)
-  gemini: 9,       // Fallback 1 (free tier)
-  groq: 8,         // Fallback 2 (fast, free tier)
-  claude: 7,       // Fallback 3 (high quality)
-  openai: 6,       // Fallback 4 (reliable)
+  openrouter: 10,  // Preferred (OpenRouter with minimax free model)
+  ollama: 9,       // Local (if available)
+  gemini: 8,       // Fallback 1 (free tier)
+  groq: 7,         // Fallback 2 (fast, free tier)
+  claude: 6,       // Fallback 3 (high quality)
+  openai: 5,       // Fallback 4 (reliable)
 } as const;
 
 /**
@@ -405,7 +419,7 @@ export const AI_PROVIDER_PRIORITY = {
  */
 export const AI_DEFAULTS = {
   TEMPERATURE: 0.7,
-  MAX_TOKENS: 4000,
+  MAX_TOKENS: 1000,
   TIMEOUT: 60000,              // 60 seconds
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000,           // 1 second
