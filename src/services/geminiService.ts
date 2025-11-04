@@ -43,28 +43,59 @@ export async function generateTaskPlan(query: string): Promise<TaskPlan> {
   logger.info('Generating task plan', { query });
 
   try {
-    const prompt = `Com base na consulta do usuário "${query}", crie um plano detalhado de pesquisa e redação. A pesquisa deve ser profunda e o estilo de escrita deve ser humanizado, evitando jargões excessivos para ser claro e envolvente.
+    const prompt = `Você é um pesquisador acadêmico experiente. Analise profundamente a consulta "${query}" e crie um plano de pesquisa EXAUSTIVO e de ALTA QUALIDADE.
+
+CRITÉRIOS DE QUALIDADE:
+- Pesquisa deve cobrir TODOS os aspectos do tema (histórico, estado atual, aplicações, desafios, tendências futuras)
+- Mínimo de 8-10 etapas de pesquisa específicas e detalhadas
+- Cada etapa deve focar em um aspecto crítico do tema
+- Incluir análise comparativa, estudos de caso, e revisão sistemática
+- Considerar perspectivas multidisciplinares quando relevante
 
 Retorne APENAS um objeto JSON válido (sem markdown, sem \`\`\`json) com a seguinte estrutura:
 {
-  "taskTitle": "título conciso em português",
+  "taskTitle": "título acadêmico preciso e descritivo em português",
   "taskDescription": {
-    "type": "tipo de documento (ex: 'revisão de literatura acadêmica')",
-    "style": "estilo de escrita (ex: 'acadêmico formal humanizado')",
-    "audience": "público-alvo",
-    "wordCount": "contagem estimada (ex: '8000-12000 palavras')"
+    "type": "tipo de documento (ex: 'revisão sistemática de literatura', 'artigo científico', 'estudo de caso')",
+    "style": "acadêmico formal rigoroso com fundamentação teórica sólida",
+    "audience": "pesquisadores, acadêmicos, profissionais da área",
+    "wordCount": "10000-15000 palavras (pesquisa aprofundada)"
   },
   "executionPlan": {
-    "thinking": ["etapa 1 de pensamento", "etapa 2...", "..."],
-    "research": ["etapa 1 de pesquisa", "etapa 2...", "..."],
-    "writing": ["etapa 1 de redação", "etapa 2...", "..."]
+    "thinking": [
+      "Análise epistemológica do tema e delimitação do escopo",
+      "Identificação das principais teorias, modelos e frameworks relevantes",
+      "Mapeamento das lacunas de conhecimento e questões de pesquisa",
+      "Definição de critérios de qualidade e relevância para seleção de fontes",
+      "Estabelecimento de metodologia de análise e síntese de informações"
+    ],
+    "research": [
+      "Revisão sistemática da literatura fundamental e clássica (últimas 3 décadas)",
+      "Análise detalhada dos avanços recentes e estado da arte (últimos 5 anos)",
+      "Investigação de aplicações práticas, estudos de caso e evidências empíricas",
+      "Exame crítico de metodologias, técnicas e abordagens existentes",
+      "Identificação de desafios, limitações e controvérsias atuais",
+      "Análise comparativa de diferentes perspectivas e escolas de pensamento",
+      "Prospecção de tendências emergentes e direções futuras de pesquisa",
+      "Síntese de implicações práticas, éticas e sociais do tema"
+    ],
+    "writing": [
+      "Estruturação lógica com introdução contextualizada e objetivos claros",
+      "Desenvolvimento de fundamentação teórica robusta com citações qualificadas",
+      "Apresentação sistemática de evidências, análises e discussões críticas",
+      "Síntese integrativa de conhecimentos com análise comparativa",
+      "Conclusões fundamentadas com implicações e recomendações para pesquisas futuras",
+      "Revisão completa para coerência argumentativa, clareza expositiva e rigor acadêmico"
+    ]
   }
-}`;
+}
+
+IMPORTANTE: Adapte as etapas especificamente para o tema "${query}", mantendo profundidade e abrangência.`;
 
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um assistente de pesquisa especialista. Retorne APENAS JSON válido, sem formatação markdown.',
       temperature: 0.7,
-      maxTokens: 2000
+      maxTokens: 4000
     });
 
     const cleanedText = cleanJsonResponse(response.text);
@@ -84,22 +115,62 @@ export async function generateMindMap(plan: TaskPlan): Promise<MindMapData> {
   logger.info('Generating mind map', { title: plan.taskTitle });
 
   try {
-    const prompt = `Crie uma estrutura de dados de mapa mental para o ReactFlow com base no seguinte plano de pesquisa: ${JSON.stringify(plan.executionPlan)}.
+    const prompt = `Crie um mapa mental COMPLETO E DETALHADO para o ReactFlow baseado no plano de pesquisa: ${JSON.stringify(plan.executionPlan)}.
 
-O nó principal deve ser o título da tarefa: "${plan.taskTitle}".
-Crie nós para cada um dos principais temas nas fases de 'pensamento' e 'pesquisa'.
-Conecte os nós temáticos ao nó principal.
+ESTRUTURA DO MAPA MENTAL:
+1. Nó CENTRAL: "${plan.taskTitle}" (posição: x: 400, y: 50)
+2. Nós PRINCIPAIS (2º nível) - conectados ao central:
+   - Fundamentação Teórica
+   - Metodologia de Pesquisa
+   - Análise e Discussão
+   - Aplicações Práticas
+   - Perspectivas Futuras
+3. Nós SECUNDÁRIOS (3º nível) - conectados aos principais:
+   - Extraia de ${plan.executionPlan.thinking.length} etapas de pensamento
+   - Extraia de ${plan.executionPlan.research.length} etapas de pesquisa
+   - Crie pelo menos 12-15 nós secundários com conceitos específicos
 
-Retorne APENAS um objeto JSON válido (sem markdown, sem \`\`\`json) com propriedades 'nodes' e 'edges':
-- Cada nó em 'nodes' deve ter 'id' (string), 'data: { label: string }', e 'position: { x: number, y: number }'.
-- Posicione o nó principal em { x: 250, y: 5 } e distribua os outros nós ao redor dele de forma lógica.
-- Cada aresta em 'edges' deve ter 'id' (ex: 'e1-2'), 'source' (id do nó de origem), e 'target' (id do nó de destino).
-O idioma deve ser português do Brasil.`;
+POSICIONAMENTO INTELIGENTE:
+- Nó central: x: 400, y: 50
+- Nós principais: distribuir radialmente ao redor do central (raio 200px)
+- Nós secundários: distribuir ao redor dos principais (raio 150px)
+- Evitar sobreposição de nós (mínimo 120px de distância)
+- Criar layout organizado em círculos concêntricos
+
+FORMATO DE RETORNO:
+Retorne APENAS um objeto JSON válido (sem markdown, sem \`\`\`json) com:
+{
+  "nodes": [
+    {
+      "id": "1",
+      "type": "input",
+      "data": { "label": "${plan.taskTitle}" },
+      "position": { "x": 400, "y": 50 }
+    },
+    // ... outros nós principais e secundários
+  ],
+  "edges": [
+    {
+      "id": "e1-2",
+      "source": "1",
+      "target": "2",
+      "animated": true,
+      "label": "relaciona-se com"
+    },
+    // ... outras conexões
+  ]
+}
+
+IMPORTANTE:
+- Mínimo de 15 nós (1 central + 5 principais + 9+ secundários)
+- Cada edge deve ter label descrevendo a relação
+- Labels dos nós devem ser concisos (máximo 4 palavras)
+- Idioma: português do Brasil`;
 
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um especialista em criar mapas mentais. Retorne APENAS JSON válido, sem formatação markdown.',
       temperature: 0.7,
-      maxTokens: 1500
+      maxTokens: 3000
     });
 
     const cleanedText = cleanJsonResponse(response.text);
@@ -143,9 +214,9 @@ export async function performResearchStep(
   logger.info('Performing research step', { step, originalQuery });
 
   try {
-    // Search academic databases
+    // Search academic databases with extensive results
     const academicResults = await buscaAcademicaUniversal(combinedQuery, {
-      maxResults: 15,
+      maxResults: 60,
       ...filters
     });
 
@@ -246,23 +317,58 @@ export async function performResearchStep(
       })
       .join('\n\n---\n\n');
 
-    const prompt = `Com base nos artigos acadêmicos abaixo, forneça um resumo analítico e detalhado em português do Brasil sobre o tópico de pesquisa: "${step}" (contexto geral: "${originalQuery}").
+    const prompt = `Você é um pesquisador acadêmico realizando uma REVISÃO SISTEMÁTICA DE LITERATURA. Analise profundamente os ${sources.length} artigos acadêmicos abaixo sobre: "${step}" (tema geral: "${originalQuery}").
 
-O resumo deve:
-1. Sintetizar os principais achados e contribuições dos artigos
-2. Identificar consensos e divergências entre os autores
-3. Destacar metodologias relevantes
-4. Apontar lacunas ou oportunidades de pesquisa futura
-5. Ser escrito em linguagem acadêmica mas acessível
+ANÁLISE CRÍTICA REQUERIDA:
+1. **Síntese Temática**: Agrupe os achados em temas principais, identificando padrões consistentes
+2. **Análise Comparativa**: Compare e contraste diferentes abordagens, metodologias e resultados
+3. **Avaliação Crítica**: Analise a qualidade metodológica, limitações e vieses dos estudos
+4. **Consensos e Controvérsias**: Identifique áreas de acordo científico e pontos de debate
+5. **Lacunas de Conhecimento**: Mapeie o que ainda não foi adequadamente investigado
+6. **Implicações Práticas**: Discuta aplicações e relevância dos achados
+7. **Tendências Temporais**: Analise a evolução do conhecimento ao longo dos anos
+8. **Recomendações**: Sugira direções para pesquisas futuras
 
-Artigos:
+FORMATO DE SAÍDA (Markdown estruturado):
+## Síntese Temática
+[Principais temas e padrões identificados]
+
+## Análise Comparativa
+[Comparação entre diferentes abordagens e resultados]
+
+## Avaliação Metodológica
+[Análise crítica das metodologias empregadas]
+
+## Consensos Científicos
+[Pontos de concordância entre os estudos]
+
+## Controvérsias e Debates
+[Áreas de divergência e discussão]
+
+## Lacunas de Pesquisa
+[O que ainda precisa ser investigado]
+
+## Implicações Práticas
+[Aplicações e relevância dos achados]
+
+## Recomendações para Pesquisas Futuras
+[Direções sugeridas para investigação]
+
+CRITÉRIOS:
+- Mínimo 800 palavras de análise profunda
+- Citar especificamente os autores e anos dos estudos
+- Linguagem acadêmica formal e rigorosa
+- Fundamentação baseada em evidências
+- Pensamento crítico e analítico
+
+ARTIGOS PARA ANÁLISE (${sources.length} fontes):
 ${contexto}`;
 
     // Use multi-AI provider instead of direct Gemini call
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um assistente de pesquisa acadêmica especializado em análise crítica de literatura científica.',
       temperature: 0.7,
-      maxTokens: 2000
+      maxTokens: 4000
     });
 
     logger.info('Research step completed', {
