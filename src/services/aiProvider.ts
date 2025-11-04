@@ -7,7 +7,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import axios from 'axios';
 import { logger } from '../config/logger.js';
 
-export type AIProvider = 'gemini' | 'openai' | 'claude' | 'groq' | 'ollama' | 'deepseek';
+export type AIProvider = 'gemini' | 'openai' | 'claude' | 'ollama' | 'deepseek';
 
 export interface AIConfig {
   provider: AIProvider;
@@ -46,15 +46,6 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
     enabled: !!process.env.GEMINI_API_KEY
   },
 
-  // 3️⃣ Groq (100k tokens/dia - TERTIARY)
-  groq: {
-    provider: 'groq',
-    apiKey: process.env.GROQ_API_KEY,
-    model: process.env.GROQ_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct',
-    baseUrl: 'https://api.groq.com/openai/v1',
-    enabled: !!process.env.GROQ_API_KEY
-  },
-
   // OpenAI (pago)
   openai: {
     provider: 'openai',
@@ -87,7 +78,7 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
  * Ordem de prioridade dos provedores
  * DeepSeek (1º) → Gemini (2º) → OpenAI (3º)
  */
-const providerPriority: AIProvider[] = ['deepseek', 'gemini', 'openai', 'groq', 'claude'];
+const providerPriority: AIProvider[] = ['deepseek', 'gemini', 'openai', 'claude'];
 
 /**
  * Get active AI provider
@@ -138,9 +129,6 @@ export async function generateText(
 
       case 'claude':
         return await generateWithClaude(prompt, options);
-
-      case 'groq':
-        return await generateWithGroq(prompt, options);
 
       case 'deepseek':
         return await generateWithDeepSeek(prompt, options);
@@ -260,40 +248,7 @@ async function generateWithClaude(prompt: string, options: any): Promise<AIRespo
   };
 }
 
-/**
- * Groq (GRÁTIS!)
- */
-async function generateWithGroq(prompt: string, options: any): Promise<AIResponse> {
-  const config = aiConfigs.groq;
-
-  const response = await axios.post(
-    `${config.baseUrl}/chat/completions`,
-    {
-      model: config.model,
-      messages: [
-        ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
-        { role: 'user', content: prompt }
-      ],
-      temperature: options.temperature || 0.7,
-      max_tokens: options.maxTokens || 4096
-    },
-    {
-      headers: {
-        'Authorization': `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json'
-      }
-    }
-  );
-
-  return {
-    text: response.data.choices[0].message.content,
-    provider: 'groq',
-    tokensUsed: response.data.usage?.total_tokens,
-    cost: 0 // GRÁTIS!
-  };
-}
-
-// OpenRouter e Ollama REMOVIDOS
+// OpenRouter, Ollama e Groq REMOVIDOS
 
 /**
  * DeepSeek (5M TOKENS/MÊS GRÁTIS - DeepSeek V3.1 671B)
@@ -359,7 +314,6 @@ function calculateCost(provider: AIProvider, tokens: number): number {
   const prices: Record<AIProvider, number> = {
     deepseek: 0.35,    // $0.28 input + $0.42 output (média)
     gemini: 0.15,      // Flash: $0.075 input + $0.30 output
-    groq: 0,           // GRÁTIS
     openai: 0.20,      // GPT-4o-mini: $0.15 input + $0.60 output
     claude: 0.50,      // Haiku: $0.25 input + $1.25 output
     ollama: 0          // REMOVIDO

@@ -66,20 +66,6 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
     }
   },
 
-  // GROQ (100K TOKENS/DIA - GRÁTIS) - QUATERNARY
-  groq: {
-    provider: 'groq',
-    apiKey: process.env.GROQ_API_KEY,
-    model: process.env.GROQ_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct',
-    baseUrl: 'https://api.groq.com/openai/v1',
-    enabled: !!process.env.GROQ_API_KEY,
-    priority: 4, // QUARTA OPÇÃO
-    rateLimits: {
-      requestsPerMinute: 30,
-      tokensPerDay: 100000,
-      tokensPerMinute: 1667
-    }
-  }
 };
 
 /**
@@ -109,10 +95,6 @@ export const providerPricing: Record<AIProvider, { input: number; output: number
   openai: {
     input: 0.15,     // GPT-4o-mini: $0.15 per 1M
     output: 0.60     // GPT-4o-mini: $0.60 per 1M
-  },
-  groq: {
-    input: 0,        // GRÁTIS
-    output: 0
   },
   ollama: {
     input: 0,        // REMOVIDO

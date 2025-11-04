@@ -4,7 +4,6 @@
  */
 
 import { GeminiProvider } from './GeminiProvider.js';
-import { GroqProvider } from './GroqProvider.js';
 import { OllamaProvider } from './OllamaProvider.js';
 import { DeepSeekProvider } from './DeepSeekProvider.js';
 import { OpenAIProvider } from './OpenAIProvider.js';
@@ -32,10 +31,6 @@ export class ProviderFactory {
     switch (provider) {
       case 'gemini':
         providerInstance = new GeminiProvider(config.apiKey, config.model);
-        break;
-
-      case 'groq':
-        providerInstance = new GroqProvider(config.apiKey, config.model);
         break;
 
       case 'ollama':
