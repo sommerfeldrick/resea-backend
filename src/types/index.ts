@@ -17,3 +17,6 @@ export * from './legacy.types.js';
 
 // Full paper types (existing)
 export * from './fullPaper.js';
+
+// Research flow types (8-phase wizard)
+export * from './research-flow.types.js';

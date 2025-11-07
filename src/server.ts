@@ -15,6 +15,7 @@ import researchRoutes from './routes/research.js';
 import documentsRoutes from './routes/documents.js';
 import aiRoutes from './routes/ai.js';
 import fulltextRoutes from './routes/fulltext.js';
+import researchFlowRoutes from './routes/research-flow.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import searchRoutes from './routes/search.js';
 import metricsRoutes from './routes/metrics.js';
@@ -144,7 +145,11 @@ app.use('/api/research', smileaiAuthRequired, researchRoutes);
 // Documents routes (history, statistics)
 app.use('/api/documents', smileaiAuthRequired, documentsRoutes);
 app.use('/api/fulltext', smileaiAuthRequired, fulltextRoutes);
-app.use('/api/search', smileaiAuthRequired, searchRoutes); 
+app.use('/api/search', smileaiAuthRequired, searchRoutes);
+
+// Research Flow routes (8-phase wizard)
+app.use('/api/research-flow', smileaiAuthRequired, researchFlowRoutes);
+
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/sync', smileaiAuthRequired, syncRoutes);
 app.use('/api/health', healthRoutes);
