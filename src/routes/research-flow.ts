@@ -8,7 +8,11 @@ import {
   generateClarificationQuestions,
   processClarificationAnswers,
   generateSearchStrategy,
-  executeExhaustiveSearch
+  executeExhaustiveSearch,
+  analyzeArticles,
+  generateAcademicContent,
+  processEditRequest,
+  verifyDocumentQuality
 } from '../services/researchFlowService.js';
 import type {
   ClarificationAnswer,
@@ -177,6 +181,165 @@ router.post('/search/execute', async (req: Request, res: Response) => {
   }
 });
 
-// TODO: Adicionar rotas para FASE 5, 6, 7, 8
+// ============================================
+// FASE 5: ARTICLE ANALYSIS
+// ============================================
+
+/**
+ * POST /api/research-flow/analysis/analyze
+ * Analisa artigos e gera grafo de conhecimento
+ */
+router.post('/analysis/analyze', async (req: Request, res: Response) => {
+  try {
+    const { articles, query } = req.body;
+
+    if (!articles || !Array.isArray(articles) || !query) {
+      return res.status(400).json({
+        success: false,
+        error: 'articles (array) e query são obrigatórios'
+      });
+    }
+
+    logger.info('API: Analyze articles', { articleCount: articles.length, query });
+
+    const knowledgeGraph = await analyzeArticles(articles, query);
+
+    res.json({
+      success: true,
+      data: knowledgeGraph
+    });
+  } catch (error: any) {
+    logger.error('API: Analyze articles failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Falha ao analisar artigos'
+    });
+  }
+});
+
+// ============================================
+// FASE 6: CONTENT GENERATION
+// ============================================
+
+/**
+ * POST /api/research-flow/generation/generate
+ * Gera conteúdo acadêmico com streaming
+ */
+router.post('/generation/generate', async (req: Request, res: Response) => {
+  try {
+    const { config, articles, query } = req.body;
+
+    if (!config || !articles || !query) {
+      return res.status(400).json({
+        success: false,
+        error: 'config, articles e query são obrigatórios'
+      });
+    }
+
+    logger.info('API: Generate academic content', { section: config.section, articleCount: articles.length });
+
+    // Set headers for streaming
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Stream content generation
+    const stream = generateAcademicContent(config, articles, query);
+
+    for await (const chunk of stream) {
+      res.write(`data: ${JSON.stringify({ type: 'chunk', data: chunk })}\n\n`);
+    }
+
+    // Send completion event
+    res.write(`data: ${JSON.stringify({ type: 'complete' })}\n\n`);
+    res.end();
+
+    logger.info('API: Content generation completed');
+  } catch (error: any) {
+    logger.error('API: Generate content failed', { error: error.message });
+
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Falha ao gerar conteúdo'
+      });
+    } else {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+      res.end();
+    }
+  }
+});
+
+// ============================================
+// FASE 7: INTERACTIVE EDITING
+// ============================================
+
+/**
+ * POST /api/research-flow/editing/process
+ * Processa requisição de edição interativa
+ */
+router.post('/editing/process', async (req: Request, res: Response) => {
+  try {
+    const { request, currentContent, articles } = req.body;
+
+    if (!request || !currentContent || !articles) {
+      return res.status(400).json({
+        success: false,
+        error: 'request, currentContent e articles são obrigatórios'
+      });
+    }
+
+    logger.info('API: Process edit request', { action: request.action });
+
+    const editedText = await processEditRequest(request, currentContent, articles);
+
+    res.json({
+      success: true,
+      data: { editedText }
+    });
+  } catch (error: any) {
+    logger.error('API: Process edit failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Falha ao processar edição'
+    });
+  }
+});
+
+// ============================================
+// FASE 8: EXPORT & CITATION
+// ============================================
+
+/**
+ * POST /api/research-flow/export/verify
+ * Verifica qualidade do documento
+ */
+router.post('/export/verify', async (req: Request, res: Response) => {
+  try {
+    const { content, articles } = req.body;
+
+    if (!content || !articles) {
+      return res.status(400).json({
+        success: false,
+        error: 'content e articles são obrigatórios'
+      });
+    }
+
+    logger.info('API: Verify document quality');
+
+    const verification = await verifyDocumentQuality(content, articles);
+
+    res.json({
+      success: true,
+      data: verification
+    });
+  } catch (error: any) {
+    logger.error('API: Verify quality failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Falha ao verificar qualidade'
+    });
+  }
+});
 
 export default router;
