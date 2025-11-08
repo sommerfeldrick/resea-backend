@@ -91,15 +91,38 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um assistente de pesquisa especialista. Retorne APENAS JSON válido, sem formatação markdown.',
       temperature: 0.7,
-      maxTokens: 2000
+      maxTokens: 3000
     });
 
-    const cleanedText = response.text.trim()
+    // Clean markdown code blocks
+    let cleanedText = response.text.trim()
       .replace(/^```json\s*/i, '')
       .replace(/^```\s*/i, '')
       .replace(/```\s*$/i, '');
 
-    const questionsData = JSON.parse(cleanedText);
+    logger.info('AI response for clarification', {
+      originalLength: response.text.length,
+      cleanedLength: cleanedText.length,
+      preview: cleanedText.substring(0, 200)
+    });
+
+    let questionsData;
+    try {
+      questionsData = JSON.parse(cleanedText);
+    } catch (parseError: any) {
+      logger.error('JSON parse failed, attempting to fix', {
+        error: parseError.message,
+        textPreview: cleanedText.substring(0, 500)
+      });
+
+      // Try to find JSON object in the text
+      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        questionsData = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('Could not extract valid JSON from response');
+      }
+    }
 
     const session: ClarificationSession = {
       sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -121,7 +144,65 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
       error: error.message,
       query
     });
-    throw new Error('Falha ao gerar perguntas de refinamento');
+
+    // Fallback: return default questions
+    logger.info('Using fallback default questions');
+    const session: ClarificationSession = {
+      sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      query,
+      questions: [
+        {
+          id: 'q1',
+          questionNumber: 1,
+          totalQuestions: 3,
+          type: 'multiple_choice',
+          question: 'Qual seção do documento você deseja escrever?',
+          description: 'Isso ajudará a priorizar os tipos de artigos mais relevantes',
+          options: [
+            { value: 'introducao', label: 'Introdução', description: 'Contextualização geral do tema', estimatedArticles: 20 },
+            { value: 'revisao', label: 'Revisão de Literatura', description: 'Estado da arte e fundamentação teórica', estimatedArticles: 60 },
+            { value: 'metodologia', label: 'Metodologia', description: 'Métodos e procedimentos', estimatedArticles: 15 },
+            { value: 'todas', label: 'Todas as seções', description: 'Documento completo', estimatedArticles: 100 }
+          ],
+          required: true
+        },
+        {
+          id: 'q2',
+          questionNumber: 2,
+          totalQuestions: 3,
+          type: 'multiple_choice',
+          question: 'Que período de publicação você prefere?',
+          description: 'Selecione o intervalo de tempo para os artigos',
+          options: [
+            { value: 'ultimos_2_anos', label: 'Últimos 2 anos', description: 'Pesquisas mais recentes', estimatedArticles: 30 },
+            { value: 'ultimos_5_anos', label: 'Últimos 5 anos', description: 'Trabalhos recentes e relevantes', estimatedArticles: 60 },
+            { value: 'ultimos_10_anos', label: 'Últimos 10 anos', description: 'Base sólida de literatura', estimatedArticles: 100 },
+            { value: 'sem_restricao', label: 'Sem restrição', description: 'Todos os períodos', estimatedArticles: 150 }
+          ],
+          required: true
+        },
+        {
+          id: 'q3',
+          questionNumber: 3,
+          totalQuestions: 3,
+          type: 'multiple_choice',
+          question: 'Que tipo de estudo você prefere?',
+          description: 'Selecione o tipo de pesquisa mais adequado',
+          options: [
+            { value: 'empiricos', label: 'Estudos Empíricos', description: 'Pesquisas com dados e experimentos', estimatedArticles: 40 },
+            { value: 'teoricos', label: 'Estudos Teóricos', description: 'Revisões e frameworks conceituais', estimatedArticles: 30 },
+            { value: 'revisoes', label: 'Revisões Sistemáticas', description: 'Meta-análises e sínteses', estimatedArticles: 20 },
+            { value: 'todos', label: 'Todos os tipos', description: 'Sem preferência', estimatedArticles: 100 }
+          ],
+          required: true
+        }
+      ],
+      answers: [],
+      completed: false,
+      createdAt: new Date()
+    };
+
+    return session;
   }
 }
 
