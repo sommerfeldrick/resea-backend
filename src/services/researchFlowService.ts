@@ -354,11 +354,12 @@ Crie queries de busca organizadas por prioridade (THRESHOLDS ATUALIZADOS):
 - Alvo: 20-25 artigos
 - Exemplos: "X research", "X literature review", "X study"
 
-**P3 (Score <45)**: Artigos ACEITÁVEIS
+**P3 (Score 30-44)**: Artigos ACEITÁVEIS
 - Queries gerais para contexto e background
 - Esperados: artigos de suporte, overview
 - Alvo: 10-15 artigos
 - Exemplos: "X overview", "X survey", termos relacionados
+- Artigos com score < 30 são automaticamente descartados (baixíssima qualidade)
 
 IMPORTANTE: Com o novo sistema de pontuação, artigos recentes (2020-2025) com boa relevância no título atingem P1 facilmente!
 
@@ -601,11 +602,19 @@ function calculateArticleScore(article: any, query: string): { score: number; pr
     reasons.push('Abstract completo');
   }
 
-  // Determine priority com thresholds otimizados
+  // Determine priority com thresholds otimizados E threshold mínimo
   let priority: PriorityLevel;
-  if (score >= 70) priority = 'P1';      // Reduzido de 75 → 70
-  else if (score >= 45) priority = 'P2'; // Reduzido de 50 → 45
-  else priority = 'P3';
+  if (score >= 70) {
+    priority = 'P1';      // Artigos excelentes
+  } else if (score >= 45) {
+    priority = 'P2';      // Artigos bons
+  } else if (score >= 30) {
+    priority = 'P3';      // Artigos aceitáveis (mínimo de 30 pts)
+  } else {
+    // Artigos com score < 30 são de baixíssima qualidade e devem ser descartados
+    priority = 'P3';      // Marca como P3 mas com flag para filtrar
+    reasons.push('⚠️ Score muito baixo - considerar descartar');
+  }
 
   return { score, priority, reasons };
 }
@@ -682,6 +691,15 @@ export async function executeExhaustiveSearch(
       for (const result of results) {
         const scoreData = calculateArticleScore(result, strategy.originalQuery);
 
+        // Filtrar artigos com score muito baixo (< 30)
+        if (scoreData.score < 30) {
+          logger.debug('Article discarded due to low score', {
+            title: result.title?.substring(0, 50),
+            score: scoreData.score
+          });
+          continue; // Pula artigos de baixíssima qualidade
+        }
+
         const enrichedArticle: FlowEnrichedArticle = {
           id: result.doi || result.url || `article_${Date.now()}_${Math.random()}`,
           title: result.title,
@@ -747,6 +765,15 @@ export async function executeExhaustiveSearch(
         for (const result of results) {
           const scoreData = calculateArticleScore(result, strategy.originalQuery);
 
+          // Filtrar artigos com score muito baixo (< 30)
+          if (scoreData.score < 30) {
+            logger.debug('Article discarded due to low score', {
+              title: result.title?.substring(0, 50),
+              score: scoreData.score
+            });
+            continue;
+          }
+
           const enrichedArticle: FlowEnrichedArticle = {
             id: result.doi || result.url || `article_${Date.now()}_${Math.random()}`,
             title: result.title,
@@ -804,6 +831,15 @@ export async function executeExhaustiveSearch(
 
         for (const result of results) {
           const scoreData = calculateArticleScore(result, strategy.originalQuery);
+
+          // Filtrar artigos com score muito baixo (< 30)
+          if (scoreData.score < 30) {
+            logger.debug('Article discarded due to low score', {
+              title: result.title?.substring(0, 50),
+              score: scoreData.score
+            });
+            continue;
+          }
 
           const enrichedArticle: FlowEnrichedArticle = {
             id: result.doi || result.url || `article_${Date.now()}_${Math.random()}`,
