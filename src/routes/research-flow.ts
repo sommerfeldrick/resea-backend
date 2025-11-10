@@ -21,6 +21,23 @@ import type {
 
 const router = Router();
 
+/**
+ * Função utilitária para limpar strings antes de JSON.stringify
+ * Remove/escapa caracteres problemáticos que podem quebrar JSON no SSE
+ */
+function cleanStringForJSON(str: string | null | undefined): string {
+  if (!str) return '';
+
+  return str
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove caracteres de controle
+    .replace(/\\/g, '\\\\')  // Escapa backslashes
+    .replace(/"/g, '\\"')    // Escapa aspas duplas
+    .replace(/\n/g, ' ')     // Substitui quebras de linha por espaços
+    .replace(/\r/g, ' ')     // Substitui carriage returns por espaços
+    .replace(/\t/g, ' ')     // Substitui tabs por espaços
+    .trim();
+}
+
 // ============================================
 // FASE 2: AI CLARIFICATION
 // ============================================
@@ -159,18 +176,40 @@ router.post('/search/execute', async (req: Request, res: Response) => {
     // Executa a busca
     const articles = await executeExhaustiveSearch(strategy, onProgress);
 
-    // Envia artigos em lotes para evitar JSON muito grande
-    const batchSize = 10;
+    // Envia artigos em lotes MENORES para evitar JSON muito grande
+    const batchSize = 5;  // Reduzido de 10 para 5
     for (let i = 0; i < articles.length; i += batchSize) {
       const batch = articles.slice(i, i + batchSize);
 
-      // Truncar abstracts muito longos para evitar JSON gigante
-      const safeBatch = batch.map(article => ({
-        ...article,
-        abstract: article.abstract && article.abstract.length > 500
-          ? article.abstract.substring(0, 500) + '...'
-          : article.abstract
-      }));
+      // Truncar MÚLTIPLOS campos E limpar caracteres especiais
+      const safeBatch = batch.map(article => {
+        const truncatedTitle = article.title && article.title.length > 150
+          ? article.title.substring(0, 150) + '...'
+          : article.title;
+
+        const truncatedSource = article.source && article.source.length > 100
+          ? article.source.substring(0, 100) + '...'
+          : article.source;
+
+        const truncatedAbstract = article.abstract && article.abstract.length > 300
+          ? article.abstract.substring(0, 300) + '...'
+          : article.abstract;
+
+        return {
+          id: article.id,
+          title: cleanStringForJSON(truncatedTitle),
+          authors: Array.isArray(article.authors)
+            ? article.authors.slice(0, 3).map(a => cleanStringForJSON(a))
+            : article.authors,
+          year: article.year,
+          source: cleanStringForJSON(truncatedSource),
+          citationCount: article.citationCount,
+          abstract: cleanStringForJSON(truncatedAbstract),
+          score: article.score,
+          pdfUrl: article.pdfUrl ? cleanStringForJSON(article.pdfUrl) : null,
+          hasFulltext: article.hasFulltext
+        };
+      });
 
       res.write(`data: ${JSON.stringify({
         type: 'articles_batch',
