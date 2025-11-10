@@ -436,9 +436,49 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
       }
     }
 
+    // Validar e garantir que sempre tenha P1, P2, P3
+    if (!strategy.queries) {
+      strategy.queries = { P1: [], P2: [], P3: [] };
+    }
+    if (!strategy.queries.P1 || !Array.isArray(strategy.queries.P1)) {
+      strategy.queries.P1 = [];
+    }
+    if (!strategy.queries.P2 || !Array.isArray(strategy.queries.P2)) {
+      strategy.queries.P2 = [];
+    }
+    if (!strategy.queries.P3 || !Array.isArray(strategy.queries.P3)) {
+      strategy.queries.P3 = [];
+    }
+
+    // Se alguma prioridade está vazia, adicionar queries padrão
+    if (strategy.queries.P1.length === 0) {
+      strategy.queries.P1.push({
+        query: `${query.trim()} systematic review`,
+        priority: 'P1',
+        expectedResults: 15
+      });
+    }
+    if (strategy.queries.P2.length === 0) {
+      strategy.queries.P2.push({
+        query: query.trim(),
+        priority: 'P2',
+        expectedResults: 20
+      });
+    }
+    if (strategy.queries.P3.length === 0) {
+      strategy.queries.P3.push({
+        query: `${query.trim()} overview`,
+        priority: 'P3',
+        expectedResults: 15
+      });
+    }
+
     logger.info('Search strategy generated', {
       topic: strategy.topic,
-      totalQueries: Object.values(strategy.queries).flat().length
+      totalQueries: Object.values(strategy.queries).flat().length,
+      p1Count: strategy.queries.P1.length,
+      p2Count: strategy.queries.P2.length,
+      p3Count: strategy.queries.P3.length
     });
 
     return strategy;
