@@ -163,9 +163,18 @@ router.post('/search/execute', async (req: Request, res: Response) => {
     const batchSize = 10;
     for (let i = 0; i < articles.length; i += batchSize) {
       const batch = articles.slice(i, i + batchSize);
+
+      // Truncar abstracts muito longos para evitar JSON gigante
+      const safeBatch = batch.map(article => ({
+        ...article,
+        abstract: article.abstract && article.abstract.length > 500
+          ? article.abstract.substring(0, 500) + '...'
+          : article.abstract
+      }));
+
       res.write(`data: ${JSON.stringify({
         type: 'articles_batch',
-        data: batch,
+        data: safeBatch,
         batchIndex: Math.floor(i / batchSize),
         totalBatches: Math.ceil(articles.length / batchSize),
         totalArticles: articles.length
