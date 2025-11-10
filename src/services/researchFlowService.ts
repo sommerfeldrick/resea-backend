@@ -532,22 +532,34 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
 
 /**
  * Calcula score de relevância para um artigo
+ * Sistema otimizado para valorizar artigos recentes E relevantes
  */
 function calculateArticleScore(article: any, query: string): { score: number; priority: PriorityLevel; reasons: string[] } {
   let score = 0;
   const reasons: string[] = [];
 
-  // Citation count (0-30 pontos)
-  const citationScore = Math.min(30, (article.citationCount || 0) / 10);
-  score += citationScore;
-  if (citationScore > 20) reasons.push(`${article.citationCount} citações`);
-
-  // Year recency (0-20 pontos)
+  // Citation count NORMALIZADO por idade (0-25 pontos)
+  // Artigos recentes com menos citações pontuam melhor
   const currentYear = new Date().getFullYear();
-  const yearDiff = currentYear - (article.year || 2000);
-  const yearScore = Math.max(0, 20 - yearDiff);
+  const articleYear = article.year || 2000;
+  const yearsSincePublication = Math.max(1, currentYear - articleYear);
+
+  // Normaliza: citações por ano, com peso maior para artigos recentes
+  const citationsPerYear = (article.citationCount || 0) / yearsSincePublication;
+  let citationScore = Math.min(25, citationsPerYear * 5); // 5 citações/ano = 25 pontos
+
+  // Bonus para artigos muito citados (>100 citações totais)
+  if (article.citationCount > 100) {
+    citationScore = Math.min(25, citationScore + 5);
+  }
+
+  score += citationScore;
+  if (citationScore > 15) reasons.push(`${article.citationCount} citações (${citationsPerYear.toFixed(1)}/ano)`);
+
+  // Year recency (0-20 pontos) - valoriza últimos 5 anos
+  const yearScore = yearsSincePublication <= 5 ? 20 - (yearsSincePublication * 3) : Math.max(0, 20 - yearsSincePublication);
   score += yearScore;
-  if (yearScore > 15) reasons.push('Publicação recente');
+  if (yearScore > 15) reasons.push(`Publicado em ${articleYear} (recente)`);
 
   // Has full-text (15 pontos)
   if (article.pdfUrl || article.fullText) {
@@ -556,39 +568,81 @@ function calculateArticleScore(article: any, query: string): { score: number; pr
   }
 
   // Source quality (0-15 pontos)
-  const highQualitySources = ['Semantic Scholar', 'PubMed', 'IEEE', 'Nature', 'Science'];
+  const highQualitySources = ['Semantic Scholar', 'PubMed', 'IEEE', 'Nature', 'Science', 'OpenAlex', 'CORE'];
   if (highQualitySources.includes(article.source)) {
     score += 15;
-    reasons.push('Fonte de alta qualidade');
+    reasons.push(`Fonte confiável: ${article.source}`);
+  } else if (article.source) {
+    score += 10; // Fontes secundárias ainda ganham pontos
   }
 
-  // Title relevance (0-20 pontos)
+  // Title relevance (0-30 pontos) - AUMENTADO!
   const titleRelevance = calculateTextRelevance(article.title, query);
   score += titleRelevance;
-  if (titleRelevance > 15) reasons.push('Título altamente relevante');
+  if (titleRelevance > 20) reasons.push('Título altamente relevante');
 
-  // Determine priority
+  // DOI bonus (5 pontos) - indica peer-review
+  if (article.doi) {
+    score += 5;
+    reasons.push('Artigo peer-reviewed (DOI)');
+  }
+
+  // Abstract bonus (5 pontos) - conteúdo completo
+  if (article.abstract && article.abstract.length > 100) {
+    score += 5;
+    reasons.push('Abstract completo');
+  }
+
+  // Determine priority com thresholds otimizados
   let priority: PriorityLevel;
-  if (score >= 75) priority = 'P1';
-  else if (score >= 50) priority = 'P2';
+  if (score >= 70) priority = 'P1';      // Reduzido de 75 → 70
+  else if (score >= 45) priority = 'P2'; // Reduzido de 50 → 45
   else priority = 'P3';
 
   return { score, priority, reasons };
 }
 
 /**
- * Calcula relevância entre texto e query (simplificado)
+ * Calcula relevância entre texto e query
+ * Retorna 0-30 pontos com bonus para matches exatos
  */
 function calculateTextRelevance(text: string, query: string): number {
-  const textLower = text.toLowerCase();
-  const queryTerms = query.toLowerCase().split(/\s+/);
+  if (!text) return 0;
 
-  let matches = 0;
-  for (const term of queryTerms) {
-    if (textLower.includes(term)) matches++;
+  const textLower = text.toLowerCase();
+  const queryLower = query.toLowerCase();
+  const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 2); // Ignora termos muito curtos
+
+  if (queryTerms.length === 0) return 0;
+
+  // Match exato da query completa = 30 pontos
+  if (textLower.includes(queryLower)) {
+    return 30;
   }
 
-  return (matches / queryTerms.length) * 20;
+  // Conta matches parciais
+  let matches = 0;
+  let exactWordMatches = 0;
+
+  for (const term of queryTerms) {
+    if (textLower.includes(term)) {
+      matches++;
+
+      // Bonus se for palavra completa (não substring)
+      const regex = new RegExp(`\\b${term}\\b`, 'i');
+      if (regex.test(textLower)) {
+        exactWordMatches++;
+      }
+    }
+  }
+
+  // Calcula pontuação base
+  const baseScore = (matches / queryTerms.length) * 25;
+
+  // Bonus por matches exatos de palavras
+  const exactBonus = (exactWordMatches / queryTerms.length) * 5;
+
+  return Math.min(30, baseScore + exactBonus);
 }
 
 /**
