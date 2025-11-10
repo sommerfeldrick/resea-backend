@@ -25,7 +25,8 @@ export class DeepSeekProvider extends BaseAIProvider {
     if (this.apiKey) {
       this.client = new OpenAI({
         apiKey: this.apiKey,
-        baseURL: this.baseUrl
+        baseURL: this.baseUrl,
+        timeout: 360000  // 6 minutos para análises muito complexas
       });
     }
   }

@@ -19,7 +19,8 @@ export class OpenAIProvider extends BaseAIProvider {
 
     if (this.apiKey) {
       this.client = new OpenAI({
-        apiKey: this.apiKey
+        apiKey: this.apiKey,
+        timeout: 360000  // 6 minutos para análises muito complexas
       });
     }
   }
