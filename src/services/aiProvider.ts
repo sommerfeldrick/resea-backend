@@ -199,7 +199,8 @@ async function generateWithOpenAI(prompt: string, options: any): Promise<AIRespo
       headers: {
         'Authorization': `Bearer ${config.apiKey}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 90000 // 90 seconds timeout
     }
   );
 
@@ -234,7 +235,8 @@ async function generateWithClaude(prompt: string, options: any): Promise<AIRespo
         'x-api-key': config.apiKey!,
         'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 90000 // 90 seconds timeout
     }
   );
 
@@ -271,7 +273,8 @@ async function generateWithDeepSeek(prompt: string, options: any): Promise<AIRes
       headers: {
         'Authorization': `Bearer ${config.apiKey}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 90000 // 90 seconds timeout
     }
   );
 
