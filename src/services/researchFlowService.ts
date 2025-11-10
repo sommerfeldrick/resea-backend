@@ -400,7 +400,7 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um especialista em estratégia de busca acadêmica. Retorne APENAS JSON válido.',
       temperature: 0.6,
-      maxTokens: 10000  // Balanceado: estratégia completa mas evita timeout
+      maxTokens: 20000  // Máxima qualidade para estratégias muito complexas
     });
 
     let cleanedText = response.text.trim()
@@ -942,13 +942,13 @@ export async function analyzeArticles(
   logger.info('Analyzing articles', { articleCount: articles.length, query });
 
   try {
-    // Preparar dados dos artigos para análise (REDUZIDO para evitar timeout)
-    const articlesContext = articles.slice(0, 20).map((article, idx) => {
+    // Preparar dados dos artigos para análise (análise detalhada de 30 artigos)
+    const articlesContext = articles.slice(0, 30).map((article, idx) => {
       return `[${idx + 1}] ${article.title} (${article.year})
-Autores: ${article.authors.slice(0, 3).join(', ')}${article.authors.length > 3 ? ' et al.' : ''}
+Autores: ${article.authors.slice(0, 5).join(', ')}${article.authors.length > 5 ? ' et al.' : ''}
 Citações: ${article.citationCount}
 Score: ${article.score.score} (${article.score.priority})
-Abstract: ${article.abstract.substring(0, 200)}...`;
+Abstract: ${article.abstract.substring(0, 400)}...`;
     }).join('\n\n');
 
     const prompt = `Você é um especialista em análise de literatura científica. Analise os ${articles.length} artigos abaixo sobre "${query}" e identifique:
@@ -1013,7 +1013,7 @@ ${articlesContext}`;
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um especialista em análise bibliométrica. Retorne APENAS JSON válido.',
       temperature: 0.7,
-      maxTokens: 10000  // Balanceado: análise detalhada mas evita timeout no proxy
+      maxTokens: 20000  // Máxima qualidade para análises muito complexas e detalhadas
     });
 
     let cleanedText = response.text.trim()
