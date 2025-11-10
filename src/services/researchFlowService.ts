@@ -23,6 +23,64 @@ import type {
 } from '../types/index.js';
 
 // ============================================
+// HELPER: JSON COMPLETION
+// ============================================
+
+/**
+ * Tenta completar JSON truncado adicionando fechamentos necessários
+ */
+function tryCompleteJSON(text: string): string {
+  let openBraces = 0;
+  let openBrackets = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escape = true;
+      continue;
+    }
+
+    if (char === '"' && !escape) {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (char === '{') openBraces++;
+    if (char === '}') openBraces--;
+    if (char === '[') openBrackets++;
+    if (char === ']') openBrackets--;
+  }
+
+  // Se ainda está em string, fecha a string
+  let completed = text;
+  if (inString) {
+    completed += '"';
+  }
+
+  // Fecha arrays abertos
+  for (let i = 0; i < openBrackets; i++) {
+    completed += ']';
+  }
+
+  // Fecha objetos abertos
+  for (let i = 0; i < openBraces; i++) {
+    completed += '}';
+  }
+
+  return completed;
+}
+
+// ============================================
 // FASE 2: AI CLARIFICATION & REFINEMENT
 // ============================================
 
@@ -115,12 +173,24 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
         textPreview: cleanedText.substring(0, 500)
       });
 
-      // Try to find JSON object in the text
-      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        questionsData = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('Could not extract valid JSON from response');
+      // Try 1: Complete truncated JSON
+      try {
+        const completed = tryCompleteJSON(cleanedText);
+        logger.info('Attempting to parse completed JSON', {
+          originalLength: cleanedText.length,
+          completedLength: completed.length
+        });
+        questionsData = JSON.parse(completed);
+        logger.info('Successfully parsed completed JSON');
+      } catch (completeError: any) {
+        // Try 2: Find JSON object in the text
+        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const completed2 = tryCompleteJSON(jsonMatch[0]);
+          questionsData = JSON.parse(completed2);
+        } else {
+          throw new Error('Could not extract valid JSON from response');
+        }
       }
     }
 
@@ -344,12 +414,25 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
         textPreview: cleanedText.substring(0, 500)
       });
 
-      // Try to find JSON object in the text
-      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        strategy = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('Could not extract valid JSON from response');
+      // Try 1: Complete truncated JSON
+      try {
+        const completed = tryCompleteJSON(cleanedText);
+        logger.info('Attempting to parse completed JSON', {
+          originalLength: cleanedText.length,
+          completedLength: completed.length,
+          added: completed.length - cleanedText.length
+        });
+        strategy = JSON.parse(completed);
+        logger.info('Successfully parsed completed JSON');
+      } catch (completeError: any) {
+        // Try 2: Find JSON object in the text
+        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const completed2 = tryCompleteJSON(jsonMatch[0]);
+          strategy = JSON.parse(completed2);
+        } else {
+          throw new Error('Could not extract valid JSON from response');
+        }
       }
     }
 
@@ -795,12 +878,24 @@ ${articlesContext}`;
         textPreview: cleanedText.substring(0, 500)
       });
 
-      // Try to find JSON object in the text
-      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        knowledgeGraph = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('Could not extract valid JSON from response');
+      // Try 1: Complete truncated JSON
+      try {
+        const completed = tryCompleteJSON(cleanedText);
+        logger.info('Attempting to parse completed JSON', {
+          originalLength: cleanedText.length,
+          completedLength: completed.length
+        });
+        knowledgeGraph = JSON.parse(completed);
+        logger.info('Successfully parsed completed JSON');
+      } catch (completeError: any) {
+        // Try 2: Find JSON object in the text
+        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const completed2 = tryCompleteJSON(jsonMatch[0]);
+          knowledgeGraph = JSON.parse(completed2);
+        } else {
+          throw new Error('Could not extract valid JSON from response');
+        }
       }
     }
 
