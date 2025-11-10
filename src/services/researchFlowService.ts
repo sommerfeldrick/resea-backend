@@ -400,7 +400,7 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um especialista em estratégia de busca acadêmica. Retorne APENAS JSON válido.',
       temperature: 0.6,
-      maxTokens: 20000  // Máxima qualidade para estratégias muito complexas
+      maxTokens: 8000  // Limite do DeepSeek-chat: 8192 tokens
     });
 
     let cleanedText = response.text.trim()
@@ -1013,7 +1013,7 @@ ${articlesContext}`;
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um especialista em análise bibliométrica. Retorne APENAS JSON válido.',
       temperature: 0.7,
-      maxTokens: 20000  // Máxima qualidade para análises muito complexas e detalhadas
+      maxTokens: 8000  // Limite do DeepSeek-chat: 8192 tokens
     });
 
     let cleanedText = response.text.trim()

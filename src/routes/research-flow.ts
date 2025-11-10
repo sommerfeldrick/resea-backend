@@ -28,6 +28,13 @@ const router = Router();
 function cleanStringForJSON(str: any): string {
   if (!str) return '';
 
+  // Se é objeto/array, tentar extrair informação útil
+  if (typeof str === 'object') {
+    if (str.name) return cleanStringForJSON(str.name);  // Objeto autor com campo name
+    if (str.title) return cleanStringForJSON(str.title);
+    return '';  // Objeto sem campos relevantes
+  }
+
   // Garantir que é string antes de aplicar .replace()
   const stringValue = typeof str === 'string' ? str : String(str);
 

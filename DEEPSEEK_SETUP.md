@@ -101,15 +101,30 @@ tokensUsed: 12500
 - Rival do GPT-4 em benchmarks
 - Excelente em tarefas de NLP (análise de texto)
 - Perfeito para resumir e analisar artigos científicos
+- **max_tokens**: 8192 (suficiente para análises detalhadas)
 
 ### deepseek-reasoner é OVERKILL
 - Overhead de "pensamento" explícito `<think>...</think>`
 - Útil para: problemas matemáticos, quebra-cabeças lógicos
 - **NÃO útil** para: análise de literatura (não precisa "pensar" tanto)
+- **Limite menor**: Pode rejeitar requisições grandes
 
 ## ⚠️ Troubleshooting
 
-### Ainda vendo erro 400?
+### Erro 400: Invalid max_tokens value?
+```
+DeepSeek streaming failed
+error: "400 Invalid max_tokens value, the valid range of max_tokens is [1, 8192]"
+```
+
+**Causa**: DeepSeek-chat tem limite de **8192 tokens** (não 20000)
+
+**Solução**: Código já corrigido para usar `maxTokens: 8000`. Faça:
+1. `git pull origin main` (puxar última versão)
+2. Render vai redeploy automaticamente
+3. Aguarde 2-3 minutos
+
+### Ainda vendo erro 400 genérico?
 ```
 AI generation failed with deepseek
 error: "Request failed with status code 400"
