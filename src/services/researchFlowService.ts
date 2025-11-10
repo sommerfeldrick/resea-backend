@@ -340,22 +340,27 @@ INTENÇÃO DO USUÁRIO:
 Query original: "${query}"
 Contexto: ${clarificationSummary}
 
-Crie queries de busca organizadas por prioridade:
+Crie queries de busca organizadas por prioridade (THRESHOLDS ATUALIZADOS):
 
-**P1 (Score ≥75)**: Artigos EXCELENTES
-- Queries muito específicas, palavras-chave técnicas
-- Esperados: artigos de alto impacto, bem citados
-- Alvo: 25-30 artigos
+**P1 (Score ≥70)**: Artigos EXCELENTES
+- Queries muito específicas, palavras-chave técnicas e acadêmicas
+- Esperados: artigos recentes (2020+), relevantes, com citações normalizadas
+- Alvo: 30-40 artigos
+- Exemplos: "X systematic review", "X empirical study", "X meta-analysis"
 
-**P2 (Score ≥50)**: Artigos BONS
-- Queries mais abrangentes, sinônimos
-- Esperados: artigos relevantes mas menos citados
+**P2 (Score ≥45)**: Artigos BONS
+- Queries mais abrangentes, sinônimos e variações
+- Esperados: artigos relevantes, contexto sólido
 - Alvo: 20-25 artigos
+- Exemplos: "X research", "X literature review", "X study"
 
-**P3 (Score ≥30)**: Artigos ACEITÁVEIS
-- Queries gerais, termos relacionados
-- Esperados: artigos de contexto, background
-- Alvo: 15-20 artigos
+**P3 (Score <45)**: Artigos ACEITÁVEIS
+- Queries gerais para contexto e background
+- Esperados: artigos de suporte, overview
+- Alvo: 10-15 artigos
+- Exemplos: "X overview", "X survey", termos relacionados
+
+IMPORTANTE: Com o novo sistema de pontuação, artigos recentes (2020-2025) com boa relevância no título atingem P1 facilmente!
 
 Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
 {
@@ -363,14 +368,16 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
   "originalQuery": "${query}",
   "queries": {
     "P1": [
-      { "query": "artificial intelligence early childhood education", "priority": "P1", "expectedResults": 10 },
-      { "query": "AI preschool learning outcomes", "priority": "P1", "expectedResults": 10 }
+      { "query": "artificial intelligence early childhood education", "priority": "P1", "expectedResults": 12 },
+      { "query": "AI preschool learning outcomes systematic review", "priority": "P1", "expectedResults": 12 },
+      { "query": "machine learning education children empirical", "priority": "P1", "expectedResults": 12 }
     ],
     "P2": [
-      { "query": "machine learning young children education", "priority": "P2", "expectedResults": 12 }
+      { "query": "artificial intelligence young children", "priority": "P2", "expectedResults": 15 },
+      { "query": "AI educational technology preschool", "priority": "P2", "expectedResults": 15 }
     ],
     "P3": [
-      { "query": "AI early education", "priority": "P3", "expectedResults": 10 }
+      { "query": "AI early education overview", "priority": "P3", "expectedResults": 10 }
     ]
   },
   "prioritizedSources": [
@@ -384,7 +391,7 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
     "languages": ["pt", "en"],
     "documentTypes": ["article", "review", "conference_paper"]
   },
-  "targetArticles": 60,
+  "targetArticles": 70,
   "estimatedTime": "3-5 minutos"
 }`;
 
@@ -455,21 +462,21 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
       strategy.queries.P1.push({
         query: `${query.trim()} systematic review`,
         priority: 'P1',
-        expectedResults: 15
+        expectedResults: 12
       });
     }
     if (strategy.queries.P2.length === 0) {
       strategy.queries.P2.push({
         query: query.trim(),
         priority: 'P2',
-        expectedResults: 20
+        expectedResults: 15
       });
     }
     if (strategy.queries.P3.length === 0) {
       strategy.queries.P3.push({
         query: `${query.trim()} overview`,
         priority: 'P3',
-        expectedResults: 15
+        expectedResults: 10
       });
     }
 
@@ -496,15 +503,16 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
       originalQuery: query,
       queries: {
         P1: [
-          { query: `${query.trim()} systematic review`, priority: 'P1', expectedResults: 15 },
-          { query: `${query.trim()} empirical study`, priority: 'P1', expectedResults: 15 }
+          { query: `${query.trim()} systematic review`, priority: 'P1', expectedResults: 12 },
+          { query: `${query.trim()} empirical study`, priority: 'P1', expectedResults: 12 },
+          { query: `${query.trim()} meta-analysis`, priority: 'P1', expectedResults: 12 }
         ],
         P2: [
-          { query: `${query.trim()} research`, priority: 'P2', expectedResults: 20 },
+          { query: `${query.trim()} research`, priority: 'P2', expectedResults: 15 },
           { query: query.trim(), priority: 'P2', expectedResults: 15 }
         ],
         P3: [
-          { query: `${query.trim()} overview`, priority: 'P3', expectedResults: 15 }
+          { query: `${query.trim()} overview`, priority: 'P3', expectedResults: 10 }
         ]
       },
       prioritizedSources: [
@@ -514,11 +522,11 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
         { name: 'arXiv', reason: 'Pré-prints e acesso aberto', order: 4 }
       ],
       filters: {
-        dateRange: { start: currentYear - 10, end: currentYear },
+        dateRange: { start: currentYear - 5, end: currentYear }, // Focado em últimos 5 anos
         languages: ['pt', 'en'],
         documentTypes: ['article', 'review', 'conference_paper']
       },
-      targetArticles: 80,
+      targetArticles: 70,
       estimatedTime: '4-6 minutos'
     };
 
