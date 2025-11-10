@@ -1202,7 +1202,7 @@ COMECE A ESCREVER:`;
     const stream = generateTextStream(prompt, {
       systemPrompt: 'Você é um escritor acadêmico especialista em formatação ABNT. Escreva textos LONGOS e DETALHADOS.',
       temperature: 0.7,
-      maxTokens: 16000  // Aumentado para suportar textos acadêmicos completos
+      maxTokens: 8000  // Limite do DeepSeek-chat: 8192 tokens (suficiente para 3000+ palavras)
     });
 
     // Stream chunks as they arrive from the AI provider
