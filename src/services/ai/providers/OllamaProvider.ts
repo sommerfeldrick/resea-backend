@@ -116,7 +116,7 @@ export class OllamaProvider extends BaseAIProvider {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json'
         },
-        timeout: 120000
+        timeout: 180000  // 3 minutos para análises complexas
       }
     );
 
@@ -163,7 +163,7 @@ export class OllamaProvider extends BaseAIProvider {
         num_predict: options.maxTokens || 4096
       },
       {
-        timeout: 120000 // 2 minutos para modelos grandes
+        timeout: 180000  // 3 minutos para análises complexas
       }
     );
 
@@ -246,7 +246,7 @@ export class OllamaProvider extends BaseAIProvider {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json'
         },
-        timeout: 120000,
+        timeout: 180000,  // 3 minutos para análises complexas
         responseType: 'stream'
       }
     );
@@ -298,7 +298,7 @@ export class OllamaProvider extends BaseAIProvider {
         num_predict: options.maxTokens || 4096
       },
       {
-        timeout: 120000,
+        timeout: 180000,  // 3 minutos para análises complexas
         responseType: 'stream'
       }
     );

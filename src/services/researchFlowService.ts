@@ -400,7 +400,7 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um especialista em estratégia de busca acadêmica. Retorne APENAS JSON válido.',
       temperature: 0.6,
-      maxTokens: 3500
+      maxTokens: 5000  // Aumentado para evitar JSON truncado
     });
 
     let cleanedText = response.text.trim()
@@ -747,11 +747,16 @@ export async function executeExhaustiveSearch(
     const p1Articles = allArticles.filter(a => a.score.priority === 'P1');
     logger.info(`P1 search completed`, {
       found: p1Articles.length,
+      totalArticles: allArticles.length,
       target: strategy.targetArticles
     });
 
     // Se não atingiu a meta, buscar P2
     if (allArticles.length < strategy.targetArticles && strategy.queries.P2.length > 0) {
+      logger.info('Continuing to P2 search (target not reached)', {
+        current: allArticles.length,
+        target: strategy.targetArticles
+      });
       for (let i = 0; i < strategy.queries.P2.length; i++) {
         const searchQuery = strategy.queries.P2[i];
         logger.info(`Searching P2 query ${i + 1}/${strategy.queries.P2.length}`, {
@@ -815,10 +820,19 @@ export async function executeExhaustiveSearch(
           onProgress(progress);
         }
       }
+    } else {
+      logger.info('Skipping P2 search - target reached', {
+        current: allArticles.length,
+        target: strategy.targetArticles
+      });
     }
 
     // Se ainda não atingiu a meta, buscar P3
     if (allArticles.length < strategy.targetArticles && strategy.queries.P3.length > 0) {
+      logger.info('Continuing to P3 search (target not reached)', {
+        current: allArticles.length,
+        target: strategy.targetArticles
+      });
       for (let i = 0; i < strategy.queries.P3.length; i++) {
         const searchQuery = strategy.queries.P3[i];
         logger.info(`Searching P3 query ${i + 1}/${strategy.queries.P3.length}`, {
@@ -882,6 +896,11 @@ export async function executeExhaustiveSearch(
           onProgress(progress);
         }
       }
+    } else {
+      logger.info('Skipping P3 search - target reached', {
+        current: allArticles.length,
+        target: strategy.targetArticles
+      });
     }
 
     // Remover duplicatas por DOI/URL
@@ -994,7 +1013,7 @@ ${articlesContext}`;
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um especialista em análise bibliométrica. Retorne APENAS JSON válido.',
       temperature: 0.7,
-      maxTokens: 4000
+      maxTokens: 8000  // Aumentado para análise complexa com múltiplos nós e insights
     });
 
     let cleanedText = response.text.trim()
