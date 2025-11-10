@@ -159,8 +159,21 @@ router.post('/search/execute', async (req: Request, res: Response) => {
     // Executa a busca
     const articles = await executeExhaustiveSearch(strategy, onProgress);
 
-    // Envia resultado final
-    res.write(`data: ${JSON.stringify({ type: 'complete', data: articles })}\n\n`);
+    // Envia artigos em lotes para evitar JSON muito grande
+    const batchSize = 10;
+    for (let i = 0; i < articles.length; i += batchSize) {
+      const batch = articles.slice(i, i + batchSize);
+      res.write(`data: ${JSON.stringify({
+        type: 'articles_batch',
+        data: batch,
+        batchIndex: Math.floor(i / batchSize),
+        totalBatches: Math.ceil(articles.length / batchSize),
+        totalArticles: articles.length
+      })}\n\n`);
+    }
+
+    // Envia evento de conclusão
+    res.write(`data: ${JSON.stringify({ type: 'complete', totalArticles: articles.length })}\n\n`);
     res.end();
 
     logger.info('API: Exhaustive search completed', { articlesFound: articles.length });
