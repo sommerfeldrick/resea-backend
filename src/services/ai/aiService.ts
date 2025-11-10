@@ -64,26 +64,23 @@ export async function generateTextWithQuality(
 
 /**
  * Stream text generation
- * Retorna um async generator para streaming
+ * Retorna um async generator para streaming REAL
  */
 export async function* generateTextStream(
   prompt: string,
   options: AIGenerationOptions = {}
 ): AsyncGenerator<string, void, unknown> {
   try {
-    logger.info('AI Service: starting text stream', {
+    logger.info('AI Service: starting REAL text stream', {
       promptLength: prompt.length
     });
 
-    // Por enquanto, gera completo e devolve em chunks
-    // TODO: Implementar streaming real com providers que suportam
-    const response = await generateText(prompt, options);
-
-    // Yield em chunks de ~100 caracteres
-    const chunkSize = 100;
-    for (let i = 0; i < response.text.length; i += chunkSize) {
-      yield response.text.slice(i, i + chunkSize);
+    // Use AIStrategyRouter's real streaming
+    for await (const chunk of AIStrategyRouter.generateStream(prompt, options)) {
+      yield chunk;
     }
+
+    logger.info('AI Service: text stream completed');
   } catch (error: any) {
     logger.error('AI Service: stream generation failed', {
       error: error.message

@@ -25,6 +25,14 @@ export abstract class BaseAIProvider {
   ): Promise<AIResponse>;
 
   /**
+   * Generate text with streaming - deve ser implementado por cada provider
+   */
+  abstract generateStream(
+    prompt: string,
+    options?: AIGenerationOptions
+  ): AsyncGenerator<string, void, unknown>;
+
+  /**
    * Check if provider is available
    */
   abstract isAvailable(): Promise<boolean>;

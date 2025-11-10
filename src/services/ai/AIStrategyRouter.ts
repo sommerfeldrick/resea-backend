@@ -261,6 +261,120 @@ export class AIStrategyRouter {
   }
 
   /**
+   * Generate text with streaming and automatic fallback
+   */
+  static async *generateStream(
+    prompt: string,
+    options: AIGenerationOptions = {}
+  ): AsyncGenerator<string, void, unknown> {
+    let lastError: Error | null = null;
+    const providersToTry = options.provider
+      ? [options.provider, ...fallbackOrder]
+      : fallbackOrder;
+
+    for (const provider of providersToTry) {
+      if (!getEnabledProviders().includes(provider)) continue;
+
+      let modelToUse: string = '';
+
+      try {
+        this.initializeUsage(provider);
+        const usage = this.usage.get(provider)!;
+
+        // Check if provider can be used
+        if (!await this.canUseProvider(provider, usage)) {
+          continue;
+        }
+
+        // Selecionar modelo com rotação inteligente
+        const quality = (options as any).quality as ModelQuality || 'balanced';
+        modelToUse = this.selectModel(provider, quality);
+
+        logger.info('Starting streaming with provider', {
+          provider,
+          model: modelToUse,
+          quality,
+          promptLength: prompt.length
+        });
+
+        // Get provider instance
+        const providerInstance = ProviderFactory.getProvider(provider);
+
+        // Override model se necessário
+        const enhancedOptions = {
+          ...options,
+          provider: provider as AIProvider
+        };
+
+        if ((options as any).model) {
+          (enhancedOptions as any).model = (options as any).model;
+        } else {
+          (enhancedOptions as any).model = modelToUse;
+        }
+
+        // Stream response
+        const startTime = Date.now();
+        let hasYieldedContent = false;
+
+        for await (const chunk of providerInstance.generateStream(prompt, options)) {
+          hasYieldedContent = true;
+          yield chunk;
+        }
+
+        const duration = Date.now() - startTime;
+
+        // Registrar uso do modelo para rotação
+        rotationStrategy.markUsage(modelToUse, true);
+
+        // Update usage tracking (estimativa, pois não temos token count no streaming)
+        usage.requestsToday++;
+        usage.lastRequestTime = Date.now();
+        usage.failureCount = 0;
+
+        // Add to request queue
+        this.requestQueue.push({
+          timestamp: Date.now(),
+          provider
+        });
+
+        // Clean old requests from queue
+        const oneHourAgo = Date.now() - 3600000;
+        this.requestQueue = this.requestQueue.filter(
+          (r) => r.timestamp > oneHourAgo
+        );
+
+        logger.info('Streaming completed successfully', {
+          provider,
+          duration: `${duration}ms`,
+          hasContent: hasYieldedContent
+        });
+
+        return; // Successfully completed streaming
+      } catch (error: any) {
+        lastError = error;
+        logger.warn(`Streaming failed with ${provider}`, {
+          error: error.message,
+          model: modelToUse
+        });
+
+        // Registrar falha do modelo para rotação
+        rotationStrategy.markUsage(modelToUse, false);
+
+        const usage = this.usage.get(provider);
+        if (usage) {
+          usage.failureCount++;
+          usage.lastError = error.message;
+        }
+
+        // Try next provider
+        continue;
+      }
+    }
+
+    throw lastError || new Error('All AI providers failed for streaming');
+  }
+
+  /**
    * Get usage statistics
    */
   static getStats() {

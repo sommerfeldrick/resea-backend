@@ -101,4 +101,52 @@ export class DeepSeekProvider extends BaseAIProvider {
       throw error;
     }
   }
+
+  async *generateStream(
+    prompt: string,
+    options: AIGenerationOptions = {}
+  ): AsyncGenerator<string, void, unknown> {
+    try {
+      this.validateConfig();
+
+      if (!this.client) {
+        throw new Error('DeepSeek client not initialized');
+      }
+
+      const systemPrompt = this.formatSystemPrompt(options.systemPrompt);
+
+      const stream = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: options.temperature || 0.7,
+        max_tokens: options.maxTokens || 4096,
+        top_p: options.topP || 1,
+        stream: true
+      });
+
+      logger.info('DeepSeek streaming started', {
+        model: this.model
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content;
+        if (content) {
+          yield content;
+        }
+      }
+
+      logger.info('DeepSeek streaming completed', {
+        model: this.model
+      });
+    } catch (error: any) {
+      logger.error('DeepSeek streaming failed', {
+        error: error.message,
+        model: this.model
+      });
+      throw error;
+    }
+  }
 }

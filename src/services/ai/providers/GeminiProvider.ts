@@ -84,4 +84,48 @@ export class GeminiProvider extends BaseAIProvider {
       throw error;
     }
   }
+
+  async *generateStream(
+    prompt: string,
+    options: AIGenerationOptions = {}
+  ): AsyncGenerator<string, void, unknown> {
+    try {
+      this.validateConfig();
+
+      if (!this.client) {
+        throw new Error('Gemini client not initialized');
+      }
+
+      const model = this.client.getGenerativeModel({
+        model: this.model
+      });
+
+      const fullPrompt = options.systemPrompt
+        ? `${options.systemPrompt}\n\n${prompt}`
+        : prompt;
+
+      logger.info('Gemini streaming started', {
+        model: this.model
+      });
+
+      const result = await model.generateContentStream(fullPrompt);
+
+      for await (const chunk of result.stream) {
+        const text = chunk.text();
+        if (text) {
+          yield text;
+        }
+      }
+
+      logger.info('Gemini streaming completed', {
+        model: this.model
+      });
+    } catch (error: any) {
+      logger.error('Gemini streaming failed', {
+        error: error.message,
+        model: this.model
+      });
+      throw error;
+    }
+  }
 }

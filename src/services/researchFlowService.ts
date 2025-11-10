@@ -4,6 +4,7 @@
 
 import { logger } from '../config/logger.js';
 import { generateText } from './aiProvider.js';
+import { generateTextStream } from './ai/index.js';
 import { buscaAcademicaUniversal } from './academicSearchService.js';
 import type {
   ClarificationQuestion,
@@ -1178,21 +1179,19 @@ INSTRUÇÕES:
 
 COMECE A ESCREVER:`;
 
-    const response = await generateText(prompt, {
+    // Use real streaming from generateTextStream
+    const stream = generateTextStream(prompt, {
       systemPrompt: 'Você é um escritor acadêmico especialista em formatação ABNT. Escreva textos LONGOS e DETALHADOS.',
       temperature: 0.7,
       maxTokens: 16000  // Aumentado para suportar textos acadêmicos completos
     });
 
-    // Simular streaming dividindo o texto
-    const chunks = response.text.match(/.{1,200}/g) || [response.text];
-    for (const chunk of chunks) {
+    // Stream chunks as they arrive from the AI provider
+    for await (const chunk of stream) {
       yield chunk;
-      // Pequeno delay para simular escrita
-      await new Promise(resolve => setTimeout(resolve, 50));
     }
 
-    logger.info('Content generation completed');
+    logger.info('Content generation completed with real streaming');
   } catch (error: any) {
     logger.error('Content generation failed', { error: error.message });
     throw new Error('Falha ao gerar conteúdo');

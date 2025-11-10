@@ -185,4 +185,142 @@ export class OllamaProvider extends BaseAIProvider {
       timestamp: new Date()
     };
   }
+
+  async *generateStream(
+    prompt: string,
+    options: AIGenerationOptions = {}
+  ): AsyncGenerator<string, void, unknown> {
+    try {
+      if (!await this.isAvailable()) {
+        throw new Error(
+          this.isCloud
+            ? 'Ollama Cloud requires API key'
+            : `Ollama server not available at ${this.baseUrl}`
+        );
+      }
+
+      if (this.isCloud) {
+        yield* this.generateStreamCloud(prompt, options);
+      } else {
+        yield* this.generateStreamLocal(prompt, options);
+      }
+    } catch (error: any) {
+      logger.error('Ollama streaming failed', {
+        error: error.message,
+        model: this.model,
+        baseUrl: this.baseUrl,
+        mode: this.isCloud ? 'cloud' : 'local'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Streaming para Ollama Cloud (OpenAI-compatible)
+   */
+  private async *generateStreamCloud(
+    prompt: string,
+    options: AIGenerationOptions
+  ): AsyncGenerator<string, void, unknown> {
+    const systemPrompt = this.formatSystemPrompt(options.systemPrompt);
+
+    logger.info('Ollama Cloud streaming started', {
+      model: this.model
+    });
+
+    const response = await axios.post(
+      `${this.baseUrl}/v1/chat/completions`,
+      {
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: options.temperature || 0.7,
+        max_tokens: options.maxTokens || 4096,
+        top_p: options.topP || 1,
+        stream: true
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 120000,
+        responseType: 'stream'
+      }
+    );
+
+    for await (const chunk of response.data) {
+      const lines = chunk.toString().split('\n');
+      for (const line of lines) {
+        if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            const content = data.choices?.[0]?.delta?.content;
+            if (content) {
+              yield content;
+            }
+          } catch {
+            // Ignore parse errors
+          }
+        }
+      }
+    }
+
+    logger.info('Ollama Cloud streaming completed', {
+      model: this.model
+    });
+  }
+
+  /**
+   * Streaming para Ollama Local
+   */
+  private async *generateStreamLocal(
+    prompt: string,
+    options: AIGenerationOptions
+  ): AsyncGenerator<string, void, unknown> {
+    const systemPrompt = this.formatSystemPrompt(options.systemPrompt);
+    const fullPrompt = `${systemPrompt}\n\n${prompt}`;
+
+    logger.info('Ollama Local streaming started', {
+      model: this.model
+    });
+
+    const response = await axios.post(
+      `${this.baseUrl}/api/generate`,
+      {
+        model: this.model,
+        prompt: fullPrompt,
+        stream: true,
+        temperature: options.temperature || 0.7,
+        top_p: options.topP || 1,
+        num_predict: options.maxTokens || 4096
+      },
+      {
+        timeout: 120000,
+        responseType: 'stream'
+      }
+    );
+
+    for await (const chunk of response.data) {
+      const lines = chunk.toString().split('\n');
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const data = JSON.parse(line);
+            if (data.response) {
+              yield data.response;
+            }
+          } catch {
+            // Ignore parse errors
+          }
+        }
+      }
+    }
+
+    logger.info('Ollama Local streaming completed', {
+      model: this.model
+    });
+  }
 }
