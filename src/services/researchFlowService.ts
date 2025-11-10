@@ -321,15 +321,37 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um especialista em estratégia de busca acadêmica. Retorne APENAS JSON válido.',
       temperature: 0.6,
-      maxTokens: 2500
+      maxTokens: 3500
     });
 
-    const cleanedText = response.text.trim()
+    let cleanedText = response.text.trim()
       .replace(/^```json\s*/i, '')
       .replace(/^```\s*/i, '')
       .replace(/```\s*$/i, '');
 
-    const strategy: FlowSearchStrategy = JSON.parse(cleanedText);
+    logger.info('AI response for strategy', {
+      originalLength: response.text.length,
+      cleanedLength: cleanedText.length,
+      preview: cleanedText.substring(0, 200)
+    });
+
+    let strategy: FlowSearchStrategy;
+    try {
+      strategy = JSON.parse(cleanedText);
+    } catch (parseError: any) {
+      logger.error('JSON parse failed for strategy, attempting to fix', {
+        error: parseError.message,
+        textPreview: cleanedText.substring(0, 500)
+      });
+
+      // Try to find JSON object in the text
+      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        strategy = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('Could not extract valid JSON from response');
+      }
+    }
 
     logger.info('Search strategy generated', {
       topic: strategy.topic,
@@ -342,7 +364,42 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
       error: error.message,
       query
     });
-    throw new Error('Falha ao gerar estratégia de busca');
+
+    // Fallback: return default strategy
+    logger.info('Using fallback default search strategy');
+    const currentYear = new Date().getFullYear();
+    const strategy: FlowSearchStrategy = {
+      topic: query.trim(),
+      originalQuery: query,
+      queries: {
+        P1: [
+          { query: `${query.trim()} systematic review`, priority: 'P1', expectedResults: 15 },
+          { query: `${query.trim()} empirical study`, priority: 'P1', expectedResults: 15 }
+        ],
+        P2: [
+          { query: `${query.trim()} research`, priority: 'P2', expectedResults: 20 },
+          { query: query.trim(), priority: 'P2', expectedResults: 15 }
+        ],
+        P3: [
+          { query: `${query.trim()} overview`, priority: 'P3', expectedResults: 15 }
+        ]
+      },
+      prioritizedSources: [
+        { name: 'Semantic Scholar', reason: 'Melhor cobertura e scores de relevância', order: 1 },
+        { name: 'CORE', reason: 'JSON estruturado e full-text', order: 2 },
+        { name: 'PubMed Central', reason: 'Excelente para área de saúde', order: 3 },
+        { name: 'arXiv', reason: 'Pré-prints e acesso aberto', order: 4 }
+      ],
+      filters: {
+        dateRange: { start: currentYear - 10, end: currentYear },
+        languages: ['pt', 'en'],
+        documentTypes: ['article', 'review', 'conference_paper']
+      },
+      targetArticles: 80,
+      estimatedTime: '4-6 minutos'
+    };
+
+    return strategy;
   }
 }
 
