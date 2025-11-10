@@ -25,10 +25,13 @@ const router = Router();
  * Função utilitária para limpar strings antes de JSON.stringify
  * Remove/escapa caracteres problemáticos que podem quebrar JSON no SSE
  */
-function cleanStringForJSON(str: string | null | undefined): string {
+function cleanStringForJSON(str: any): string {
   if (!str) return '';
 
-  return str
+  // Garantir que é string antes de aplicar .replace()
+  const stringValue = typeof str === 'string' ? str : String(str);
+
+  return stringValue
     .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove caracteres de controle
     .replace(/\\/g, '\\\\')  // Escapa backslashes
     .replace(/"/g, '\\"')    // Escapa aspas duplas
