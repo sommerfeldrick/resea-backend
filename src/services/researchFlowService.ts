@@ -400,7 +400,7 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um especialista em estratégia de busca acadêmica. Retorne APENAS JSON válido.',
       temperature: 0.6,
-      maxTokens: 5000  // Aumentado para evitar JSON truncado
+      maxTokens: 20000  // Aumentado para estratégias muito complexas
     });
 
     let cleanedText = response.text.trim()
@@ -1013,7 +1013,7 @@ ${articlesContext}`;
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um especialista em análise bibliométrica. Retorne APENAS JSON válido.',
       temperature: 0.7,
-      maxTokens: 8000  // Aumentado para análise complexa com múltiplos nós e insights
+      maxTokens: 20000  // Aumentado para análises muito complexas e detalhadas
     });
 
     let cleanedText = response.text.trim()
