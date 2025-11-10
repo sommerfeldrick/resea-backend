@@ -1032,17 +1032,18 @@ ${articlesContext}
 INSTRUÇÕES:
 1. Escreva em markdown com títulos ## e ###
 2. CITE as fontes usando [CITE:FONTE_X] (AUTOR et al., ANO)
-3. Desenvolva cada subseção com profundidade
-4. Mínimo 1000 palavras
+3. Desenvolva cada subseção com PROFUNDIDADE e DETALHES
+4. Mínimo 3000 palavras (escreva CONTEÚDO EXTENSO E COMPLETO)
 5. Use linguagem ${styleMap[config.style]}
 6. Inclua análise crítica se solicitado
+7. IMPORTANTE: Escreva um texto LONGO e DETALHADO, não resumos
 
 COMECE A ESCREVER:`;
 
     const response = await generateText(prompt, {
-      systemPrompt: 'Você é um escritor acadêmico especialista em formatação ABNT.',
+      systemPrompt: 'Você é um escritor acadêmico especialista em formatação ABNT. Escreva textos LONGOS e DETALHADOS.',
       temperature: 0.7,
-      maxTokens: 8000
+      maxTokens: 16000  // Aumentado para suportar textos acadêmicos completos
     });
 
     // Simular streaming dividindo o texto
@@ -1089,11 +1090,16 @@ Mantenha o mesmo conteúdo, mas melhore a redação.`;
         break;
 
       case 'expand':
-        prompt = `Expanda o seguinte trecho com mais detalhes e profundidade:
+        prompt = `Expanda o seguinte trecho com MUITO mais detalhes e profundidade:
 
 "${selectedText}"
 
-Adicione mais informações, exemplos e citações relevantes.`;
+INSTRUÇÕES:
+- Adicione pelo menos 3x mais conteúdo
+- Desenvolva cada ponto com exemplos
+- Adicione citações relevantes se disponível
+- Mantenha o tom acadêmico
+- Escreva UM TEXTO LONGO E DETALHADO`;
         break;
 
       case 'summarize':
@@ -1133,10 +1139,20 @@ Use o formato [CITE:FONTE_X] (AUTOR et al., ANO).`;
         throw new Error('Ação de edição desconhecida');
     }
 
+    // Tokens variáveis baseado na ação
+    const maxTokensByAction: Record<string, number> = {
+      expand: 8000,      // Expansão precisa de muito espaço
+      rewrite: 4000,     // Reescrita pode aumentar texto
+      add_citations: 4000,
+      summarize: 2000,   // Resumo é menor
+      change_tone: 4000,
+      remove: 0
+    };
+
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um editor acadêmico especialista.',
       temperature: 0.7,
-      maxTokens: 2000
+      maxTokens: maxTokensByAction[request.action] || 4000
     });
 
     logger.info('Edit request processed', { action: request.action });
