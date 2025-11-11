@@ -944,11 +944,15 @@ export async function analyzeArticles(
   try {
     // Preparar dados dos artigos para análise (QUALIDADE MÁXIMA)
     const articlesContext = articles.slice(0, 30).map((article, idx) => {
+      const abstract = article.abstract
+        ? (article.abstract.length > 400 ? article.abstract.substring(0, 400) + '...' : article.abstract)
+        : 'Abstract não disponível';
+
       return `[${idx + 1}] ${article.title} (${article.year})
 Autores: ${article.authors.slice(0, 5).join(', ')}${article.authors.length > 5 ? ' et al.' : ''}
 Citações: ${article.citationCount}
 Score: ${article.score.score} (${article.score.priority})
-Abstract: ${article.abstract.substring(0, 400)}...`;
+Abstract: ${abstract}`;
     }).join('\n\n');
 
     const prompt = `Você é um especialista em análise de literatura científica. Analise os ${articles.length} artigos abaixo sobre "${query}" e identifique:
@@ -1142,14 +1146,14 @@ export async function* generateAcademicContent(
   logger.info('Starting content generation', { section: config.section, articleCount: articles.length });
 
   try {
-    // Preparar contexto dos artigos
-    const articlesContext = articles.slice(0, 40).map((article, idx) => {
+    // Preparar contexto dos artigos (reduzido para evitar timeout)
+    const articlesContext = articles.slice(0, 30).map((article, idx) => {
       return `FONTE_${idx + 1}:
 - Citação ABNT: (${article.authors[0]?.split(' ').pop()?.toUpperCase() || 'AUTOR'} et al., ${article.year})
 - Título: ${article.title}
 - Autores: ${article.authors.join(', ')}
 - Ano: ${article.year}
-- Abstract: ${article.abstract}
+- Abstract: ${article.abstract || 'Não disponível'}
 - Citações: ${article.citationCount}
 - URL: ${article.url}`;
     }).join('\n\n');
@@ -1187,16 +1191,18 @@ ${s.subsections.map(sub => `   - ${sub}`).join('\n')}`).join('\n')}
 FONTES DISPONÍVEIS (${articles.length} artigos):
 ${articlesContext}
 
-INSTRUÇÕES:
+INSTRUÇÕES CRÍTICAS:
 1. Escreva em markdown com títulos ## e ###
-2. CITE as fontes usando [CITE:FONTE_X] (AUTOR et al., ANO)
-3. Desenvolva cada subseção com PROFUNDIDADE e DETALHES
-4. Mínimo 3000 palavras (escreva CONTEÚDO EXTENSO E COMPLETO)
-5. Use linguagem ${styleMap[config.style]}
-6. Inclua análise crítica se solicitado
-7. IMPORTANTE: Escreva um texto LONGO e DETALHADO, não resumos
+2. **OBRIGATÓRIO**: CITE as fontes usando o formato exato [CITE:FONTE_X] (AUTOR et al., ANO)
+   Exemplo: "Os elementos finitos são amplamente utilizados [CITE:FONTE_1] (SILVA et al., 2020)."
+3. Use ${densityMap[config.citationDensity]} conforme configurado
+4. Desenvolva cada subseção com PROFUNDIDADE e DETALHES
+5. Mínimo 2500 palavras (escreva CONTEÚDO EXTENSO E COMPLETO)
+6. Use linguagem ${styleMap[config.style]}
+7. Inclua análise crítica se solicitado
+8. **IMPORTANTE**: SEMPRE inclua citações! Não escreva parágrafos sem citar as fontes!
 
-COMECE A ESCREVER:`;
+COMECE A ESCREVER AGORA:`;
 
     // Use real streaming from generateTextStream
     const stream = generateTextStream(prompt, {
