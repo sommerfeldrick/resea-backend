@@ -310,7 +310,16 @@ router.post('/generation/generate', async (req: Request, res: Response) => {
     const stream = generateAcademicContent(config, articles, query);
 
     for await (const chunk of stream) {
-      res.write(`data: ${JSON.stringify({ type: 'chunk', data: chunk })}\n\n`);
+      // Quebrar chunks muito grandes para evitar JSON truncado no TCP
+      if (chunk.length > 500) {
+        // Dividir em pedaços menores
+        for (let i = 0; i < chunk.length; i += 500) {
+          const smallChunk = chunk.substring(i, i + 500);
+          res.write(`data: ${JSON.stringify({ type: 'chunk', data: smallChunk })}\n\n`);
+        }
+      } else {
+        res.write(`data: ${JSON.stringify({ type: 'chunk', data: chunk })}\n\n`);
+      }
     }
 
     // Send completion event
