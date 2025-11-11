@@ -309,18 +309,35 @@ router.post('/generation/generate', async (req: Request, res: Response) => {
     // Stream content generation
     const stream = generateAcademicContent(config, articles, query);
 
+    let totalChunks = 0;
+    let lastChunk = '';
+
     for await (const chunk of stream) {
+      lastChunk = chunk;
+
       // Quebrar chunks muito grandes para evitar JSON truncado no TCP
       if (chunk.length > 500) {
         // Dividir em pedaços menores
         for (let i = 0; i < chunk.length; i += 500) {
           const smallChunk = chunk.substring(i, i + 500);
           res.write(`data: ${JSON.stringify({ type: 'chunk', data: smallChunk })}\n\n`);
+          totalChunks++;
         }
       } else {
         res.write(`data: ${JSON.stringify({ type: 'chunk', data: chunk })}\n\n`);
+        totalChunks++;
       }
     }
+
+    logger.info('Last chunk info', {
+      lastChunkLength: lastChunk.length,
+      lastChunkPreview: lastChunk.substring(0, 100)
+    });
+
+    logger.info('Content generation streaming finished', { totalChunks });
+
+    // Aguardar um pouco para garantir que todos os chunks foram enviados
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     // Send completion event
     res.write(`data: ${JSON.stringify({ type: 'complete' })}\n\n`);
