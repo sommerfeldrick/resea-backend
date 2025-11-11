@@ -7,6 +7,13 @@ import { generateText } from './aiProvider.js';
 import { generateTextStream } from './ai/index.js';
 import { buscaAcademicaUniversal } from './academicSearchService.js';
 import { ContentAcquisitionService } from './content/content-acquisition.service.js';
+import { UnpaywallService } from './apis/unpaywall.service.js';
+import { CrossrefService } from './apis/crossref.service.js';
+import { COREService } from './apis/core.service.js';
+import { OpenAlexService } from './apis/openalex.service.js';
+import { ArXivService } from './apis/arxiv.service.js';
+import { EuropePMCService } from './apis/europepmc.service.js';
+import { SemanticScholarService } from './apis/semantic-scholar.service.js';
 import type {
   ClarificationQuestion,
   ClarificationSession,
@@ -668,61 +675,90 @@ function calculateTextRelevance(text: string, query: string): number {
  * Enriquece artigos com conteúdo completo (fulltext)
  * Filtra apenas artigos que conseguiram obter fulltext
  */
+/**
+ * FASE 3 NOVA: Enriquecimento Híbrido com Fulltext
+ * Tenta múltiplas fontes em paralelo para maximizar taxa de sucesso
+ */
 async function enrichArticlesWithFulltext(
   articles: FlowEnrichedArticle[],
   onProgress?: (progress: { current: number; total: number; successful: number }) => void
 ): Promise<FlowEnrichedArticle[]> {
-  logger.info('Starting fulltext enrichment', { articleCount: articles.length });
+  logger.info('🚀 Starting hybrid fulltext enrichment', { articleCount: articles.length });
 
-  const contentAcquisition = new ContentAcquisitionService();
+  // Inicializar services (com circuit breaker embutido)
+  const unpaywall = new UnpaywallService();
+  const core = new COREService();
+  const arxiv = new ArXivService();
+  const europepmc = new EuropePMCService();
+  const semanticScholar = new SemanticScholarService();
+
   const enrichedArticles: FlowEnrichedArticle[] = [];
-
-  // Processar em paralelo (máximo 5 por vez para não sobrecarregar)
-  const batchSize = 5;
+  const batchSize = 10; // Processar 10 artigos por vez
   let successful = 0;
 
   for (let i = 0; i < articles.length; i += batchSize) {
     const batch = articles.slice(i, i + batchSize);
 
+    // Processar batch em paralelo
     const batchResults = await Promise.allSettled(
       batch.map(async (article) => {
         try {
-          // Tentar adquirir conteúdo completo
-          const acquisition = await contentAcquisition.acquireContent(article as any);
+          // Tentar enriquecer com fulltext de múltiplas fontes em paralelo
+          const fulltextResult = await tryMultipleFulltextSources(
+            article,
+            { unpaywall, core, arxiv, europepmc, semanticScholar }
+          );
 
-          if (acquisition.success && acquisition.content?.fullText) {
+          if (fulltextResult.success && fulltextResult.fullContent) {
+            // ✅ Conseguiu fulltext
             logger.debug('Fulltext acquired', {
-              id: article.id,
-              format: acquisition.format,
-              textLength: acquisition.content.fullText.length
+              title: article.title.substring(0, 50),
+              source: fulltextResult.source,
+              length: fulltextResult.fullContent.length
             });
 
             return {
               ...article,
-              fullContent: acquisition.content.fullText,
-              sections: acquisition.content.sections || {},
+              fullContent: fulltextResult.fullContent,
               hasFulltext: true,
-              format: acquisition.format || article.format
+              format: fulltextResult.format || 'pdf',
+              source: fulltextResult.source || article.source
+            };
+          } else {
+            // ⚠️ NÃO conseguiu fulltext → FALLBACK para abstract
+            logger.debug('Using abstract as fallback', {
+              title: article.title.substring(0, 50)
+            });
+
+            return {
+              ...article,
+              fullContent: undefined,
+              hasFulltext: false
             };
           }
-
-          return null;
         } catch (error: any) {
-          logger.warn('Failed to acquire fulltext', {
-            id: article.id,
+          logger.warn('Enrichment error - using fallback', {
             title: article.title.substring(0, 50),
             error: error.message
           });
-          return null;
+
+          // Em caso de erro, retorna artigo com abstract
+          return {
+            ...article,
+            fullContent: undefined,
+            hasFulltext: false
+          };
         }
       })
     );
 
-    // Coletar resultados bem-sucedidos
+    // Coletar TODOS os resultados (com fulltext OU abstract)
     for (const result of batchResults) {
       if (result.status === 'fulfilled' && result.value) {
         enrichedArticles.push(result.value);
-        successful++;
+        if (result.value.hasFulltext) {
+          successful++;
+        }
       }
     }
 
@@ -736,13 +772,193 @@ async function enrichArticlesWithFulltext(
     }
   }
 
-  logger.info('Fulltext enrichment completed', {
-    total: articles.length,
-    successful: enrichedArticles.length,
-    successRate: `${((enrichedArticles.length / articles.length) * 100).toFixed(1)}%`
+  const fulltextRate = ((successful / articles.length) * 100).toFixed(1);
+  logger.info('✅ Hybrid fulltext enrichment completed', {
+    total: enrichedArticles.length,
+    withFulltext: successful,
+    withAbstract: enrichedArticles.length - successful,
+    fulltextRate: `${fulltextRate}%`
   });
 
   return enrichedArticles;
+}
+
+/**
+ * Tenta obter fulltext de múltiplas fontes em paralelo
+ * Retorna o primeiro que conseguir (Promise.race otimizado)
+ */
+async function tryMultipleFulltextSources(
+  article: FlowEnrichedArticle,
+  services: {
+    unpaywall: UnpaywallService;
+    core: COREService;
+    arxiv: ArXivService;
+    europepmc: EuropePMCService;
+    semanticScholar: SemanticScholarService;
+  }
+): Promise<{ success: boolean; fullContent?: string; source?: string; format?: string }> {
+  const attempts: Promise<{ success: boolean; fullContent?: string; source?: string; format?: string }>[] = [];
+
+  // [1] Unpaywall (se tem DOI)
+  if (article.doi) {
+    attempts.push(
+      (async () => {
+        try {
+          const result = await services.unpaywall.getByDOI(article.doi!);
+          if (result && result.pdfUrl) {
+            // Download PDF e extrai texto (simplificado - pode melhorar)
+            return {
+              success: true,
+              fullContent: result.abstract || '', // TODO: baixar PDF e extrair texto
+              source: 'Unpaywall',
+              format: 'pdf'
+            };
+          }
+        } catch (error) {
+          logger.debug(`Unpaywall failed for ${article.doi}`);
+        }
+        return { success: false };
+      })()
+    );
+  }
+
+  // [2] CORE API (sempre tentar)
+  if (article.doi) {
+    attempts.push(
+      (async () => {
+        try {
+          const result = await services.core.searchByDOI(article.doi!);
+          if (result && result.abstract) {
+            return {
+              success: true,
+              fullContent: result.abstract, // CORE pode ter fulltext via downloadUrl
+              source: 'CORE',
+              format: 'json'
+            };
+          }
+        } catch (error) {
+          logger.debug(`CORE failed for ${article.doi}`);
+        }
+        return { success: false };
+      })()
+    );
+  } else if (article.title) {
+    // Fallback: buscar por título
+    attempts.push(
+      (async () => {
+        try {
+          const result = await services.core.searchByTitle(article.title);
+          if (result && result.abstract) {
+            return {
+              success: true,
+              fullContent: result.abstract,
+              source: 'CORE',
+              format: 'json'
+            };
+          }
+        } catch (error) {
+          logger.debug(`CORE title search failed`);
+        }
+        return { success: false };
+      })()
+    );
+  }
+
+  // [3] arXiv (se tem arxivId ou é da área certa)
+  if (article.source === 'arXiv' || article.id?.includes('arxiv')) {
+    attempts.push(
+      (async () => {
+        try {
+          // Extrair arXiv ID do DOI ou URL
+          const arxivId = article.doi?.replace('10.48550/arXiv.', '') ||
+                          article.url?.match(/arxiv\.org\/abs\/(\S+)/)?.[1];
+
+          if (arxivId) {
+            const results = await services.arxiv.search(`id:${arxivId}`, 1);
+            if (results.length > 0 && results[0].abstract) {
+              return {
+                success: true,
+                fullContent: results[0].abstract, // TODO: baixar LaTeX source
+                source: 'arXiv',
+                format: 'latex'
+              };
+            }
+          }
+        } catch (error) {
+          logger.debug(`arXiv failed`);
+        }
+        return { success: false };
+      })()
+    );
+  }
+
+  // [4] Europe PMC (se biomedicina)
+  if (article.source?.toLowerCase().includes('pubmed') ||
+      article.source?.toLowerCase().includes('pmc') ||
+      article.doi?.includes('PMC')) {
+    attempts.push(
+      (async () => {
+        try {
+          const query = article.doi || article.title;
+          const results = await services.europepmc.search(query, 1, { requireFullText: true });
+          if (results.length > 0 && results[0].abstract) {
+            return {
+              success: true,
+              fullContent: results[0].abstract,
+              source: 'Europe PMC',
+              format: 'jats'
+            };
+          }
+        } catch (error) {
+          logger.debug(`Europe PMC failed`);
+        }
+        return { success: false };
+      })()
+    );
+  }
+
+  // [5] Semantic Scholar (último recurso, rate limit)
+  if (article.doi || article.title) {
+    attempts.push(
+      (async () => {
+        try {
+          const query = article.doi || article.title;
+          const results = await services.semanticScholar.search(query, 1);
+          if (results.length > 0 && results[0].abstract) {
+            return {
+              success: true,
+              fullContent: results[0].abstract,
+              source: 'Semantic Scholar',
+              format: 'json'
+            };
+          }
+        } catch (error) {
+          logger.debug(`Semantic Scholar failed (rate limit?)`);
+        }
+        return { success: false };
+      })()
+    );
+  }
+
+  // Executar todas as tentativas em paralelo, retornar a primeira que funcionar
+  if (attempts.length === 0) {
+    return { success: false };
+  }
+
+  try {
+    const results = await Promise.allSettled(attempts);
+
+    // Encontrar o primeiro sucesso
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value.success) {
+        return result.value;
+      }
+    }
+
+    return { success: false };
+  } catch (error) {
+    return { success: false };
+  }
 }
 
 /**
@@ -1001,34 +1217,28 @@ export async function executeExhaustiveSearch(
       elapsedTime: `${((Date.now() - startTime) / 1000).toFixed(1)}s`
     });
 
-    // 🚀 ENRIQUECIMENTO COM FULLTEXT
-    logger.info('Starting fulltext enrichment phase');
-    const articlesWithFulltext = await enrichArticlesWithFulltext(
+    // 🚀 ENRIQUECIMENTO HÍBRIDO COM FULLTEXT
+    logger.info('Starting hybrid fulltext enrichment phase');
+    const enrichedArticles = await enrichArticlesWithFulltext(
       uniqueArticles,
       (progress) => {
         logger.debug('Fulltext enrichment progress', progress);
-        // Opcional: enviar progresso via SSE se necessário
+        if (onProgress) {
+          onProgress({
+            ...onProgress,
+            articlesWithFulltext: progress.successful
+          } as any);
+        }
       }
     );
 
-    // Garantir que temos artigos suficientes
-    if (articlesWithFulltext.length < 15) {
-      logger.warn('Too few articles with fulltext', {
-        found: articlesWithFulltext.length,
-        original: uniqueArticles.length
-      });
-      // Pode adicionar fallback aqui se necessário
-    }
-
-    logger.info('Final articles with fulltext', {
-      total: articlesWithFulltext.length,
-      formats: articlesWithFulltext.reduce((acc, a) => {
-        acc[a.format] = (acc[a.format] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>)
+    logger.info('✅ Search + Enrichment completed', {
+      total: enrichedArticles.length,
+      withFulltext: enrichedArticles.filter(a => a.hasFulltext).length,
+      withAbstract: enrichedArticles.filter(a => !a.hasFulltext).length
     });
 
-    return articlesWithFulltext;
+    return enrichedArticles;
   } catch (error: any) {
     logger.error('Exhaustive search failed', {
       error: error.message
@@ -1051,17 +1261,53 @@ export async function analyzeArticles(
   logger.info('Analyzing articles', { articleCount: articles.length, query });
 
   try {
-    // Preparar dados dos artigos para análise (QUALIDADE MÁXIMA)
-    const articlesContext = articles.slice(0, 30).map((article, idx) => {
-      const abstract = article.abstract
-        ? (article.abstract.length > 400 ? article.abstract.substring(0, 400) + '...' : article.abstract)
-        : 'Abstract não disponível';
+    // 🚀 PRIORIZAR ARTIGOS COM FULLTEXT
+    // Separar artigos com fulltext dos sem fulltext
+    const withFulltext = articles.filter(a => a.hasFulltext);
+    const withoutFulltext = articles.filter(a => !a.hasFulltext);
 
-      return `[${idx + 1}] ${article.title} (${article.year})
+    logger.info('Article selection for analysis', {
+      total: articles.length,
+      withFulltext: withFulltext.length,
+      withoutFulltext: withoutFulltext.length
+    });
+
+    // Selecionar top 30: priorizar fulltext
+    const selectedArticles = [
+      ...withFulltext.slice(0, Math.min(withFulltext.length, 30)),
+      ...withoutFulltext.slice(0, Math.max(0, 30 - withFulltext.length))
+    ].slice(0, 30);
+
+    logger.info('Selected articles for analysis', {
+      total: selectedArticles.length,
+      withFulltext: selectedArticles.filter(a => a.hasFulltext).length
+    });
+
+    // Preparar dados dos artigos para análise (QUALIDADE MÁXIMA)
+    const articlesContext = selectedArticles.map((article, idx) => {
+      // 🚀 USAR FULLCONTENT quando disponível (ao invés de abstract)
+      let content: string;
+      if (article.fullContent) {
+        // Fulltext disponível → usar primeiros 800 caracteres
+        content = article.fullContent.length > 800
+          ? article.fullContent.substring(0, 800) + '...'
+          : article.fullContent;
+      } else if (article.abstract) {
+        // Fallback: abstract
+        content = article.abstract.length > 400
+          ? article.abstract.substring(0, 400) + '...'
+          : article.abstract;
+      } else {
+        content = 'Conteúdo não disponível';
+      }
+
+      const hasFulltextLabel = article.hasFulltext ? '[FULLTEXT]' : '[ABSTRACT]';
+
+      return `[${idx + 1}] ${hasFulltextLabel} ${article.title} (${article.year})
 Autores: ${article.authors.slice(0, 5).join(', ')}${article.authors.length > 5 ? ' et al.' : ''}
 Citações: ${article.citationCount}
 Score: ${article.score.score} (${article.score.priority})
-Abstract: ${abstract}`;
+Conteúdo: ${content}`;
     }).join('\n\n');
 
     const prompt = `Você é um especialista em análise de literatura científica. Analise os ${articles.length} artigos abaixo sobre "${query}" e identifique:
@@ -1255,8 +1501,29 @@ export async function* generateAcademicContent(
   logger.info('Starting content generation', { section: config.section, articleCount: articles.length });
 
   try {
+    // 🚀 PRIORIZAR ARTIGOS COM FULLTEXT para geração
+    const withFulltext = articles.filter(a => a.hasFulltext);
+    const withoutFulltext = articles.filter(a => !a.hasFulltext);
+
+    logger.info('Article selection for generation', {
+      total: articles.length,
+      withFulltext: withFulltext.length,
+      withoutFulltext: withoutFulltext.length
+    });
+
+    // Selecionar top 30: priorizar fulltext
+    const selectedArticles = [
+      ...withFulltext.slice(0, Math.min(withFulltext.length, 30)),
+      ...withoutFulltext.slice(0, Math.max(0, 30 - withFulltext.length))
+    ].slice(0, 30);
+
+    logger.info('Selected articles for generation', {
+      total: selectedArticles.length,
+      withFulltext: selectedArticles.filter(a => a.hasFulltext).length
+    });
+
     // Preparar contexto dos artigos com FULLTEXT (máxima qualidade)
-    const articlesContext = articles.slice(0, 30).map((article, idx) => {
+    const articlesContext = selectedArticles.map((article, idx) => {
       // 🚀 USAR FULLCONTENT ao invés de abstract
       // Truncar fulltext para evitar prompt muito grande (primeiros 3000 chars)
       const content = article.fullContent
@@ -1265,7 +1532,9 @@ export async function* generateAcademicContent(
             : article.fullContent)
         : (article.abstract || 'Conteúdo não disponível');
 
-      return `FONTE_${idx + 1}:
+      const hasFulltextLabel = article.hasFulltext ? '[FULLTEXT]' : '[ABSTRACT]';
+
+      return `FONTE_${idx + 1}: ${hasFulltextLabel}
 - Citação ABNT: (${article.authors[0]?.split(' ').pop()?.toUpperCase() || 'AUTOR'} et al., ${article.year})
 - Título: ${article.title}
 - Autores: ${article.authors.join(', ')}

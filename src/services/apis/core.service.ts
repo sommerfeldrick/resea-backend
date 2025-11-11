@@ -94,6 +94,90 @@ export class COREService extends BaseAPIService {
   }
 
   /**
+   * Search by DOI (for enrichment)
+   */
+  async searchByDOI(doi: string): Promise<AcademicArticle | null> {
+    try {
+      if (!this.apiKey || !doi) {
+        return null;
+      }
+
+      // Clean DOI
+      const cleanDOI = doi.replace(/^https?:\/\/(dx\.)?doi\.org\//, '');
+
+      this.logger.debug(`Searching by DOI: ${cleanDOI}`);
+
+      // Search with DOI as query
+      const response = await this.makeRequest<{ results: CORESummary[] }>({
+        method: 'POST',
+        url: '/search/works',
+        data: {
+          q: `doi:${cleanDOI}`,
+          limit: 1,
+        },
+      });
+
+      if (response.results && response.results.length > 0) {
+        return this.parseWork(response.results[0]);
+      }
+
+      return null;
+    } catch (error: any) {
+      this.logger.debug(`DOI not found: ${doi}`);
+      return null;
+    }
+  }
+
+  /**
+   * Search by title (fallback for articles without DOI)
+   */
+  async searchByTitle(title: string): Promise<AcademicArticle | null> {
+    try {
+      if (!this.apiKey || !title) {
+        return null;
+      }
+
+      this.logger.debug(`Searching by title: ${title.substring(0, 50)}...`);
+
+      // Search with title as query
+      const response = await this.makeRequest<{ results: CORESummary[] }>({
+        method: 'POST',
+        url: '/search/works',
+        data: {
+          q: `title:"${title}"`,
+          limit: 1,
+        },
+      });
+
+      if (response.results && response.results.length > 0) {
+        const work = response.results[0];
+        // Verify title similarity (avoid false positives)
+        if (work.title && this.titleSimilarity(title, work.title) > 0.8) {
+          return this.parseWork(work);
+        }
+      }
+
+      return null;
+    } catch (error: any) {
+      this.logger.debug(`Title not found: ${title.substring(0, 50)}`);
+      return null;
+    }
+  }
+
+  /**
+   * Simple title similarity check (Jaccard similarity on words)
+   */
+  private titleSimilarity(title1: string, title2: string): number {
+    const words1 = new Set(title1.toLowerCase().split(/\W+/).filter(Boolean));
+    const words2 = new Set(title2.toLowerCase().split(/\W+/).filter(Boolean));
+
+    const intersection = new Set([...words1].filter(w => words2.has(w)));
+    const union = new Set([...words1, ...words2]);
+
+    return intersection.size / union.size;
+  }
+
+  /**
    * Parse CORE work to AcademicArticle
    */
   private parseWork(work: CORESummary): AcademicArticle | null {
