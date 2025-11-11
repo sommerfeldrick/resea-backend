@@ -186,16 +186,23 @@ router.post('/search/execute', async (req: Request, res: Response) => {
     // Executa a busca
     const articles = await executeExhaustiveSearch(strategy, onProgress);
 
-    // Envia artigos em lotes - SEM ABSTRACT para JSON leve
-    const batchSize = 5;  // Pode ser maior agora (sem abstract = JSON 80% menor)
+    // Envia artigos em lotes - COM FULLTEXT TRUNCADO
+    const batchSize = 5;
     for (let i = 0; i < articles.length; i += batchSize) {
       const batch = articles.slice(i, i + batchSize);
 
-      // SSE: Apenas campos essenciais (abstract removido = JSON muito menor)
+      // SSE: Enviar fullContent truncado para frontend usar nas fases seguintes
       const safeBatch = batch.map(article => {
         const truncatedTitle = article.title && article.title.length > 120
           ? article.title.substring(0, 120) + '...'
           : article.title;
+
+        // Truncar fullContent para não sobrecarregar SSE (3000 chars = suficiente)
+        const truncatedFullContent = article.fullContent
+          ? (article.fullContent.length > 3000
+              ? article.fullContent.substring(0, 3000) + '...'
+              : article.fullContent)
+          : undefined;
 
         return {
           id: article.id,
@@ -206,10 +213,16 @@ router.post('/search/execute', async (req: Request, res: Response) => {
           year: article.year,
           source: cleanStringForJSON(article.source),
           citationCount: article.citationCount,
-          // ABSTRACT REMOVIDO - Não necessário para exibição na lista
-          // AI usa artigos COMPLETOS na análise/geração
+          abstract: article.abstract || '',
+          // 🚀 NOVO: Incluir fullContent truncado + metadata
+          fullContent: truncatedFullContent ? cleanStringForJSON(truncatedFullContent) : undefined,
+          format: article.format,
+          hasFulltext: article.hasFulltext,
+          sections: article.sections || {},
           score: article.score,
-          hasFulltext: article.hasFulltext
+          doi: article.doi,
+          url: article.url,
+          pdfUrl: article.pdfUrl
         };
       });
 
