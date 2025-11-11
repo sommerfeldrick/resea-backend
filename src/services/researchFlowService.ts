@@ -6,6 +6,7 @@ import { logger } from '../config/logger.js';
 import { generateText } from './aiProvider.js';
 import { generateTextStream } from './ai/index.js';
 import { buscaAcademicaUniversal } from './academicSearchService.js';
+import { ContentAcquisitionService } from './content/content-acquisition.service.js';
 import type {
   ClarificationQuestion,
   ClarificationSession,
@@ -664,6 +665,87 @@ function calculateTextRelevance(text: string, query: string): number {
 }
 
 /**
+ * Enriquece artigos com conteúdo completo (fulltext)
+ * Filtra apenas artigos que conseguiram obter fulltext
+ */
+async function enrichArticlesWithFulltext(
+  articles: FlowEnrichedArticle[],
+  onProgress?: (progress: { current: number; total: number; successful: number }) => void
+): Promise<FlowEnrichedArticle[]> {
+  logger.info('Starting fulltext enrichment', { articleCount: articles.length });
+
+  const contentAcquisition = new ContentAcquisitionService();
+  const enrichedArticles: FlowEnrichedArticle[] = [];
+
+  // Processar em paralelo (máximo 5 por vez para não sobrecarregar)
+  const batchSize = 5;
+  let successful = 0;
+
+  for (let i = 0; i < articles.length; i += batchSize) {
+    const batch = articles.slice(i, i + batchSize);
+
+    const batchResults = await Promise.allSettled(
+      batch.map(async (article) => {
+        try {
+          // Tentar adquirir conteúdo completo
+          const acquisition = await contentAcquisition.acquireContent(article as any);
+
+          if (acquisition.success && acquisition.content?.fullText) {
+            logger.debug('Fulltext acquired', {
+              id: article.id,
+              format: acquisition.format,
+              textLength: acquisition.content.fullText.length
+            });
+
+            return {
+              ...article,
+              fullContent: acquisition.content.fullText,
+              sections: acquisition.content.sections || {},
+              hasFulltext: true,
+              format: acquisition.format || article.format
+            };
+          }
+
+          return null;
+        } catch (error: any) {
+          logger.warn('Failed to acquire fulltext', {
+            id: article.id,
+            title: article.title.substring(0, 50),
+            error: error.message
+          });
+          return null;
+        }
+      })
+    );
+
+    // Coletar resultados bem-sucedidos
+    for (const result of batchResults) {
+      if (result.status === 'fulfilled' && result.value) {
+        enrichedArticles.push(result.value);
+        successful++;
+      }
+    }
+
+    // Callback de progresso
+    if (onProgress) {
+      onProgress({
+        current: Math.min(i + batchSize, articles.length),
+        total: articles.length,
+        successful
+      });
+    }
+  }
+
+  logger.info('Fulltext enrichment completed', {
+    total: articles.length,
+    successful: enrichedArticles.length,
+    successRate: `${((enrichedArticles.length / articles.length) * 100).toFixed(1)}%`
+  });
+
+  return enrichedArticles;
+}
+
+/**
  * Executa busca exaustiva com priorização P1 > P2 > P3
  */
 export async function executeExhaustiveSearch(
@@ -919,7 +1001,34 @@ export async function executeExhaustiveSearch(
       elapsedTime: `${((Date.now() - startTime) / 1000).toFixed(1)}s`
     });
 
-    return uniqueArticles;
+    // 🚀 ENRIQUECIMENTO COM FULLTEXT
+    logger.info('Starting fulltext enrichment phase');
+    const articlesWithFulltext = await enrichArticlesWithFulltext(
+      uniqueArticles,
+      (progress) => {
+        logger.debug('Fulltext enrichment progress', progress);
+        // Opcional: enviar progresso via SSE se necessário
+      }
+    );
+
+    // Garantir que temos artigos suficientes
+    if (articlesWithFulltext.length < 15) {
+      logger.warn('Too few articles with fulltext', {
+        found: articlesWithFulltext.length,
+        original: uniqueArticles.length
+      });
+      // Pode adicionar fallback aqui se necessário
+    }
+
+    logger.info('Final articles with fulltext', {
+      total: articlesWithFulltext.length,
+      formats: articlesWithFulltext.reduce((acc, a) => {
+        acc[a.format] = (acc[a.format] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    });
+
+    return articlesWithFulltext;
   } catch (error: any) {
     logger.error('Exhaustive search failed', {
       error: error.message
@@ -1146,14 +1255,22 @@ export async function* generateAcademicContent(
   logger.info('Starting content generation', { section: config.section, articleCount: articles.length });
 
   try {
-    // Preparar contexto dos artigos (reduzido para evitar timeout)
+    // Preparar contexto dos artigos com FULLTEXT (máxima qualidade)
     const articlesContext = articles.slice(0, 30).map((article, idx) => {
+      // 🚀 USAR FULLCONTENT ao invés de abstract
+      // Truncar fulltext para evitar prompt muito grande (primeiros 3000 chars)
+      const content = article.fullContent
+        ? (article.fullContent.length > 3000
+            ? article.fullContent.substring(0, 3000) + '...'
+            : article.fullContent)
+        : (article.abstract || 'Conteúdo não disponível');
+
       return `FONTE_${idx + 1}:
 - Citação ABNT: (${article.authors[0]?.split(' ').pop()?.toUpperCase() || 'AUTOR'} et al., ${article.year})
 - Título: ${article.title}
 - Autores: ${article.authors.join(', ')}
 - Ano: ${article.year}
-- Abstract: ${article.abstract || 'Não disponível'}
+- Conteúdo completo: ${content}
 - Citações: ${article.citationCount}
 - URL: ${article.url}`;
     }).join('\n\n');
@@ -1330,13 +1447,121 @@ Use o formato [CITE:FONTE_X] (AUTOR et al., ANO).`;
 // ============================================
 
 /**
+ * Valida uma citação específica usando IA
+ * Verifica se o conteúdo citado realmente está no artigo
+ */
+async function validateCitationWithAI(
+  citedText: string,
+  article: FlowEnrichedArticle,
+  citationId: string
+): Promise<{
+  valid: boolean;
+  confidence: number;
+  reasoning: string;
+  suggestedCorrection?: string;
+}> {
+  try {
+    // Usar fullContent se disponível, senão abstract
+    const articleContent = article.fullContent
+      ? article.fullContent.substring(0, 8000)
+      : article.abstract;
+
+    if (!articleContent) {
+      return {
+        valid: false,
+        confidence: 0,
+        reasoning: 'Artigo sem conteúdo disponível para validação'
+      };
+    }
+
+    const prompt = `Você é um verificador de citações acadêmicas especializado.
+
+TRECHO DO DOCUMENTO GERADO:
+"${citedText}"
+
+ARTIGO CITADO (${citationId}):
+Título: ${article.title}
+Autores: ${article.authors.join(', ')}
+Ano: ${article.year}
+Conteúdo do artigo:
+${articleContent}
+
+TAREFA: A informação apresentada no trecho do documento é compatível com o conteúdo do artigo citado?
+
+CRITÉRIOS:
+1. A informação está presente no artigo? (diretamente ou como paráfrase válida)
+2. O contexto está correto?
+3. Não há distorção ou interpretação incorreta?
+
+Responda APENAS em formato JSON válido:
+{
+  "valid": true ou false,
+  "confidence": número entre 0.0 e 1.0,
+  "reasoning": "explicação breve de 1-2 frases",
+  "suggestedCorrection": "se inválida, sugestão de correção ou null"
+}`;
+
+    const response = await generateText(prompt, {
+      systemPrompt: 'Você é um validador de citações acadêmicas. Responda apenas com JSON válido.',
+      temperature: 0.3, // Baixa temperatura para resposta mais determinística
+      maxTokens: 500
+    });
+
+    // Limpar e parsear resposta
+    let jsonStr = response.text.trim();
+
+    // Remover markdown code blocks se houver
+    jsonStr = jsonStr.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+
+    const result = JSON.parse(jsonStr);
+
+    return {
+      valid: result.valid === true,
+      confidence: Math.min(1, Math.max(0, parseFloat(result.confidence) || 0)),
+      reasoning: result.reasoning || 'Sem justificativa fornecida',
+      suggestedCorrection: result.suggestedCorrection || undefined
+    };
+  } catch (error: any) {
+    logger.warn('Citation validation failed', {
+      citationId,
+      error: error.message
+    });
+
+    // Em caso de erro, retornar resultado neutro
+    return {
+      valid: true, // Assume válido para não bloquear
+      confidence: 0.5,
+      reasoning: `Erro na validação: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Extrai contexto ao redor de uma citação
+ */
+function extractCitationContext(content: string, citationId: string, contextLength: number = 300): string {
+  const citationPattern = new RegExp(`\\[CITE:FONTE_${citationId}\\]`, 'g');
+  const match = citationPattern.exec(content);
+
+  if (!match) {
+    return '';
+  }
+
+  const position = match.index;
+  const start = Math.max(0, position - contextLength);
+  const end = Math.min(content.length, position + contextLength);
+
+  return content.substring(start, end);
+}
+
+/**
  * Verifica qualidade do documento antes da exportação
  */
 export async function verifyDocumentQuality(
   content: string,
   articles: FlowEnrichedArticle[]
 ): Promise<QualityVerification> {
-  logger.info('Verifying document quality');
+  logger.info('Verifying document quality', { articleCount: articles.length });
 
   const issues: any[] = [];
 
@@ -1345,18 +1570,79 @@ export async function verifyDocumentQuality(
   const citations = [...content.matchAll(citationPattern)];
   const uniqueCitations = new Set(citations.map(c => c[1]));
 
-  // Verificar se todas as citações têm referências
+  logger.info('Starting AI citation validation', { citationCount: uniqueCitations.size });
+
+  // 🤖 VALIDAÇÃO POR IA - Para cada citação
+  let validatedCount = 0;
+  let validCount = 0;
+  let invalidCount = 0;
+
   for (const citationId of uniqueCitations) {
     const sourceIndex = parseInt(citationId) - 1;
-    if (sourceIndex >= articles.length) {
+
+    // Verificar se a citação tem referência correspondente
+    if (sourceIndex >= articles.length || sourceIndex < 0) {
       issues.push({
         type: 'missing_reference',
         severity: 'error',
         description: `Citação FONTE_${citationId} não tem referência correspondente`,
         autoFixAvailable: false
       });
+      invalidCount++;
+      continue;
+    }
+
+    const article = articles[sourceIndex];
+
+    // Extrair contexto ao redor da citação
+    const citedText = extractCitationContext(content, citationId, 300);
+
+    if (!citedText) {
+      logger.warn('Could not extract citation context', { citationId });
+      continue;
+    }
+
+    // Validar com IA
+    logger.debug('Validating citation with AI', { citationId, articleTitle: article.title.substring(0, 50) });
+
+    const validation = await validateCitationWithAI(citedText, article, citationId);
+
+    validatedCount++;
+
+    if (!validation.valid || validation.confidence < 0.6) {
+      issues.push({
+        type: 'invalid_citation',
+        severity: validation.confidence < 0.4 ? 'error' : 'warning',
+        description: `Citação FONTE_${citationId} pode estar incorreta: ${validation.reasoning}`,
+        location: { citationId },
+        autoFixAvailable: !!validation.suggestedCorrection,
+        metadata: {
+          confidence: validation.confidence,
+          suggestedCorrection: validation.suggestedCorrection
+        }
+      });
+      invalidCount++;
+    } else {
+      validCount++;
+    }
+
+    // Log progress cada 5 citações
+    if (validatedCount % 5 === 0) {
+      logger.info('Citation validation progress', {
+        validated: validatedCount,
+        total: uniqueCitations.size,
+        valid: validCount,
+        invalid: invalidCount
+      });
     }
   }
+
+  logger.info('AI citation validation completed', {
+    total: validatedCount,
+    valid: validCount,
+    invalid: invalidCount,
+    accuracy: validatedCount > 0 ? `${((validCount / validatedCount) * 100).toFixed(1)}%` : '0%'
+  });
 
   // Verificar parágrafos muito longos
   const paragraphs = content.split('\n\n');

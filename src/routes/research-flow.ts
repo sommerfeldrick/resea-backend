@@ -336,11 +336,18 @@ router.post('/generation/generate', async (req: Request, res: Response) => {
 
     logger.info('Content generation streaming finished', { totalChunks });
 
-    // Aguardar um pouco para garantir que todos os chunks foram enviados
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Enviar evento de flush para garantir que o buffer foi limpo
+    res.write(`data: ${JSON.stringify({ type: 'flush', totalChunks })}\n\n`);
+
+    // Aguardar para garantir que todos os chunks foram processados pelo frontend
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Send completion event
     res.write(`data: ${JSON.stringify({ type: 'complete' })}\n\n`);
+
+    // Aguardar mais um pouco antes de fechar
+    await new Promise(resolve => setTimeout(resolve, 200));
+
     res.end();
 
     logger.info('API: Content generation completed');
