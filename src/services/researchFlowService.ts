@@ -942,13 +942,13 @@ export async function analyzeArticles(
   logger.info('Analyzing articles', { articleCount: articles.length, query });
 
   try {
-    // Preparar dados dos artigos para análise (reduzido para evitar timeout/abort)
-    const articlesContext = articles.slice(0, 20).map((article, idx) => {
+    // Preparar dados dos artigos para análise (QUALIDADE MÁXIMA)
+    const articlesContext = articles.slice(0, 30).map((article, idx) => {
       return `[${idx + 1}] ${article.title} (${article.year})
-Autores: ${article.authors.slice(0, 3).join(', ')}${article.authors.length > 3 ? ' et al.' : ''}
+Autores: ${article.authors.slice(0, 5).join(', ')}${article.authors.length > 5 ? ' et al.' : ''}
 Citações: ${article.citationCount}
 Score: ${article.score.score} (${article.score.priority})
-Abstract: ${article.abstract.substring(0, 200)}...`;
+Abstract: ${article.abstract.substring(0, 400)}...`;
     }).join('\n\n');
 
     const prompt = `Você é um especialista em análise de literatura científica. Analise os ${articles.length} artigos abaixo sobre "${query}" e identifique:

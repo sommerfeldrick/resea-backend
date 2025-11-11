@@ -186,24 +186,16 @@ router.post('/search/execute', async (req: Request, res: Response) => {
     // Executa a busca
     const articles = await executeExhaustiveSearch(strategy, onProgress);
 
-    // Envia artigos em lotes MUITO PEQUENOS para evitar JSON truncado
-    const batchSize = 2;  // Apenas 2 artigos por vez (era 5, depois 10)
+    // Envia artigos em lotes - SEM ABSTRACT para JSON leve
+    const batchSize = 5;  // Pode ser maior agora (sem abstract = JSON 80% menor)
     for (let i = 0; i < articles.length; i += batchSize) {
       const batch = articles.slice(i, i + batchSize);
 
-      // Truncar AGRESSIVAMENTE todos os campos
+      // SSE: Apenas campos essenciais (abstract removido = JSON muito menor)
       const safeBatch = batch.map(article => {
-        const truncatedTitle = article.title && article.title.length > 80
-          ? article.title.substring(0, 80) + '...'
+        const truncatedTitle = article.title && article.title.length > 120
+          ? article.title.substring(0, 120) + '...'
           : article.title;
-
-        const truncatedSource = article.source && article.source.length > 50
-          ? article.source.substring(0, 50) + '...'
-          : article.source;
-
-        const truncatedAbstract = article.abstract && article.abstract.length > 150
-          ? article.abstract.substring(0, 150) + '...'
-          : article.abstract;
 
         return {
           id: article.id,
@@ -212,11 +204,11 @@ router.post('/search/execute', async (req: Request, res: Response) => {
             ? article.authors.slice(0, 3).map(a => cleanStringForJSON(a))
             : article.authors,
           year: article.year,
-          source: cleanStringForJSON(truncatedSource),
+          source: cleanStringForJSON(article.source),
           citationCount: article.citationCount,
-          abstract: cleanStringForJSON(truncatedAbstract),
+          // ABSTRACT REMOVIDO - Não necessário para exibição na lista
+          // AI usa artigos COMPLETOS na análise/geração
           score: article.score,
-          pdfUrl: article.pdfUrl ? cleanStringForJSON(article.pdfUrl) : null,
           hasFulltext: article.hasFulltext
         };
       });
