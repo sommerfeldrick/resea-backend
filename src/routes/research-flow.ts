@@ -186,23 +186,23 @@ router.post('/search/execute', async (req: Request, res: Response) => {
     // Executa a busca
     const articles = await executeExhaustiveSearch(strategy, onProgress);
 
-    // Envia artigos em lotes MENORES para evitar JSON muito grande
-    const batchSize = 5;  // Reduzido de 10 para 5
+    // Envia artigos em lotes MUITO PEQUENOS para evitar JSON truncado
+    const batchSize = 2;  // Apenas 2 artigos por vez (era 5, depois 10)
     for (let i = 0; i < articles.length; i += batchSize) {
       const batch = articles.slice(i, i + batchSize);
 
-      // Truncar MÚLTIPLOS campos E limpar caracteres especiais
+      // Truncar AGRESSIVAMENTE todos os campos
       const safeBatch = batch.map(article => {
-        const truncatedTitle = article.title && article.title.length > 150
-          ? article.title.substring(0, 150) + '...'
+        const truncatedTitle = article.title && article.title.length > 80
+          ? article.title.substring(0, 80) + '...'
           : article.title;
 
-        const truncatedSource = article.source && article.source.length > 100
-          ? article.source.substring(0, 100) + '...'
+        const truncatedSource = article.source && article.source.length > 50
+          ? article.source.substring(0, 50) + '...'
           : article.source;
 
-        const truncatedAbstract = article.abstract && article.abstract.length > 300
-          ? article.abstract.substring(0, 300) + '...'
+        const truncatedAbstract = article.abstract && article.abstract.length > 150
+          ? article.abstract.substring(0, 150) + '...'
           : article.abstract;
 
         return {
