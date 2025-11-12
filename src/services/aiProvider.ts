@@ -76,9 +76,9 @@ export const aiConfigs: Record<AIProvider, AIConfig> = {
 
 /**
  * Ordem de prioridade dos provedores
- * DeepSeek (1º) → Gemini (2º) → OpenAI (3º)
+ * Gemini (1º - 32K output) → DeepSeek (2º - 8K output) → OpenAI (3º - pago)
  */
-const providerPriority: AIProvider[] = ['deepseek', 'gemini', 'openai', 'claude'];
+const providerPriority: AIProvider[] = ['gemini', 'deepseek', 'openai', 'claude'];
 
 /**
  * Get active AI provider
