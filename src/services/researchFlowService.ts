@@ -203,10 +203,32 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
       }
     }
 
+    // Validate and fix questions
+    const validatedQuestions = questionsData.questions.map((q: any, index: number) => {
+      // Ensure multiple_choice questions have options
+      if (q.type === 'multiple_choice' && (!q.options || !Array.isArray(q.options) || q.options.length === 0)) {
+        logger.warn('Question missing options, adding default options', { questionId: q.id, question: q.question });
+        q.options = [
+          { value: 'sim', label: 'Sim', description: 'Incluir na busca' },
+          { value: 'nao', label: 'Não', description: 'Excluir da busca' }
+        ];
+      }
+
+      // Ensure required fields exist
+      return {
+        ...q,
+        id: q.id || `q${index + 1}`,
+        questionNumber: q.questionNumber || index + 1,
+        totalQuestions: q.totalQuestions || questionsData.questions.length,
+        type: q.type || 'multiple_choice',
+        required: q.required !== undefined ? q.required : true
+      };
+    });
+
     const session: ClarificationSession = {
       sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       query,
-      questions: questionsData.questions,
+      questions: validatedQuestions,
       answers: [],
       completed: false,
       createdAt: new Date()
