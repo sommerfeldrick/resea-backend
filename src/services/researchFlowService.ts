@@ -687,9 +687,10 @@ async function enrichArticlesWithFulltext(
   articles: FlowEnrichedArticle[],
   onProgress?: (progress: { current: number; total: number; successful: number }) => void
 ): Promise<FlowEnrichedArticle[]> {
-  logger.info('🚀 Starting hybrid fulltext enrichment (3 sources: Unpaywall, arXiv, Europe PMC)', { articleCount: articles.length });
+  logger.info('🚀 Starting hybrid fulltext enrichment (4 sources: OpenAlex, Unpaywall, arXiv, Europe PMC)', { articleCount: articles.length });
 
   // Inicializar services (com circuit breaker embutido)
+  const openalex = new OpenAlexService();
   const unpaywall = new UnpaywallService();
   // const core = new COREService();  // DISABLED - 100% error 500
   const arxiv = new ArXivService();
@@ -710,7 +711,7 @@ async function enrichArticlesWithFulltext(
           // Tentar enriquecer com fulltext de múltiplas fontes em paralelo
           const fulltextResult = await tryMultipleFulltextSources(
             article,
-            { unpaywall, arxiv, europepmc }
+            { openalex, unpaywall, arxiv, europepmc }
           );
 
           if (fulltextResult.success && fulltextResult.fullContent) {
@@ -794,6 +795,7 @@ async function enrichArticlesWithFulltext(
 async function tryMultipleFulltextSources(
   article: FlowEnrichedArticle,
   services: {
+    openalex: OpenAlexService;
     unpaywall: UnpaywallService;
     // core: COREService;  // DISABLED
     arxiv: ArXivService;
@@ -803,7 +805,29 @@ async function tryMultipleFulltextSources(
 ): Promise<{ success: boolean; fullContent?: string; source?: string; format?: string }> {
   const attempts: Promise<{ success: boolean; fullContent?: string; source?: string; format?: string }>[] = [];
 
-  // [1] Unpaywall (se tem DOI)
+  // [1] OpenAlex (se tem DOI) - MAIOR COBERTURA (250M artigos)
+  if (article.doi) {
+    attempts.push(
+      (async () => {
+        try {
+          const result = await services.openalex.getByDOI(article.doi!);
+          if (result && (result.pdfUrl || result.abstract)) {
+            return {
+              success: true,
+              fullContent: result.abstract || '',
+              source: 'OpenAlex',
+              format: result.pdfUrl ? 'pdf' : 'json'
+            };
+          }
+        } catch (error) {
+          logger.debug(`OpenAlex failed for ${article.doi}`);
+        }
+        return { success: false };
+      })()
+    );
+  }
+
+  // [2] Unpaywall (se tem DOI)
   if (article.doi) {
     attempts.push(
       (async () => {
@@ -826,12 +850,12 @@ async function tryMultipleFulltextSources(
     );
   }
 
-  // [2] CORE API - DISABLED (100% error 500 in production, need valid API key)
+  // [3] CORE API - DISABLED (100% error 500 in production, need valid API key)
   // if (article.doi) {
   //   attempts.push(...);
   // }
 
-  // [3] arXiv (se tem arxivId ou é da área certa)
+  // [4] arXiv (se tem arxivId ou é da área certa)
   if (article.source === 'arXiv' || article.id?.includes('arxiv')) {
     attempts.push(
       (async () => {
@@ -859,7 +883,7 @@ async function tryMultipleFulltextSources(
     );
   }
 
-  // [4] Europe PMC (se biomedicina)
+  // [5] Europe PMC (se biomedicina)
   if (article.source?.toLowerCase().includes('pubmed') ||
       article.source?.toLowerCase().includes('pmc') ||
       article.doi?.includes('PMC')) {
@@ -884,7 +908,7 @@ async function tryMultipleFulltextSources(
     );
   }
 
-  // [5] Semantic Scholar - DISABLED (rate limit 429 errors without API key)
+  // [6] Semantic Scholar - DISABLED (rate limit 429 errors without API key)
   // if (article.doi || article.title) {
   //   attempts.push(...);
   // }

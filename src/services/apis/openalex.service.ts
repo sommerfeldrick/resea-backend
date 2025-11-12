@@ -102,6 +102,31 @@ export class OpenAlexService extends BaseAPIService {
   }
 
   /**
+   * Get article by DOI (for fulltext enrichment)
+   */
+  async getByDOI(doi: string): Promise<AcademicArticle | null> {
+    try {
+      if (!doi) return null;
+
+      // Clean DOI
+      const cleanDOI = doi.replace(/^https?:\/\/(dx\.)?doi\.org\//, '');
+
+      this.logger.debug(`Looking up DOI: ${cleanDOI}`);
+
+      // OpenAlex DOI lookup
+      const response = await this.makeRequest<OpenAlexWork>({
+        method: 'GET',
+        url: `/works/https://doi.org/${cleanDOI}`,
+      });
+
+      return this.parseWork(response);
+    } catch (error: any) {
+      this.logger.debug(`DOI not found: ${doi}`);
+      return null;
+    }
+  }
+
+  /**
    * Parse OpenAlex work to AcademicArticle
    */
   private parseWork(work: OpenAlexWork): AcademicArticle | null {
