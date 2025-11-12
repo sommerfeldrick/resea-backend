@@ -207,11 +207,46 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
     const validatedQuestions = questionsData.questions.map((q: any, index: number) => {
       // Ensure multiple_choice questions have options
       if (q.type === 'multiple_choice' && (!q.options || !Array.isArray(q.options) || q.options.length === 0)) {
-        logger.warn('Question missing options, adding default options', { questionId: q.id, question: q.question });
-        q.options = [
-          { value: 'sim', label: 'Sim', description: 'Incluir na busca' },
-          { value: 'nao', label: 'Não', description: 'Excluir da busca' }
-        ];
+        logger.warn('Question missing options, adding contextual defaults', {
+          questionId: q.id,
+          question: q.question
+        });
+
+        // Detectar tipo de pergunta e adicionar opções contextuais
+        const questionText = (q.question || '').toLowerCase();
+
+        if (questionText.includes('período') || questionText.includes('temporal') || questionText.includes('ano')) {
+          // Pergunta sobre período temporal
+          q.options = [
+            { value: 'recente', label: 'Últimos 5 anos (2020-2025)', description: 'Pesquisas mais recentes e atuais', estimatedArticles: 50 },
+            { value: 'amplo', label: 'Últimos 10 anos (2015-2025)', description: 'Boa cobertura com estudos consolidados', estimatedArticles: 120 },
+            { value: 'historico', label: 'Últimos 20 anos (2005-2025)', description: 'Visão histórica e evolutiva do tema', estimatedArticles: 200 },
+            { value: 'todos', label: 'Sem restrição de período', description: 'Todos os artigos disponíveis', estimatedArticles: 300 }
+          ];
+        } else if (questionText.includes('seção') || questionText.includes('parte')) {
+          // Pergunta sobre seção do documento
+          q.options = [
+            { value: 'introducao', label: 'Introdução', description: 'Contextualização e motivação', estimatedArticles: 20 },
+            { value: 'revisao', label: 'Revisão de Literatura', description: 'Estado da arte', estimatedArticles: 60 },
+            { value: 'metodologia', label: 'Metodologia', description: 'Métodos e procedimentos', estimatedArticles: 15 },
+            { value: 'todas', label: 'Todas as seções', description: 'Documento completo', estimatedArticles: 100 }
+          ];
+        } else if (questionText.includes('tipo') || questionText.includes('estudo')) {
+          // Pergunta sobre tipo de estudo
+          q.options = [
+            { value: 'empirico', label: 'Estudos Empíricos', description: 'Pesquisas com dados experimentais', estimatedArticles: 40 },
+            { value: 'revisao', label: 'Revisões Sistemáticas', description: 'Meta-análises e sínteses', estimatedArticles: 30 },
+            { value: 'teorico', label: 'Estudos Teóricos', description: 'Frameworks e modelos', estimatedArticles: 20 },
+            { value: 'todos', label: 'Todos os tipos', description: 'Sem restrição', estimatedArticles: 100 }
+          ];
+        } else {
+          // Fallback genérico
+          q.options = [
+            { value: 'sim', label: 'Sim', description: 'Incluir este critério', estimatedArticles: 60 },
+            { value: 'nao', label: 'Não', description: 'Não incluir', estimatedArticles: 30 },
+            { value: 'talvez', label: 'Indiferente', description: 'Não tenho preferência', estimatedArticles: 100 }
+          ];
+        }
       }
 
       // Ensure required fields exist
