@@ -46,8 +46,14 @@ export class ArXivService extends BaseAPIService {
     try {
       this.logger.info(`Searching: "${query}" (limit: ${limit})`);
 
+      // Detectar se é busca por ID específico (formato: "id:XXXXX" ou apenas "XXXXX.XXXXX")
+      const isArxivId = query.startsWith('id:') || /^\d{4}\.\d{5}(v\d+)?$/.test(query);
+      const searchQuery = isArxivId
+        ? (query.startsWith('id:') ? query : `id:${query}`) // Já tem prefixo ou adiciona
+        : `all:${query}`; // Busca normal por keywords
+
       const params = {
-        search_query: `all:${query}`,
+        search_query: searchQuery,
         start: 0,
         max_results: Math.min(limit, 300),
       };

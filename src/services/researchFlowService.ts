@@ -393,13 +393,11 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
       { "query": "query P3 sobre ${query}", "priority": "P3", "expectedResults": 10 }
     ]
   },
-  "prioritizedSources": [
-    { "name": "OpenAlex", "reason": "250M artigos, melhor cobertura global", "order": 1 },
-    { "name": "CORE", "reason": "30M fulltext, JSON estruturado", "order": 2 },
-    { "name": "Semantic Scholar", "reason": "200M artigos, bons scores de relevância", "order": 3 },
-    { "name": "arXiv", "reason": "2.4M preprints, acesso aberto total", "order": 4 },
-    { "name": "Europe PMC", "reason": "8M artigos biomedicina com fulltext", "order": 5 }
-  ],
+  "keyTerms": {
+    "primary": ["termo principal 1 de ${query}", "termo principal 2 de ${query}"],
+    "specific": ["termo específico 1", "termo específico 2", "termo específico 3"],
+    "methodological": ["systematic review", "meta-analysis", "empirical study"]
+  },
   "filters": {
     "dateRange": { "start": 2020, "end": 2025 },
     "languages": ["pt", "en"],
@@ -529,12 +527,11 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
           { query: `${query.trim()} overview`, priority: 'P3', expectedResults: 10 }
         ]
       },
-      prioritizedSources: [
-        { name: 'Semantic Scholar', reason: 'Melhor cobertura e scores de relevância', order: 1 },
-        { name: 'CORE', reason: 'JSON estruturado e full-text', order: 2 },
-        { name: 'PubMed Central', reason: 'Excelente para área de saúde', order: 3 },
-        { name: 'arXiv', reason: 'Pré-prints e acesso aberto', order: 4 }
-      ],
+      keyTerms: {
+        primary: [query.trim(), `${query.trim()} research`],
+        specific: ['systematic review', 'empirical study', 'meta-analysis'],
+        methodological: ['literature review', 'overview', 'survey']
+      },
       filters: {
         dateRange: { start: currentYear - 5, end: currentYear }, // Focado em últimos 5 anos
         languages: ['pt', 'en'],
@@ -862,10 +859,12 @@ async function tryMultipleFulltextSources(
         try {
           // Extrair arXiv ID do DOI ou URL
           const arxivId = article.doi?.replace('10.48550/arXiv.', '') ||
-                          article.url?.match(/arxiv\.org\/abs\/(\S+)/)?.[1];
+                          article.url?.match(/arxiv\.org\/abs\/(\S+)/)?.[1] ||
+                          article.id?.match(/\d{4}\.\d{5}(v\d+)?/)?.[0]; // Extrair ID do article.id
 
           if (arxivId) {
-            const results = await services.arxiv.search(`id:${arxivId}`, 1);
+            // Passar apenas o ID, o serviço arXiv detectará e adicionará prefixo "id:"
+            const results = await services.arxiv.search(arxivId, 1);
             if (results.length > 0 && results[0].abstract) {
               return {
                 success: true,
@@ -1571,7 +1570,7 @@ COMECE A ESCREVER AGORA:`;
     const stream = generateTextStream(prompt, {
       systemPrompt: 'Você é um escritor acadêmico especialista em formatação ABNT. Escreva textos LONGOS, DETALHADOS e COMPLETOS até o final.',
       temperature: 0.7,
-      maxTokens: 16000  // Aumentado para garantir textos completos (2500+ palavras)
+      maxTokens: 32000  // Gemini suporta até 32K output tokens - textos completos sem corte
     });
 
     // Stream chunks as they arrive from the AI provider

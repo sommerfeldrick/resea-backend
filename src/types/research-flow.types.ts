@@ -60,11 +60,11 @@ export interface FlowSearchStrategy {
     P2: SearchQuery[];  // Score ≥ 50
     P3: SearchQuery[];  // Score ≥ 30
   };
-  prioritizedSources: Array<{
-    name: string;
-    reason: string;
-    order: number;
-  }>;
+  keyTerms: {
+    primary: string[];      // Termos principais da pesquisa
+    specific: string[];     // Termos específicos/técnicos
+    methodological: string[]; // Tipos de estudo (systematic review, meta-analysis, etc)
+  };
   filters: {
     dateRange: { start: number; end: number };
     languages: string[];

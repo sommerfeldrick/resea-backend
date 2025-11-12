@@ -1,6 +1,6 @@
 /**
  * AI Providers Configuration
- * NOVA PRIORIDADE: DeepSeek (5M tokens/mês) → Gemini (1M tokens/dia) → OpenAI (pago)
+ * NOVA PRIORIDADE: Gemini (1M tokens/dia, 32K output) → DeepSeek (5M tokens/mês, 8K output) → OpenAI (pago)
  * Ollama e OpenRouter REMOVIDOS
  */
 
@@ -22,32 +22,32 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
     }
   },
 
-  // 1️⃣ DEEPSEEK (5M TOKENS/MÊS GRÁTIS) - PRIMARY
+  // 1️⃣ GOOGLE GEMINI (1M TOKENS/DIA, 32K OUTPUT) - PRIMARY
+  gemini: {
+    provider: 'gemini',
+    apiKey: process.env.GEMINI_API_KEY,
+    model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+    enabled: !!process.env.GEMINI_API_KEY,
+    priority: 1, // PRIMEIRA OPÇÃO - 1M tokens/dia + 32K output tokens
+    rateLimits: {
+      requestsPerMinute: 60,
+      tokensPerDay: 1000000, // 1M tokens/dia grátis
+      tokensPerMinute: 20000
+    }
+  },
+
+  // 2️⃣ DEEPSEEK (5M TOKENS/MÊS, 8K OUTPUT) - SECONDARY
   deepseek: {
     provider: 'deepseek',
     apiKey: process.env.DEEPSEEK_API_KEY,
     model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', // V3.2-Exp: deepseek-chat (normal) ou deepseek-reasoner (thinking mode)
     baseUrl: 'https://api.deepseek.com',
     enabled: !!process.env.DEEPSEEK_API_KEY,
-    priority: 1, // PRIMEIRA OPÇÃO - 5M tokens free/mês
+    priority: 2, // SEGUNDA OPÇÃO - 5M tokens free/mês, mas limitado a 8K output
     rateLimits: {
       requestsPerMinute: 60,
       tokensPerDay: 166666, // ~5M tokens/mês ÷ 30 dias
       tokensPerMinute: 10000
-    }
-  },
-
-  // 2️⃣ GOOGLE GEMINI (250 REQ/DIA) - SECONDARY
-  gemini: {
-    provider: 'gemini',
-    apiKey: process.env.GEMINI_API_KEY,
-    model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
-    enabled: !!process.env.GEMINI_API_KEY,
-    priority: 2, // SEGUNDA OPÇÃO - Limitado a 250 req/dia
-    rateLimits: {
-      requestsPerMinute: 60,
-      tokensPerDay: 1000000, // 1M tokens/dia grátis
-      tokensPerMinute: 20000
     }
   },
 
@@ -70,13 +70,13 @@ export const providerConfigs: Record<AIProvider, ProviderConfig> = {
 
 /**
  * Ordem de fallback dos provedores
- * 1. DeepSeek: 5M tokens/mês grátis - DeepSeek V3.2-Exp (deepseek-chat ou deepseek-reasoner)
- * 2. Gemini: 250 req/dia + 1M tokens/dia
+ * 1. Gemini: 1M tokens/dia + 32K output tokens - Gemini 2.0 Flash
+ * 2. DeepSeek: 5M tokens/mês grátis, 8K output - DeepSeek V3.2-Exp (deepseek-chat ou deepseek-reasoner)
  * 3. OpenAI: GPT-4o-mini (pago)
  */
 export const fallbackOrder: AIProvider[] = [
-  'deepseek',     // 1️⃣ Primary - Ultra-poderoso
-  'gemini',       // 2️⃣ Secondary - Google
+  'gemini',       // 1️⃣ Primary - 32K output, melhor para geração de conteúdo
+  'deepseek',     // 2️⃣ Secondary - 8K output, ultra-poderoso mas limitado
   'openai'        // 3️⃣ Tertiary - OpenAI (pago)
 ];
 
@@ -107,20 +107,20 @@ export const providerPricing: Record<AIProvider, { input: number; output: number
  */
 export const modelsByUseCase = {
   academic_writing: {
-    primary: 'deepseek',
-    model: 'deepseek-reasoner' // DeepSeek V3.2-Exp Reasoner - Excelente para escrita acadêmica com raciocínio
+    primary: 'gemini',
+    model: 'gemini-2.0-flash' // Gemini 2.0 Flash - 32K output, perfeito para textos longos
   },
   fast_generation: {
-    primary: 'deepseek',
-    model: 'deepseek-chat' // DeepSeek V3.2-Exp - Geração rápida
+    primary: 'gemini',
+    model: 'gemini-2.0-flash' // Gemini 2.0 Flash - Rápido e eficiente
   },
   quality_reasoning: {
     primary: 'deepseek',
     model: 'deepseek-reasoner' // DeepSeek V3.2-Exp Reasoner - Qualidade máxima com thinking
   },
   fallback: {
-    primary: 'gemini',
-    model: 'gemini-2.0-flash'
+    primary: 'deepseek',
+    model: 'deepseek-chat'
   }
 };
 
