@@ -35,6 +35,7 @@ interface SearchOptions {
   startYear?: number;
   endYear?: number;
   openAccessOnly?: boolean;
+  sources?: string[]; // Lista de APIs permitidas (ex: ['openalex', 'arxiv', 'europepmc'])
 }
 
 export class AcademicSearchService {
@@ -64,38 +65,53 @@ export class AcademicSearchService {
     logger.info(`🔍 Starting comprehensive search for: "${query}"`);
     const startTime = Date.now();
 
-    // Busca em TODAS as fontes gratuitas simultaneamente (15 APIs!)
-    const results = await Promise.allSettled([
-      this.searchOpenAlex(query, options),
-      this.searchSemanticScholar(query, options),
-      this.searchArxiv(query, options),
-      this.searchCORE(query, options),
-      this.searchDOAJ(query, options),
-      this.searchPubMed(query, options),
-      this.searchEuropePMC(query, options),      // NOVO: 8.1M artigos biomédicos
-      this.searchPLOS(query, options),           // NOVO: 300K artigos OA
-      this.searchBioRxiv(query, options),        // NOVO: Preprints biologia
-      this.searchMedRxiv(query, options),        // NOVO: Preprints medicina
-      this.searchOpenAIRE(query, options),       // NOVO: 150M produtos pesquisa EU
-      this.searchDataCite(query, options),       // NOVO: 45M datasets
-      this.searchGoogleScholar(query, options)   // Backup scraping
-    ]);
+    // Mapa de APIs disponíveis (nome lowercase -> função de busca)
+    const availableAPIs: Record<string, { fn: () => Promise<AcademicPaper[]>; displayName: string }> = {
+      'openalex': { fn: () => this.searchOpenAlex(query, options), displayName: 'OpenAlex' },
+      'semanticscholar': { fn: () => this.searchSemanticScholar(query, options), displayName: 'Semantic Scholar' },
+      'arxiv': { fn: () => this.searchArxiv(query, options), displayName: 'arXiv' },
+      'core': { fn: () => this.searchCORE(query, options), displayName: 'CORE' },
+      'doaj': { fn: () => this.searchDOAJ(query, options), displayName: 'DOAJ' },
+      'pubmed': { fn: () => this.searchPubMed(query, options), displayName: 'PubMed' },
+      'europepmc': { fn: () => this.searchEuropePMC(query, options), displayName: 'Europe PMC' },
+      'plos': { fn: () => this.searchPLOS(query, options), displayName: 'PLOS' },
+      'biorxiv': { fn: () => this.searchBioRxiv(query, options), displayName: 'bioRxiv' },
+      'medrxiv': { fn: () => this.searchMedRxiv(query, options), displayName: 'medRxiv' },
+      'openaire': { fn: () => this.searchOpenAIRE(query, options), displayName: 'OpenAIRE' },
+      'datacite': { fn: () => this.searchDataCite(query, options), displayName: 'DataCite' },
+      'googlescholar': { fn: () => this.searchGoogleScholar(query, options), displayName: 'Google Scholar' }
+    };
+
+    // Se options.sources especificado, usa apenas essas APIs. Caso contrário, usa todas.
+    const allowedSources = options.sources || Object.keys(availableAPIs);
+    const sourcesToUse = allowedSources
+      .map(s => s.toLowerCase())
+      .filter(s => s in availableAPIs);
+
+    if (sourcesToUse.length === 0) {
+      logger.warn('⚠️  No valid sources specified, using all available APIs');
+      return this.searchAll(query, { ...options, sources: undefined }); // Fallback para todas
+    }
+
+    logger.info(`🎯 Using ${sourcesToUse.length} prioritized APIs: ${sourcesToUse.map(s => availableAPIs[s].displayName).join(', ')}`);
+
+    // Busca apenas nas fontes especificadas
+    const results = await Promise.allSettled(
+      sourcesToUse.map(source => availableAPIs[source].fn())
+    );
 
     // Coleta papers de todas as fontes que funcionaram
     const allPapers: AcademicPaper[] = [];
     let successCount = 0;
 
     results.forEach((result, index) => {
-      const sources = [
-        'OpenAlex', 'Semantic Scholar', 'arXiv', 'CORE', 'DOAJ', 'PubMed',
-        'Europe PMC', 'PLOS', 'bioRxiv', 'medRxiv', 'OpenAIRE', 'DataCite', 'Google Scholar'
-      ];
+      const sourceName = availableAPIs[sourcesToUse[index]].displayName;
       if (result.status === 'fulfilled' && result.value.length > 0) {
         allPapers.push(...result.value);
         successCount++;
-        logger.info(`✅ ${sources[index]}: ${result.value.length} papers`);
+        logger.info(`✅ ${sourceName}: ${result.value.length} papers`);
       } else if (result.status === 'rejected') {
-        logger.warn(`⚠️  ${sources[index]} failed:`, result.reason?.message || 'Unknown error');
+        logger.warn(`⚠️  ${sourceName} failed:`, result.reason?.message || 'Unknown error');
       }
     });
 

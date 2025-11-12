@@ -956,7 +956,8 @@ export async function executeExhaustiveSearch(
 
       const results = await buscaAcademicaUniversal(searchQuery.query, {
         maxResults: searchQuery.expectedResults,
-        ...strategy.filters
+        ...strategy.filters,
+        sources: ['openalex', 'arxiv', 'europepmc'] // Apenas APIs priorizadas (sem CORE, Semantic Scholar, etc)
       });
 
       // Enriquecer artigos com scores
@@ -1036,7 +1037,8 @@ export async function executeExhaustiveSearch(
 
         const results = await buscaAcademicaUniversal(searchQuery.query, {
           maxResults: searchQuery.expectedResults,
-          ...strategy.filters
+          ...strategy.filters,
+          sources: ['openalex', 'arxiv', 'europepmc'] // Apenas APIs priorizadas
         });
 
         for (const result of results) {
@@ -1112,7 +1114,8 @@ export async function executeExhaustiveSearch(
 
         const results = await buscaAcademicaUniversal(searchQuery.query, {
           maxResults: searchQuery.expectedResults,
-          ...strategy.filters
+          ...strategy.filters,
+          sources: ['openalex', 'arxiv', 'europepmc'] // Apenas APIs priorizadas
         });
 
         for (const result of results) {
