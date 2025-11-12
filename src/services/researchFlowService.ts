@@ -1559,18 +1559,19 @@ INSTRUÇÕES CRÍTICAS:
    Exemplo: "Os elementos finitos são amplamente utilizados [CITE:FONTE_1] (SILVA et al., 2020)."
 3. Use ${densityMap[config.citationDensity]} conforme configurado
 4. Desenvolva cada subseção com PROFUNDIDADE e DETALHES
-5. Mínimo 2500 palavras (escreva CONTEÚDO EXTENSO E COMPLETO)
+5. **ESCREVA TEXTO EXTENSO E COMPLETO**: Desenvolva TODAS as subseções até o final, com no mínimo 1500-2000 palavras
 6. Use linguagem ${styleMap[config.style]}
 7. Inclua análise crítica se solicitado
 8. **IMPORTANTE**: SEMPRE inclua citações! Não escreva parágrafos sem citar as fontes!
+9. **NÃO PARE NO MEIO**: Continue escrevendo até completar TODAS as subseções da estrutura
 
 COMECE A ESCREVER AGORA:`;
 
     // Use real streaming from generateTextStream
     const stream = generateTextStream(prompt, {
-      systemPrompt: 'Você é um escritor acadêmico especialista em formatação ABNT. Escreva textos LONGOS e DETALHADOS.',
+      systemPrompt: 'Você é um escritor acadêmico especialista em formatação ABNT. Escreva textos LONGOS, DETALHADOS e COMPLETOS até o final.',
       temperature: 0.7,
-      maxTokens: 8000  // Limite do DeepSeek-chat: 8192 tokens (suficiente para 3000+ palavras)
+      maxTokens: 16000  // Aumentado para garantir textos completos (2500+ palavras)
     });
 
     // Stream chunks as they arrive from the AI provider
