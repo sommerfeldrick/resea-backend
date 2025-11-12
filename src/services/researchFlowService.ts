@@ -241,8 +241,11 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
           // Pergunta sobre seção do documento
           q.options = [
             { value: 'introducao', label: 'Introdução', description: 'Contextualização e motivação', estimatedArticles: 20 },
-            { value: 'revisao', label: 'Revisão de Literatura', description: 'Estado da arte', estimatedArticles: 60 },
+            { value: 'revisao', label: 'Revisão de Literatura', description: 'Estado da arte e fundamentação teórica', estimatedArticles: 60 },
             { value: 'metodologia', label: 'Metodologia', description: 'Métodos e procedimentos', estimatedArticles: 15 },
+            { value: 'resultados', label: 'Resultados', description: 'Apresentação de dados e achados', estimatedArticles: 25 },
+            { value: 'discussao', label: 'Discussão', description: 'Interpretação e análise dos resultados', estimatedArticles: 30 },
+            { value: 'conclusao', label: 'Conclusão', description: 'Síntese e considerações finais', estimatedArticles: 15 },
             { value: 'todas', label: 'Todas as seções', description: 'Documento completo', estimatedArticles: 100 }
           ];
         } else if (questionText.includes('tipo') || questionText.includes('estudo')) {
@@ -697,7 +700,10 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
         const sectionKeywords: Record<string, string[]> = {
           'introducao': ['introduction', 'background', 'context', 'motivation'],
           'revisao': ['literature review', 'state of art', 'theoretical framework'],
-          'metodologia': ['methodology', 'methods', 'experimental design', 'approach']
+          'metodologia': ['methodology', 'methods', 'experimental design', 'approach'],
+          'resultados': ['results', 'findings', 'outcomes', 'data analysis', 'observations'],
+          'discussao': ['discussion', 'interpretation', 'implications', 'analysis', 'significance'],
+          'conclusao': ['conclusion', 'summary', 'future work', 'recommendations', 'final remarks']
         };
 
         const keywords = sectionKeywords[structuredData.focusSection] || [];
@@ -1808,6 +1814,103 @@ COMECE A ESCREVER AGORA:`;
   } catch (error: any) {
     logger.error('Content generation failed', { error: error.message });
     throw new Error('Falha ao gerar conteúdo');
+  }
+}
+
+/**
+ * Gera documento acadêmico COMPLETO com múltiplas seções
+ * Gera: Introdução, Revisão de Literatura, Metodologia, Resultados, Discussão, Conclusão
+ */
+export async function* generateCompleteDocument(
+  baseConfig: ContentGenerationConfig,
+  articles: FlowEnrichedArticle[],
+  query: string,
+  focusSection?: string
+): AsyncGenerator<string> {
+  logger.info('Starting complete document generation', {
+    focusSection,
+    articleCount: articles.length
+  });
+
+  // Definir seções a gerar baseado no foco do usuário
+  const sectionsToGenerate = focusSection && focusSection !== 'todas' && focusSection !== 'todas_secoes'
+    ? [focusSection] // Apenas a seção escolhida
+    : ['introducao', 'revisao', 'metodologia', 'resultados', 'discussao', 'conclusao']; // Todas as seções
+
+  const sectionTitles: Record<string, string> = {
+    'introducao': 'Introdução',
+    'revisao': 'Revisão de Literatura',
+    'metodologia': 'Metodologia',
+    'resultados': 'Resultados',
+    'discussao': 'Discussão',
+    'conclusao': 'Conclusão'
+  };
+
+  const sectionStructures: Record<string, Array<{section: string; subsections: string[]; estimatedArticles: number}>> = {
+    'introducao': [{
+      section: 'Introdução',
+      subsections: ['Contextualização', 'Problema de Pesquisa', 'Objetivos', 'Justificativa'],
+      estimatedArticles: 15
+    }],
+    'revisao': [{
+      section: 'Revisão de Literatura',
+      subsections: ['Fundamentação Teórica', 'Estado da Arte', 'Lacunas Identificadas'],
+      estimatedArticles: 30
+    }],
+    'metodologia': [{
+      section: 'Metodologia',
+      subsections: ['Abordagem Metodológica', 'Procedimentos', 'Instrumentos e Técnicas'],
+      estimatedArticles: 20
+    }],
+    'resultados': [{
+      section: 'Resultados',
+      subsections: ['Análise dos Dados', 'Principais Achados', 'Síntese dos Resultados'],
+      estimatedArticles: 25
+    }],
+    'discussao': [{
+      section: 'Discussão',
+      subsections: ['Interpretação dos Resultados', 'Comparação com Literatura', 'Implicações Teóricas e Práticas'],
+      estimatedArticles: 30
+    }],
+    'conclusao': [{
+      section: 'Conclusão',
+      subsections: ['Síntese Geral', 'Limitações do Estudo', 'Recomendações e Trabalhos Futuros'],
+      estimatedArticles: 15
+    }]
+  };
+
+  try {
+    for (const sectionKey of sectionsToGenerate) {
+      const sectionTitle = sectionTitles[sectionKey] || sectionKey;
+      const structure = sectionStructures[sectionKey] || [];
+
+      logger.info(`Generating section: ${sectionTitle}`);
+
+      // Criar config para esta seção específica
+      const sectionConfig: ContentGenerationConfig = {
+        ...baseConfig,
+        section: sectionTitle,
+        structure: structure
+      };
+
+      // Gerar separador de seção
+      yield `\n\n# ${sectionTitle}\n\n`;
+
+      // Gerar conteúdo da seção
+      const sectionStream = generateAcademicContent(sectionConfig, articles, query);
+
+      for await (const chunk of sectionStream) {
+        yield chunk;
+      }
+
+      // Espaçamento entre seções
+      yield '\n\n';
+    }
+
+    logger.info('Complete document generation finished');
+  } catch (error: any) {
+    logger.error('Complete document generation failed', { error: error.message });
+    throw new Error('Falha ao gerar documento completo');
   }
 }
 

@@ -11,6 +11,7 @@ import {
   executeExhaustiveSearch,
   analyzeArticles,
   generateAcademicContent,
+  generateCompleteDocument,
   processEditRequest,
   verifyDocumentQuality
 } from '../services/researchFlowService.js';
@@ -415,6 +416,99 @@ router.post('/generation/generate', async (req: Request, res: Response) => {
       res.status(500).json({
         success: false,
         error: error.message || 'Falha ao gerar conteúdo'
+      });
+    } else {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+      res.end();
+    }
+  }
+});
+
+/**
+ * POST /api/research-flow/generation/complete
+ * Gera documento completo com TODAS as seções (Introdução, Revisão, Metodologia, Resultados, Discussão, Conclusão)
+ */
+router.post('/generation/complete', async (req: Request, res: Response) => {
+  try {
+    const { config, articles, query, focusSection } = req.body;
+
+    if (!config || !articles || !query) {
+      return res.status(400).json({
+        success: false,
+        error: 'config, articles e query são obrigatórios'
+      });
+    }
+
+    logger.info('API: Generate complete document', {
+      focusSection,
+      articleCount: articles.length
+    });
+
+    // Set headers for streaming (with UTF-8 encoding)
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+
+    // Heartbeat para evitar timeout (envia ping a cada 20s)
+    const heartbeatInterval = setInterval(() => {
+      if (!res.writableEnded) {
+        res.write(`: heartbeat\n\n`); // Comentário SSE (ignorado pelo cliente)
+      }
+    }, 20000);
+
+    try {
+      // Stream complete document generation
+      const stream = generateCompleteDocument(config, articles, query, focusSection);
+
+      let totalChunks = 0;
+      let lastChunk = '';
+
+      for await (const chunk of stream) {
+        lastChunk = chunk;
+
+        // Quebrar chunks muito grandes para evitar JSON truncado no TCP
+        if (chunk.length > 500) {
+          // Dividir em pedaços menores
+          for (let i = 0; i < chunk.length; i += 500) {
+            const smallChunk = chunk.substring(i, i + 500);
+            res.write(`data: ${JSON.stringify({ type: 'chunk', data: smallChunk })}\n\n`);
+            totalChunks++;
+          }
+        } else {
+          res.write(`data: ${JSON.stringify({ type: 'chunk', data: chunk })}\n\n`);
+          totalChunks++;
+        }
+      }
+
+      logger.info('Complete document generation streaming finished', { totalChunks });
+
+      // Enviar evento de flush para garantir que o buffer foi limpo
+      res.write(`data: ${JSON.stringify({ type: 'flush', totalChunks })}\n\n`);
+
+      // Aguardar para garantir que todos os chunks foram processados pelo frontend
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Send completion event
+      res.write(`data: ${JSON.stringify({ type: 'complete' })}\n\n`);
+
+      // Aguardar mais um pouco antes de fechar
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      res.end();
+
+      logger.info('API: Complete document generation completed');
+    } finally {
+      // Limpar heartbeat
+      clearInterval(heartbeatInterval);
+    }
+  } catch (error: any) {
+    logger.error('API: Generate complete document failed', { error: error.message });
+
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Falha ao gerar documento completo'
       });
     } else {
       res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
