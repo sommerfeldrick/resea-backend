@@ -383,11 +383,76 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
 export async function processClarificationAnswers(
   sessionId: string,
   answers: ClarificationAnswer[]
-): Promise<{ completed: boolean; summary: string }> {
+): Promise<{
+  completed: boolean;
+  summary: string;
+  structuredData: {
+    dateRange: { start: number; end: number };
+    documentTypes: string[];
+    focusSection: string;
+    specificTerms: string[];
+    detailLevel: string;
+  }
+}> {
   logger.info('Processing clarification answers', { sessionId, answerCount: answers.length });
 
   try {
-    // Gera um resumo das respostas para usar nas próximas fases
+    // Extrair dados estruturados das respostas
+    const currentYear = new Date().getFullYear();
+    let dateRange = { start: currentYear - 5, end: currentYear }; // Default: últimos 5 anos
+    let documentTypes: string[] = [];
+    let focusSection = 'todas';
+    let specificTerms: string[] = [];
+    let detailLevel = 'intermediario';
+
+    // Processar cada resposta
+    for (const answer of answers) {
+      const value = answer.answer?.toString().toLowerCase() || '';
+      const questionText = answer.questionId?.toLowerCase() || '';
+
+      // Detectar período temporal
+      if (value.includes('recente') || value === 'recente') {
+        dateRange = { start: currentYear - 5, end: currentYear };
+      } else if (value.includes('amplo') || value === 'amplo') {
+        dateRange = { start: currentYear - 10, end: currentYear };
+      } else if (value.includes('historico') || value === 'historico') {
+        dateRange = { start: currentYear - 20, end: currentYear };
+      } else if (value.includes('todos') || value === 'todos' || value.includes('sem restrição')) {
+        dateRange = { start: 1900, end: currentYear }; // SEM RESTRIÇÃO!
+      }
+
+      // Detectar tipo de estudo
+      if (value.includes('empirico') || value.includes('empírico')) {
+        documentTypes.push('empirical study', 'clinical study', 'experimental study');
+      } else if (value.includes('revisao') || value.includes('revisão') || value.includes('sistemática')) {
+        documentTypes.push('systematic review', 'meta-analysis', 'literature review');
+      } else if (value.includes('teorico') || value.includes('teórico')) {
+        documentTypes.push('theoretical study', 'conceptual framework');
+      }
+
+      // Detectar seção foco
+      if (value.includes('introducao') || value.includes('introdução')) {
+        focusSection = 'introducao';
+      } else if (value.includes('revisao') || value.includes('revisão')) {
+        focusSection = 'revisao';
+      } else if (value.includes('metodologia')) {
+        focusSection = 'metodologia';
+      }
+
+      // Detectar nível de detalhe
+      if (value.includes('basico') || value.includes('básico')) {
+        detailLevel = 'basico';
+      } else if (value.includes('avancado') || value.includes('avançado') || value.includes('aprofundada')) {
+        detailLevel = 'avancado';
+      }
+
+      // Capturar termos específicos de respostas texto
+      if (typeof answer.answer === 'string' && answer.answer.length > 10 && !['sim', 'nao', 'talvez', 'todos'].includes(value)) {
+        specificTerms.push(answer.answer);
+      }
+    }
+
+    // Gerar resumo textual
     const prompt = `Com base nas respostas do usuário, gere um resumo executivo para orientar a busca:
 
 Respostas: ${JSON.stringify(answers)}
@@ -406,11 +471,23 @@ Responda em português do Brasil, de forma direta e objetiva.`;
       maxTokens: 500
     });
 
-    logger.info('Clarification answers processed', { sessionId });
+    const structuredData = {
+      dateRange,
+      documentTypes,
+      focusSection,
+      specificTerms,
+      detailLevel
+    };
+
+    logger.info('Clarification answers processed with structured data', {
+      sessionId,
+      structuredData
+    });
 
     return {
       completed: true,
-      summary: response.text.trim()
+      summary: response.text.trim(),
+      structuredData
     };
   } catch (error: any) {
     logger.error('Failed to process clarification answers', {
@@ -430,9 +507,16 @@ Responda em português do Brasil, de forma direta e objetiva.`;
  */
 export async function generateSearchStrategy(
   query: string,
-  clarificationSummary: string
+  clarificationSummary: string,
+  structuredData?: {
+    dateRange: { start: number; end: number };
+    documentTypes: string[];
+    focusSection: string;
+    specificTerms: string[];
+    detailLevel: string;
+  }
 ): Promise<FlowSearchStrategy> {
-  logger.info('Generating search strategy', { query });
+  logger.info('Generating search strategy', { query, structuredData });
 
   try {
     const prompt = `Você é um especialista em busca acadêmica. Crie uma estratégia de busca otimizada para o tema específico do usuário.
@@ -581,6 +665,56 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
         query: `${query.trim()} overview`,
         priority: 'P3',
         expectedResults: 10
+      });
+    }
+
+    // APLICAR DADOS ESTRUTURADOS DAS RESPOSTAS DO USUÁRIO
+    if (structuredData) {
+      logger.info('Applying structured user preferences to strategy', structuredData);
+
+      // 1. APLICAR PERÍODO TEMPORAL (resposta do usuário)
+      strategy.filters.dateRange = structuredData.dateRange;
+
+      // 2. APLICAR TIPOS DE DOCUMENTO (se especificado)
+      if (structuredData.documentTypes.length > 0) {
+        strategy.filters.documentTypes = structuredData.documentTypes;
+      }
+
+      // 3. ADICIONAR TERMOS ESPECÍFICOS NAS QUERIES (se houver)
+      if (structuredData.specificTerms.length > 0) {
+        // Adicionar termos específicos nas queries P1
+        structuredData.specificTerms.forEach(term => {
+          strategy.queries.P1.push({
+            query: `${query.trim()} ${term}`,
+            priority: 'P1',
+            expectedResults: 10
+          });
+        });
+      }
+
+      // 4. AJUSTAR QUERIES BASEADO NA SEÇÃO FOCO
+      if (structuredData.focusSection !== 'todas') {
+        const sectionKeywords: Record<string, string[]> = {
+          'introducao': ['introduction', 'background', 'context', 'motivation'],
+          'revisao': ['literature review', 'state of art', 'theoretical framework'],
+          'metodologia': ['methodology', 'methods', 'experimental design', 'approach']
+        };
+
+        const keywords = sectionKeywords[structuredData.focusSection] || [];
+        keywords.forEach(keyword => {
+          strategy.queries.P2.push({
+            query: `${query.trim()} ${keyword}`,
+            priority: 'P2',
+            expectedResults: 12
+          });
+        });
+      }
+
+      logger.info('Strategy updated with user preferences', {
+        dateRange: strategy.filters.dateRange,
+        documentTypes: strategy.filters.documentTypes,
+        additionalQueriesP1: structuredData.specificTerms.length,
+        focusSection: structuredData.focusSection
       });
     }
 

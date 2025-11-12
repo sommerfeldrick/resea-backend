@@ -140,7 +140,7 @@ router.post('/clarification/process', async (req: Request, res: Response) => {
  */
 router.post('/strategy/generate', async (req: Request, res: Response) => {
   try {
-    const { query, clarificationSummary } = req.body;
+    const { query, clarificationSummary, structuredData } = req.body;
 
     if (!query || !clarificationSummary) {
       return res.status(400).json({
@@ -149,9 +149,13 @@ router.post('/strategy/generate', async (req: Request, res: Response) => {
       });
     }
 
-    logger.info('API: Generate search strategy', { query });
+    logger.info('API: Generate search strategy', {
+      query,
+      hasStructuredData: !!structuredData,
+      dateRange: structuredData?.dateRange
+    });
 
-    const strategy = await generateSearchStrategy(query, clarificationSummary);
+    const strategy = await generateSearchStrategy(query, clarificationSummary, structuredData);
 
     res.json({
       success: true,
