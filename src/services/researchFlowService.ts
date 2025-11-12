@@ -269,9 +269,22 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
       createdAt: new Date()
     };
 
-    logger.info('Clarification questions generated', {
+    // Log detalhado de CADA pergunta para debug
+    validatedQuestions.forEach((q: any, idx: number) => {
+      logger.info(`Question ${idx + 1} details:`, {
+        id: q.id,
+        type: q.type,
+        question: q.question,
+        hasOptions: !!q.options,
+        optionsCount: q.options?.length || 0,
+        optionsPreview: q.options?.map((opt: any) => opt.label).join(', ') || 'NONE'
+      });
+    });
+
+    logger.info('Clarification session complete', {
       sessionId: session.sessionId,
-      questionCount: session.questions.length
+      questionCount: session.questions.length,
+      allQuestionsHaveOptions: validatedQuestions.every((q: any) => q.options && q.options.length > 0)
     });
 
     return session;

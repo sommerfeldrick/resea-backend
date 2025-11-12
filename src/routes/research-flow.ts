@@ -71,6 +71,20 @@ router.post('/clarification/generate', async (req: Request, res: Response) => {
 
     const session = await generateClarificationQuestions(query);
 
+    // Log detalhado da resposta que será enviada
+    logger.info('API: Sending clarification session to frontend', {
+      sessionId: session.sessionId,
+      questionCount: session.questions.length,
+      questionsWithOptions: session.questions.filter(q => q.options && q.options.length > 0).length,
+      questionsWithoutOptions: session.questions.filter(q => !q.options || q.options.length === 0).length,
+      sampleQuestion: session.questions[0] ? {
+        id: session.questions[0].id,
+        type: session.questions[0].type,
+        hasOptions: !!session.questions[0].options,
+        optionsCount: session.questions[0].options?.length || 0
+      } : null
+    });
+
     res.json({
       success: true,
       data: session
