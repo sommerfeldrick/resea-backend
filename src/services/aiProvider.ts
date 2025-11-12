@@ -26,24 +26,24 @@ export interface AIResponse {
 
 /**
  * Configuração de múltiplas IAs
- * PRIORIDADE: DeepSeek (1º) → Gemini (2º) → Groq (3º)
+ * PRIORIDADE: Gemini (1º - 32K output) → DeepSeek (2º - 8K output) → OpenAI (3º - pago)
  */
 export const aiConfigs: Record<AIProvider, AIConfig> = {
-  // 1️⃣ DeepSeek (5M TOKENS/MÊS GRÁTIS - PRIMARY)
+  // 1️⃣ Google Gemini (1M tokens/dia, 32K output - PRIMARY)
+  gemini: {
+    provider: 'gemini',
+    apiKey: process.env.GEMINI_API_KEY,
+    model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+    enabled: !!process.env.GEMINI_API_KEY
+  },
+
+  // 2️⃣ DeepSeek (5M tokens/mês, 8K output - SECONDARY)
   deepseek: {
     provider: 'deepseek',
     apiKey: process.env.DEEPSEEK_API_KEY,
     model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
     baseUrl: 'https://api.deepseek.com',
     enabled: !!process.env.DEEPSEEK_API_KEY
-  },
-
-  // 2️⃣ Google Gemini (250 req/dia - SECONDARY)
-  gemini: {
-    provider: 'gemini',
-    apiKey: process.env.GEMINI_API_KEY,
-    model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
-    enabled: !!process.env.GEMINI_API_KEY
   },
 
   // OpenAI (pago)
