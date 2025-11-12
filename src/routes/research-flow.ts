@@ -177,69 +177,82 @@ router.post('/search/execute', async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
-    // Progress callback que envia eventos SSE
-    const onProgress = (progress: FlowSearchProgress) => {
-      res.write(`data: ${JSON.stringify({ type: 'progress', data: progress })}\n\n`);
-    };
+    // Heartbeat para evitar timeout (envia ping a cada 20s)
+    const heartbeatInterval = setInterval(() => {
+      if (!res.writableEnded) {
+        res.write(`: heartbeat\n\n`); // Comentário SSE (ignorado pelo cliente)
+      }
+    }, 20000);
 
-    // Executa a busca
-    const articles = await executeExhaustiveSearch(strategy, onProgress);
+    try {
+      // Progress callback que envia eventos SSE
+      const onProgress = (progress: FlowSearchProgress) => {
+        res.write(`data: ${JSON.stringify({ type: 'progress', data: progress })}\n\n`);
+      };
 
-    // Envia artigos em lotes - COM FULLTEXT TRUNCADO
-    const batchSize = 5;
-    for (let i = 0; i < articles.length; i += batchSize) {
-      const batch = articles.slice(i, i + batchSize);
+      // Executa a busca
+      const articles = await executeExhaustiveSearch(strategy, onProgress);
 
-      // SSE: Enviar fullContent truncado para frontend usar nas fases seguintes
-      const safeBatch = batch.map(article => {
-        const truncatedTitle = article.title && article.title.length > 120
-          ? article.title.substring(0, 120) + '...'
-          : article.title;
+      // Envia artigos em lotes - COM FULLTEXT TRUNCADO
+      const batchSize = 5;
+      for (let i = 0; i < articles.length; i += batchSize) {
+        const batch = articles.slice(i, i + batchSize);
 
-        // Truncar fullContent para não sobrecarregar SSE (3000 chars = suficiente)
-        const truncatedFullContent = article.fullContent
-          ? (article.fullContent.length > 3000
-              ? article.fullContent.substring(0, 3000) + '...'
-              : article.fullContent)
-          : undefined;
+        // SSE: Enviar fullContent truncado para frontend usar nas fases seguintes
+        const safeBatch = batch.map(article => {
+          const truncatedTitle = article.title && article.title.length > 120
+            ? article.title.substring(0, 120) + '...'
+            : article.title;
 
-        return {
-          id: article.id,
-          title: cleanStringForJSON(truncatedTitle),
-          authors: Array.isArray(article.authors)
-            ? article.authors.slice(0, 3).map(a => cleanStringForJSON(a))
-            : article.authors,
-          year: article.year,
-          source: cleanStringForJSON(article.source),
-          citationCount: article.citationCount,
-          abstract: article.abstract || '',
-          // 🚀 NOVO: Incluir fullContent truncado + metadata
-          fullContent: truncatedFullContent ? cleanStringForJSON(truncatedFullContent) : undefined,
-          format: article.format,
-          hasFulltext: article.hasFulltext,
-          sections: article.sections || {},
-          score: article.score,
-          doi: article.doi,
-          url: article.url,
-          pdfUrl: article.pdfUrl
-        };
-      });
+          // Truncar fullContent para não sobrecarregar SSE (3000 chars = suficiente)
+          const truncatedFullContent = article.fullContent
+            ? (article.fullContent.length > 3000
+                ? article.fullContent.substring(0, 3000) + '...'
+                : article.fullContent)
+            : undefined;
 
-      res.write(`data: ${JSON.stringify({
-        type: 'articles_batch',
-        data: safeBatch,
-        batchIndex: Math.floor(i / batchSize),
-        totalBatches: Math.ceil(articles.length / batchSize),
-        totalArticles: articles.length
-      })}\n\n`);
+          return {
+            id: article.id,
+            title: cleanStringForJSON(truncatedTitle),
+            authors: Array.isArray(article.authors)
+              ? article.authors.slice(0, 3).map(a => cleanStringForJSON(a))
+              : article.authors,
+            year: article.year,
+            source: cleanStringForJSON(article.source),
+            citationCount: article.citationCount,
+            abstract: article.abstract || '',
+            // 🚀 NOVO: Incluir fullContent truncado + metadata
+            fullContent: truncatedFullContent ? cleanStringForJSON(truncatedFullContent) : undefined,
+            format: article.format,
+            hasFulltext: article.hasFulltext,
+            sections: article.sections || {},
+            score: article.score,
+            doi: article.doi,
+            url: article.url,
+            pdfUrl: article.pdfUrl
+          };
+        });
+
+        res.write(`data: ${JSON.stringify({
+          type: 'articles_batch',
+          data: safeBatch,
+          batchIndex: Math.floor(i / batchSize),
+          totalBatches: Math.ceil(articles.length / batchSize),
+          totalArticles: articles.length
+        })}\n\n`);
+      }
+
+      // Envia evento de conclusão
+      res.write(`data: ${JSON.stringify({ type: 'complete', totalArticles: articles.length })}\n\n`);
+      res.end();
+
+      logger.info('API: Exhaustive search completed', { articlesFound: articles.length });
+    } finally {
+      // Limpar heartbeat
+      clearInterval(heartbeatInterval);
     }
-
-    // Envia evento de conclusão
-    res.write(`data: ${JSON.stringify({ type: 'complete', totalArticles: articles.length })}\n\n`);
-    res.end();
-
-    logger.info('API: Exhaustive search completed', { articlesFound: articles.length });
   } catch (error: any) {
     logger.error('API: Execute search failed', { error: error.message });
 
@@ -318,14 +331,23 @@ router.post('/generation/generate', async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
-    // Stream content generation
-    const stream = generateAcademicContent(config, articles, query);
+    // Heartbeat para evitar timeout (envia ping a cada 20s)
+    const heartbeatInterval = setInterval(() => {
+      if (!res.writableEnded) {
+        res.write(`: heartbeat\n\n`); // Comentário SSE (ignorado pelo cliente)
+      }
+    }, 20000);
 
-    let totalChunks = 0;
-    let lastChunk = '';
+    try {
+      // Stream content generation
+      const stream = generateAcademicContent(config, articles, query);
 
-    for await (const chunk of stream) {
+      let totalChunks = 0;
+      let lastChunk = '';
+
+      for await (const chunk of stream) {
       lastChunk = chunk;
 
       // Quebrar chunks muito grandes para evitar JSON truncado no TCP
@@ -342,28 +364,32 @@ router.post('/generation/generate', async (req: Request, res: Response) => {
       }
     }
 
-    logger.info('Last chunk info', {
-      lastChunkLength: lastChunk.length,
-      lastChunkPreview: lastChunk.substring(0, 100)
-    });
+      logger.info('Last chunk info', {
+        lastChunkLength: lastChunk.length,
+        lastChunkPreview: lastChunk.substring(0, 100)
+      });
 
-    logger.info('Content generation streaming finished', { totalChunks });
+      logger.info('Content generation streaming finished', { totalChunks });
 
-    // Enviar evento de flush para garantir que o buffer foi limpo
-    res.write(`data: ${JSON.stringify({ type: 'flush', totalChunks })}\n\n`);
+      // Enviar evento de flush para garantir que o buffer foi limpo
+      res.write(`data: ${JSON.stringify({ type: 'flush', totalChunks })}\n\n`);
 
-    // Aguardar para garantir que todos os chunks foram processados pelo frontend
-    await new Promise(resolve => setTimeout(resolve, 500));
+      // Aguardar para garantir que todos os chunks foram processados pelo frontend
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Send completion event
-    res.write(`data: ${JSON.stringify({ type: 'complete' })}\n\n`);
+      // Send completion event
+      res.write(`data: ${JSON.stringify({ type: 'complete' })}\n\n`);
 
-    // Aguardar mais um pouco antes de fechar
-    await new Promise(resolve => setTimeout(resolve, 200));
+      // Aguardar mais um pouco antes de fechar
+      await new Promise(resolve => setTimeout(resolve, 200));
 
-    res.end();
+      res.end();
 
-    logger.info('API: Content generation completed');
+      logger.info('API: Content generation completed');
+    } finally {
+      // Limpar heartbeat
+      clearInterval(heartbeatInterval);
+    }
   } catch (error: any) {
     logger.error('API: Generate content failed', { error: error.message });
 
