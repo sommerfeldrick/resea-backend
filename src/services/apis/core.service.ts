@@ -41,9 +41,9 @@ export class COREService extends BaseAPIService {
 
     if (this.apiKey) {
       this.client.defaults.headers.common['Authorization'] = `Bearer ${this.apiKey}`;
-      this.logger.info('Using API key');
+      this.logger.info('CORE API key configured');
     } else {
-      this.logger.error('CORE requires API key! Set CORE_API_KEY env variable');
+      this.logger.error('❌ CORE API key missing! Set CORE_API_KEY env variable. Get key at: https://core.ac.uk/services/api');
     }
   }
 
@@ -62,10 +62,10 @@ export class COREService extends BaseAPIService {
         return [];
       }
 
-      this.logger.info(`Searching: "${query}" (limit: ${limit})`);
+      this.logger.debug(`Searching: "${query}" (limit: ${limit})`);
 
       // Make search request
-      const response = await this.makeRequest<{ results: CORESummary[] }>({
+      const response = await this.makeRequest<{ results?: CORESummary[]; data?: CORESummary[] }>({
         method: 'POST',
         url: '/search/works',
         data: {
@@ -74,8 +74,16 @@ export class COREService extends BaseAPIService {
         },
       });
 
+      // CORE API v3 can return results in different formats
+      const works = response.results || response.data || [];
+
+      if (works.length === 0) {
+        this.logger.debug('CORE returned empty results', { query });
+        return [];
+      }
+
       // Parse results
-      const articles = response.results
+      const articles = works
         .map(work => this.parseWork(work))
         .filter((article): article is AcademicArticle => article !== null);
 
@@ -85,10 +93,15 @@ export class COREService extends BaseAPIService {
         filtered = articles.filter(a => !!a.pdfUrl);
       }
 
-      this.logger.info(`Found ${filtered.length} articles`);
+      this.logger.info(`Found ${filtered.length} articles from CORE`);
       return filtered;
     } catch (error: any) {
-      this.logger.error(`Search failed: ${error.message}`);
+      // Don't spam logs with CORE errors if API is down
+      if (error.message.includes('500')) {
+        this.logger.warn(`CORE API unavailable (error 500) - check API key or service status`);
+      } else {
+        this.logger.error(`Search failed: ${error.message}`);
+      }
       return [];
     }
   }
@@ -108,7 +121,7 @@ export class COREService extends BaseAPIService {
       this.logger.debug(`Searching by DOI: ${cleanDOI}`);
 
       // Search with DOI as query
-      const response = await this.makeRequest<{ results: CORESummary[] }>({
+      const response = await this.makeRequest<{ results?: CORESummary[]; data?: CORESummary[] }>({
         method: 'POST',
         url: '/search/works',
         data: {
@@ -117,8 +130,9 @@ export class COREService extends BaseAPIService {
         },
       });
 
-      if (response.results && response.results.length > 0) {
-        return this.parseWork(response.results[0]);
+      const works = response.results || response.data || [];
+      if (works.length > 0) {
+        return this.parseWork(works[0]);
       }
 
       return null;
@@ -140,7 +154,7 @@ export class COREService extends BaseAPIService {
       this.logger.debug(`Searching by title: ${title.substring(0, 50)}...`);
 
       // Search with title as query
-      const response = await this.makeRequest<{ results: CORESummary[] }>({
+      const response = await this.makeRequest<{ results?: CORESummary[]; data?: CORESummary[] }>({
         method: 'POST',
         url: '/search/works',
         data: {
@@ -149,8 +163,9 @@ export class COREService extends BaseAPIService {
         },
       });
 
-      if (response.results && response.results.length > 0) {
-        const work = response.results[0];
+      const works = response.results || response.data || [];
+      if (works.length > 0) {
+        const work = works[0];
         // Verify title similarity (avoid false positives)
         if (work.title && this.titleSimilarity(title, work.title) > 0.8) {
           return this.parseWork(work);

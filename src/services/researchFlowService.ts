@@ -343,58 +343,62 @@ export async function generateSearchStrategy(
   logger.info('Generating search strategy', { query });
 
   try {
-    const prompt = `Você é um especialista em busca acadêmica. Com base na intenção do usuário, crie uma estratégia de busca otimizada.
+    const prompt = `Você é um especialista em busca acadêmica. Crie uma estratégia de busca otimizada para o tema específico do usuário.
+
+⚠️ ATENÇÃO CRÍTICA: O tema da pesquisa é EXATAMENTE: "${query}"
+NÃO invente outro tema! NÃO use exemplos genéricos! Use APENAS o tema fornecido!
 
 INTENÇÃO DO USUÁRIO:
 Query original: "${query}"
-Contexto: ${clarificationSummary}
+Contexto adicional: ${clarificationSummary}
 
 Crie queries de busca organizadas por prioridade (THRESHOLDS ATUALIZADOS):
 
-**P1 (Score ≥70)**: Artigos EXCELENTES
-- Queries muito específicas, palavras-chave técnicas e acadêmicas
+**P1 (Score ≥70)**: Artigos EXCELENTES sobre "${query}"
+- Queries muito específicas, palavras-chave técnicas e acadêmicas SOBRE "${query}"
 - Esperados: artigos recentes (2020+), relevantes, com citações normalizadas
 - Alvo: 30-40 artigos
-- Exemplos: "X systematic review", "X empirical study", "X meta-analysis"
+- Use padrões como: "${query} systematic review", "${query} empirical study", "${query} meta-analysis"
 
-**P2 (Score ≥45)**: Artigos BONS
-- Queries mais abrangentes, sinônimos e variações
+**P2 (Score ≥45)**: Artigos BONS sobre "${query}"
+- Queries mais abrangentes, sinônimos e variações de "${query}"
 - Esperados: artigos relevantes, contexto sólido
 - Alvo: 20-25 artigos
-- Exemplos: "X research", "X literature review", "X study"
+- Use padrões como: "${query} research", "${query} literature review", "${query} study"
 
-**P3 (Score 30-44)**: Artigos ACEITÁVEIS
-- Queries gerais para contexto e background
+**P3 (Score 30-44)**: Artigos ACEITÁVEIS sobre "${query}"
+- Queries gerais para contexto e background de "${query}"
 - Esperados: artigos de suporte, overview
 - Alvo: 10-15 artigos
-- Exemplos: "X overview", "X survey", termos relacionados
+- Use padrões como: "${query} overview", "${query} survey", termos relacionados a "${query}"
 - Artigos com score < 30 são automaticamente descartados (baixíssima qualidade)
 
 IMPORTANTE: Com o novo sistema de pontuação, artigos recentes (2020-2025) com boa relevância no título atingem P1 facilmente!
 
 Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
 {
-  "topic": "título descritivo do tema",
+  "topic": "${query}",
   "originalQuery": "${query}",
   "queries": {
     "P1": [
-      { "query": "artificial intelligence early childhood education", "priority": "P1", "expectedResults": 12 },
-      { "query": "AI preschool learning outcomes systematic review", "priority": "P1", "expectedResults": 12 },
-      { "query": "machine learning education children empirical", "priority": "P1", "expectedResults": 12 }
+      { "query": "query específica sobre ${query}", "priority": "P1", "expectedResults": 12 },
+      { "query": "outra query sobre ${query}", "priority": "P1", "expectedResults": 12 },
+      { "query": "terceira query sobre ${query}", "priority": "P1", "expectedResults": 12 }
     ],
     "P2": [
-      { "query": "artificial intelligence young children", "priority": "P2", "expectedResults": 15 },
-      { "query": "AI educational technology preschool", "priority": "P2", "expectedResults": 15 }
+      { "query": "query P2 sobre ${query}", "priority": "P2", "expectedResults": 15 },
+      { "query": "outra query P2 sobre ${query}", "priority": "P2", "expectedResults": 15 }
     ],
     "P3": [
-      { "query": "AI early education overview", "priority": "P3", "expectedResults": 10 }
+      { "query": "query P3 sobre ${query}", "priority": "P3", "expectedResults": 10 }
     ]
   },
   "prioritizedSources": [
-    { "name": "Semantic Scholar", "reason": "Melhor cobertura e scores de relevância", "order": 1 },
-    { "name": "CORE", "reason": "JSON estruturado e full-text", "order": 2 },
-    { "name": "PubMed Central", "reason": "JATS XML, ótimo para área de saúde/educação", "order": 3 },
-    { "name": "ERIC", "reason": "Especializado em educação", "order": 4 }
+    { "name": "OpenAlex", "reason": "250M artigos, melhor cobertura global", "order": 1 },
+    { "name": "CORE", "reason": "30M fulltext, JSON estruturado", "order": 2 },
+    { "name": "Semantic Scholar", "reason": "200M artigos, bons scores de relevância", "order": 3 },
+    { "name": "arXiv", "reason": "2.4M preprints, acesso aberto total", "order": 4 },
+    { "name": "Europe PMC", "reason": "8M artigos biomedicina com fulltext", "order": 5 }
   ],
   "filters": {
     "dateRange": { "start": 2020, "end": 2025 },

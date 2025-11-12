@@ -53,7 +53,7 @@ export class UnpaywallService extends BaseAPIService {
     );
 
     this.email = email;
-    this.logger.info(`Using email: ${email}`);
+    this.logger.info(`✅ Unpaywall configured with email: ${email} (27M OA articles available)`);
   }
 
   /**

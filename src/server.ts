@@ -93,9 +93,15 @@ app.use(requestTracing);
 // Compression
 app.use(compression());
 
-// Body parsing
+// Body parsing (with UTF-8 encoding)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Set default charset to UTF-8 for all responses
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  next();
+});
 
 // HTTP request logging
 app.use(

@@ -144,6 +144,20 @@ export abstract class BaseAPIService {
             this.logger.warn(`Client error ${status} - not retrying`);
             break;
           }
+
+          // Special handling for 429 (rate limit) - wait longer
+          if (status === 429) {
+            const retryAfter = error.response.headers['retry-after'];
+            const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.min(delay * 2, 10000);
+            this.logger.warn(`Rate limit hit (429) - waiting ${waitTime}ms before retry`);
+            if (attempt < this.retryConfig.maxRetries) {
+              await this.sleep(waitTime);
+              delay = Math.min(delay * this.retryConfig.backoffMultiplier, this.retryConfig.maxDelayMs);
+              continue;
+            } else {
+              break;
+            }
+          }
         }
 
         // Retry logic

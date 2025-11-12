@@ -31,9 +31,11 @@ export class ArXivService extends BaseAPIService {
     super(
       'arXiv',
       'https://export.arxiv.org/api',
-      { tokensPerSecond: 2, maxTokens: 4 },
+      // arXiv rate limit: 3 req/s max (per their documentation)
+      { tokensPerSecond: 2.5, maxTokens: 5 },
       { failureThreshold: 5, resetTimeoutMs: 60000 }
     );
+    this.logger.info('✅ arXiv service initialized (2.5 req/s)');
   }
 
   async search(

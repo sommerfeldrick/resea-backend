@@ -173,8 +173,8 @@ router.post('/search/execute', async (req: Request, res: Response) => {
 
     logger.info('API: Execute exhaustive search', { topic: strategy.topic });
 
-    // Set headers for streaming
-    res.setHeader('Content-Type', 'text/event-stream');
+    // Set headers for streaming (with UTF-8 encoding)
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
@@ -314,8 +314,8 @@ router.post('/generation/generate', async (req: Request, res: Response) => {
 
     logger.info('API: Generate academic content', { section: config.section, articleCount: articles.length });
 
-    // Set headers for streaming
-    res.setHeader('Content-Type', 'text/event-stream');
+    // Set headers for streaming (with UTF-8 encoding)
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
