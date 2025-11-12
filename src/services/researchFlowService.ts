@@ -205,23 +205,37 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
 
     // Validate and fix questions
     const validatedQuestions = questionsData.questions.map((q: any, index: number) => {
-      // Ensure multiple_choice questions have options
-      if (q.type === 'multiple_choice' && (!q.options || !Array.isArray(q.options) || q.options.length === 0)) {
-        logger.warn('Question missing options, adding contextual defaults', {
+      // FORÇAR todas as perguntas a serem multiple_choice (frontend só suporta isso)
+      const needsOptions = !q.options || !Array.isArray(q.options) || q.options.length === 0;
+
+      if (needsOptions) {
+        logger.warn('Question needs options, adding contextual defaults', {
           questionId: q.id,
+          originalType: q.type,
           question: q.question
         });
+
+        // FORÇAR type para multiple_choice
+        q.type = 'multiple_choice';
 
         // Detectar tipo de pergunta e adicionar opções contextuais
         const questionText = (q.question || '').toLowerCase();
 
-        if (questionText.includes('período') || questionText.includes('temporal') || questionText.includes('ano')) {
+        if (questionText.includes('período') || questionText.includes('temporal') || questionText.includes('ano') || questionText.includes('publicação')) {
           // Pergunta sobre período temporal
           q.options = [
             { value: 'recente', label: 'Últimos 5 anos (2020-2025)', description: 'Pesquisas mais recentes e atuais', estimatedArticles: 50 },
             { value: 'amplo', label: 'Últimos 10 anos (2015-2025)', description: 'Boa cobertura com estudos consolidados', estimatedArticles: 120 },
             { value: 'historico', label: 'Últimos 20 anos (2005-2025)', description: 'Visão histórica e evolutiva do tema', estimatedArticles: 200 },
             { value: 'todos', label: 'Sem restrição de período', description: 'Todos os artigos disponíveis', estimatedArticles: 300 }
+          ];
+        } else if (questionText.includes('aplicação') || questionText.includes('específica') || questionText.includes('interessa') || questionText.includes('foco')) {
+          // Pergunta sobre aplicações específicas ou foco da pesquisa
+          q.options = [
+            { value: 'geral', label: 'Visão geral do tema', description: 'Sem foco específico', estimatedArticles: 100 },
+            { value: 'especifico1', label: 'Tenho um foco específico', description: 'Buscar apenas sobre aplicação particular', estimatedArticles: 40 },
+            { value: 'comparativo', label: 'Comparação entre abordagens', description: 'Estudos comparativos', estimatedArticles: 60 },
+            { value: 'todos', label: 'Todas as aplicações', description: 'Cobertura ampla', estimatedArticles: 120 }
           ];
         } else if (questionText.includes('seção') || questionText.includes('parte')) {
           // Pergunta sobre seção do documento
@@ -238,6 +252,14 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
             { value: 'revisao', label: 'Revisões Sistemáticas', description: 'Meta-análises e sínteses', estimatedArticles: 30 },
             { value: 'teorico', label: 'Estudos Teóricos', description: 'Frameworks e modelos', estimatedArticles: 20 },
             { value: 'todos', label: 'Todos os tipos', description: 'Sem restrição', estimatedArticles: 100 }
+          ];
+        } else if (questionText.includes('nível') || questionText.includes('detalhe') || questionText.includes('profundidade')) {
+          // Pergunta sobre nível de detalhe/profundidade
+          q.options = [
+            { value: 'basico', label: 'Conceitos básicos', description: 'Visão geral e introdutória', estimatedArticles: 40 },
+            { value: 'intermediario', label: 'Nível intermediário', description: 'Detalhes metodológicos e aplicações', estimatedArticles: 70 },
+            { value: 'avancado', label: 'Análise aprofundada', description: 'Aspectos teóricos e técnicos avançados', estimatedArticles: 50 },
+            { value: 'todos', label: 'Todos os níveis', description: 'Cobertura completa', estimatedArticles: 100 }
           ];
         } else {
           // Fallback genérico
