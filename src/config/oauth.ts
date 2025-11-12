@@ -71,8 +71,8 @@ export const oauthConfig = {
   },
 
   // Configurações de requisição
-  timeout: 10000, // 10 segundos
-  retries: 3,
+  timeout: 8000, // 8 segundos (reduzido para evitar timeout no frontend)
+  retries: 0, // Sem retry - falha rápido se Cloudflare bloquear
 };
 
 export default oauthConfig;
