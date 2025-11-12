@@ -687,14 +687,14 @@ async function enrichArticlesWithFulltext(
   articles: FlowEnrichedArticle[],
   onProgress?: (progress: { current: number; total: number; successful: number }) => void
 ): Promise<FlowEnrichedArticle[]> {
-  logger.info('🚀 Starting hybrid fulltext enrichment', { articleCount: articles.length });
+  logger.info('🚀 Starting hybrid fulltext enrichment (3 sources: Unpaywall, arXiv, Europe PMC)', { articleCount: articles.length });
 
   // Inicializar services (com circuit breaker embutido)
   const unpaywall = new UnpaywallService();
-  const core = new COREService();
+  // const core = new COREService();  // DISABLED - 100% error 500
   const arxiv = new ArXivService();
   const europepmc = new EuropePMCService();
-  const semanticScholar = new SemanticScholarService();
+  // const semanticScholar = new SemanticScholarService();  // DISABLED - rate limit 429
 
   const enrichedArticles: FlowEnrichedArticle[] = [];
   const batchSize = 10; // Processar 10 artigos por vez
@@ -710,7 +710,7 @@ async function enrichArticlesWithFulltext(
           // Tentar enriquecer com fulltext de múltiplas fontes em paralelo
           const fulltextResult = await tryMultipleFulltextSources(
             article,
-            { unpaywall, core, arxiv, europepmc, semanticScholar }
+            { unpaywall, arxiv, europepmc }
           );
 
           if (fulltextResult.success && fulltextResult.fullContent) {
@@ -795,10 +795,10 @@ async function tryMultipleFulltextSources(
   article: FlowEnrichedArticle,
   services: {
     unpaywall: UnpaywallService;
-    core: COREService;
+    // core: COREService;  // DISABLED
     arxiv: ArXivService;
     europepmc: EuropePMCService;
-    semanticScholar: SemanticScholarService;
+    // semanticScholar: SemanticScholarService;  // DISABLED
   }
 ): Promise<{ success: boolean; fullContent?: string; source?: string; format?: string }> {
   const attempts: Promise<{ success: boolean; fullContent?: string; source?: string; format?: string }>[] = [];
@@ -826,47 +826,10 @@ async function tryMultipleFulltextSources(
     );
   }
 
-  // [2] CORE API (sempre tentar)
-  if (article.doi) {
-    attempts.push(
-      (async () => {
-        try {
-          const result = await services.core.searchByDOI(article.doi!);
-          if (result && result.abstract) {
-            return {
-              success: true,
-              fullContent: result.abstract, // CORE pode ter fulltext via downloadUrl
-              source: 'CORE',
-              format: 'json'
-            };
-          }
-        } catch (error) {
-          logger.debug(`CORE failed for ${article.doi}`);
-        }
-        return { success: false };
-      })()
-    );
-  } else if (article.title) {
-    // Fallback: buscar por título
-    attempts.push(
-      (async () => {
-        try {
-          const result = await services.core.searchByTitle(article.title);
-          if (result && result.abstract) {
-            return {
-              success: true,
-              fullContent: result.abstract,
-              source: 'CORE',
-              format: 'json'
-            };
-          }
-        } catch (error) {
-          logger.debug(`CORE title search failed`);
-        }
-        return { success: false };
-      })()
-    );
-  }
+  // [2] CORE API - DISABLED (100% error 500 in production, need valid API key)
+  // if (article.doi) {
+  //   attempts.push(...);
+  // }
 
   // [3] arXiv (se tem arxivId ou é da área certa)
   if (article.source === 'arXiv' || article.id?.includes('arxiv')) {
@@ -921,28 +884,10 @@ async function tryMultipleFulltextSources(
     );
   }
 
-  // [5] Semantic Scholar (último recurso, rate limit)
-  if (article.doi || article.title) {
-    attempts.push(
-      (async () => {
-        try {
-          const query = article.doi || article.title;
-          const results = await services.semanticScholar.search(query, 1);
-          if (results.length > 0 && results[0].abstract) {
-            return {
-              success: true,
-              fullContent: results[0].abstract,
-              source: 'Semantic Scholar',
-              format: 'json'
-            };
-          }
-        } catch (error) {
-          logger.debug(`Semantic Scholar failed (rate limit?)`);
-        }
-        return { success: false };
-      })()
-    );
-  }
+  // [5] Semantic Scholar - DISABLED (rate limit 429 errors without API key)
+  // if (article.doi || article.title) {
+  //   attempts.push(...);
+  // }
 
   // Executar todas as tentativas em paralelo, retornar a primeira que funcionar
   if (attempts.length === 0) {
