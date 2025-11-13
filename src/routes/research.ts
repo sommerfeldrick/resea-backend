@@ -89,6 +89,7 @@ router.post('/generate', async (req: Request, res: Response) => {
     logger.info(`Starting research generation for user ${userId}: "${query}"`);
 
     // 1. Verifica créditos ANTES de gerar (usando sistema híbrido)
+    let remaining: number | undefined;
     if (accessToken) {
       const creditCheck = await creditsService.checkCreditsAvailable(
         userId.toString(),
@@ -107,6 +108,7 @@ router.post('/generate', async (req: Request, res: Response) => {
         });
       }
 
+      remaining = creditCheck.available;
       logger.info(`Credit check passed: ${creditCheck.available} documents available for user ${userId} (plan: ${creditCheck.planName})`);
     }
 
