@@ -74,12 +74,16 @@ export async function initializeDatabase() {
     `);
 
     // Criar tabela de tracking de uso do Resea (créditos)
+    // Nota: words_consumed_today agora conta DOCUMENTOS (não palavras)
     await query(`
       CREATE TABLE IF NOT EXISTS resea_usage (
         id SERIAL PRIMARY KEY,
         user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         words_consumed_today INTEGER DEFAULT 0,
         smileai_remaining_words INTEGER DEFAULT 0,
+        plan_name VARCHAR(50) DEFAULT 'básico',
+        plan_purchase_date TIMESTAMP DEFAULT NOW(),
+        last_reset_date TIMESTAMP DEFAULT NOW(),
         last_smileai_sync TIMESTAMP DEFAULT NOW(),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -87,6 +91,28 @@ export async function initializeDatabase() {
       );
     `);
     console.log('✅ Tabela "resea_usage" criada/verificada');
+
+    // Adicionar novos campos em resea_usage se não existirem
+    await query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_name='resea_usage' AND column_name='plan_name') THEN
+          ALTER TABLE resea_usage ADD COLUMN plan_name VARCHAR(50) DEFAULT 'básico';
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_name='resea_usage' AND column_name='plan_purchase_date') THEN
+          ALTER TABLE resea_usage ADD COLUMN plan_purchase_date TIMESTAMP DEFAULT NOW();
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_name='resea_usage' AND column_name='last_reset_date') THEN
+          ALTER TABLE resea_usage ADD COLUMN last_reset_date TIMESTAMP DEFAULT NOW();
+        END IF;
+      END $$;
+    `);
+    console.log('✅ Campos de plano adicionados à tabela resea_usage');
 
     // Criar tabela de histórico de créditos
     await query(`

@@ -14,12 +14,21 @@ interface SmileAIUsageData {
   total_words: number;
 }
 
+interface SmileAIPlanData {
+  plan_name: string; // 'básico', 'standard', 'premium'
+  is_active: boolean;
+  purchase_date?: string; // Data de compra/ativação do plano
+  renewal_date?: string; // Próxima renovação
+}
+
 interface CreditCheckResult {
   available: number;
-  smileaiRemaining: number;
-  localConsumed: number;
+  limit: number;
+  consumed: number;
   canGenerate: boolean;
+  planName: string;
   message?: string;
+  needsRenewal?: boolean;
 }
 
 export class CreditsService {
@@ -183,21 +192,41 @@ export class CreditsService {
   }
 
   /**
-   * Mapeia nome do plano para limite de palavras
+   * Mapeia nome do plano para limite de DOCUMENTOS por mês
    */
-  getWordLimit(planName: string): number {
+  getDocumentLimit(planName: string): number {
     const limits: Record<string, number> = {
-      'free': 10000,
-      'starter': 50000,
-      'basic': 100000,
-      'pro': 250000,
-      'premium': 500000,
-      'business': 1000000,
-      'enterprise': 5000000
+      'básico': 0,
+      'basico': 0,
+      'basic': 0,
+      'standard': 10,
+      'premium': 20,
+      'pro': 20,
+      'enterprise': 50 // Bonus para enterprise
     };
 
     const normalized = planName.toLowerCase().trim();
-    return limits[normalized] || 10000;
+    return limits[normalized] ?? 0; // Default: 0 documentos
+  }
+
+  /**
+   * Normaliza nome do plano (padronização)
+   */
+  normalizePlanName(planName: string): string {
+    const normalized = planName.toLowerCase().trim();
+
+    // Mapeia variações para nomes padrão
+    const mapping: Record<string, string> = {
+      'básico': 'básico',
+      'basico': 'básico',
+      'basic': 'básico',
+      'standard': 'standard',
+      'premium': 'premium',
+      'pro': 'premium',
+      'enterprise': 'enterprise'
+    };
+
+    return mapping[normalized] || 'básico';
   }
 
   /**
@@ -298,14 +327,14 @@ export class CreditsService {
   }
 
   /**
-   * Busca dados de uso da SmileAI API (READ-ONLY)
-   * Endpoint: GET /api/app/usage-data
+   * Busca dados do plano do usuário da SmileAI API (READ-ONLY)
+   * Endpoint: GET /api/app/usage-data OU /api/user/plan
    */
-  async getSmileAIUsageData(userId: string, accessToken: string): Promise<SmileAIUsageData | null> {
+  async getSmileAIPlanData(userId: string, accessToken: string): Promise<SmileAIPlanData | null> {
     try {
-      const cacheKey = `credits:${userId}:smileai`;
+      const cacheKey = `plan:${userId}:smileai`;
 
-      // Tenta cache primeiro
+      // Tenta cache primeiro (30 min TTL - planos mudam raramente)
       let cached: string | null = null;
 
       if (this.redis && this.isConnected) {
@@ -319,11 +348,11 @@ export class CreditsService {
       }
 
       if (cached) {
-        logger.debug(`SmileAI usage data cache HIT for user ${userId}`);
+        logger.debug(`SmileAI plan data cache HIT for user ${userId}`);
         return typeof cached === 'string' ? JSON.parse(cached) : cached;
       }
 
-      logger.info(`SmileAI usage data cache MISS for user ${userId}, fetching from API`);
+      logger.info(`SmileAI plan data cache MISS for user ${userId}, fetching from API`);
 
       // Busca da API SmileAI
       const response = await axios.get(
@@ -338,28 +367,31 @@ export class CreditsService {
         }
       );
 
-      const usageData: SmileAIUsageData = {
-        plan_name: response.data.plan_name || 'free',
-        remaining_words: response.data.remaining_words || 0,
-        total_words: response.data.total_words || 10000
+      // Extrai dados do plano da resposta
+      const planData: SmileAIPlanData = {
+        plan_name: this.normalizePlanName(response.data.plan_name || 'básico'),
+        is_active: response.data.is_active !== false, // Default true se não vier
+        purchase_date: response.data.purchase_date || response.data.created_at,
+        renewal_date: response.data.renewal_date || response.data.next_billing_date
       };
 
-      const dataJson = JSON.stringify(usageData);
+      const dataJson = JSON.stringify(planData);
 
-      // Cacheia por 5 minutos
+      // Cacheia por 30 minutos (planos mudam raramente)
+      const ttl = 1800;
       if (this.redis && this.isConnected) {
         try {
-          await this.redis.setEx(cacheKey, 300, dataJson);
+          await this.redis.setEx(cacheKey, ttl, dataJson);
         } catch (error) {
-          this.setMemoryCache(cacheKey, dataJson, 300);
+          this.setMemoryCache(cacheKey, dataJson, ttl);
         }
       } else {
-        this.setMemoryCache(cacheKey, dataJson, 300);
+        this.setMemoryCache(cacheKey, dataJson, ttl);
       }
 
-      return usageData;
+      return planData;
     } catch (error: any) {
-      logger.error(`Failed to fetch SmileAI usage data for user ${userId}:`, error.message);
+      logger.error(`Failed to fetch SmileAI plan data for user ${userId}:`, error.message);
       return null;
     }
   }
@@ -367,119 +399,252 @@ export class CreditsService {
   /**
    * Inicializa tracking do usuário no PostgreSQL
    */
-  async initializeUserTracking(userId: string): Promise<void> {
+  async initializeUserTracking(
+    userId: string,
+    planName?: string,
+    purchaseDate?: string
+  ): Promise<void> {
     try {
       await query(`
-        INSERT INTO resea_usage (user_id, words_consumed_today, last_smileai_sync)
-        VALUES ($1, 0, NOW())
-        ON CONFLICT (user_id) DO NOTHING
-      `, [userId]);
+        INSERT INTO resea_usage (
+          user_id,
+          words_consumed_today,
+          plan_name,
+          plan_purchase_date,
+          last_reset_date,
+          last_smileai_sync
+        )
+        VALUES ($1, 0, $2, $3, NOW(), NOW())
+        ON CONFLICT (user_id) DO UPDATE SET
+          plan_name = COALESCE(EXCLUDED.plan_name, resea_usage.plan_name),
+          plan_purchase_date = COALESCE(EXCLUDED.plan_purchase_date, resea_usage.plan_purchase_date),
+          last_smileai_sync = NOW()
+      `, [userId, planName || 'básico', purchaseDate || new Date().toISOString()]);
 
-      logger.debug(`User tracking initialized for user ${userId}`);
+      logger.debug(`User tracking initialized for user ${userId} (plan: ${planName})`);
     } catch (error) {
       logger.error(`Failed to initialize user tracking for ${userId}:`, error);
     }
   }
 
   /**
-   * Verifica se o usuário tem créditos suficientes antes de gerar documento
+   * Verifica se precisa resetar o contador mensal (30 dias desde purchase_date)
+   */
+  async checkAndResetMonthlyLimit(userId: string): Promise<boolean> {
+    try {
+      const result = await query(`
+        SELECT
+          plan_purchase_date,
+          last_reset_date,
+          words_consumed_today as documents_generated
+        FROM resea_usage
+        WHERE user_id = $1
+      `, [userId]);
+
+      if (result.rows.length === 0) {
+        return false;
+      }
+
+      const row = result.rows[0];
+      const purchaseDate = new Date(row.plan_purchase_date);
+      const lastReset = row.last_reset_date ? new Date(row.last_reset_date) : purchaseDate;
+      const now = new Date();
+
+      // Calcula quantos meses se passaram desde a data de compra
+      const monthsSincePurchase = this.getMonthsDifference(purchaseDate, now);
+      const monthsSinceReset = this.getMonthsDifference(lastReset, now);
+
+      // Se passou 1 mês ou mais desde o último reset, reseta o contador
+      if (monthsSinceReset >= 1) {
+        await query(`
+          UPDATE resea_usage
+          SET words_consumed_today = 0,
+              last_reset_date = NOW()
+          WHERE user_id = $1
+        `, [userId]);
+
+        logger.info(`Monthly limit reset for user ${userId} (last reset: ${lastReset.toISOString()})`);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      logger.error(`Failed to check monthly reset for user ${userId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Calcula diferença em meses entre duas datas
+   */
+  private getMonthsDifference(startDate: Date, endDate: Date): number {
+    const yearDiff = endDate.getFullYear() - startDate.getFullYear();
+    const monthDiff = endDate.getMonth() - startDate.getMonth();
+    const dayDiff = endDate.getDate() - startDate.getDate();
+
+    let months = yearDiff * 12 + monthDiff;
+
+    // Se ainda não completou 30 dias no mês atual, não conta
+    if (dayDiff < 0) {
+      months--;
+    }
+
+    return months;
+  }
+
+  /**
+   * Verifica se o usuário pode gerar documento baseado no plano
+   * Nova lógica: Conta DOCUMENTOS ao invés de palavras
    * CHAMADO ANTES da geração
    */
   async checkCreditsAvailable(
     userId: string,
     accessToken: string,
-    estimatedWords: number
+    estimatedWords: number = 0 // Não usado mais, mas mantido para compatibilidade
   ): Promise<CreditCheckResult> {
     try {
-      // 1. Busca saldo da SmileAI (com cache)
-      const smileaiData = await this.getSmileAIUsageData(userId, accessToken);
+      // 1. Busca dados do plano da SmileAI
+      const planData = await this.getSmileAIPlanData(userId, accessToken);
 
-      if (!smileaiData) {
-        // Se não conseguiu dados da SmileAI, permite gerar (fallback)
-        logger.warn(`Could not fetch SmileAI data for user ${userId}, allowing generation`);
+      if (!planData) {
+        // Fallback se API não responder
+        logger.warn(`Could not fetch SmileAI plan data for user ${userId}, using basic plan`);
         return {
-          available: 10000,
-          smileaiRemaining: 10000,
-          localConsumed: 0,
-          canGenerate: true,
-          message: 'SmileAI API unavailable, using default limit'
+          available: 0,
+          limit: 0,
+          consumed: 0,
+          canGenerate: false,
+          planName: 'básico',
+          message: 'SmileAI API indisponível. Por favor, tente novamente.'
         };
       }
 
-      const smileaiRemaining = smileaiData.remaining_words;
+      // 2. Verifica se o plano está ativo
+      if (!planData.is_active) {
+        return {
+          available: 0,
+          limit: 0,
+          consumed: 0,
+          canGenerate: false,
+          planName: planData.plan_name,
+          message: 'Seu plano está inativo. Por favor, renove sua assinatura.'
+        };
+      }
 
-      // 2. Busca consumo local do Resea HOJE
-      await this.initializeUserTracking(userId);
+      // 3. Inicializa/atualiza tracking do usuário
+      await this.initializeUserTracking(userId, planData.plan_name, planData.purchase_date);
+
+      // 4. Verifica se precisa resetar contador mensal
+      await this.checkAndResetMonthlyLimit(userId);
+
+      // 5. Busca limite do plano e consumo atual
+      const limit = this.getDocumentLimit(planData.plan_name);
 
       const result = await query(`
-        SELECT words_consumed_today
+        SELECT words_consumed_today as documents_generated
         FROM resea_usage
         WHERE user_id = $1
-          AND DATE(last_smileai_sync) = CURRENT_DATE
       `, [userId]);
 
-      const localConsumed = result.rows[0]?.words_consumed_today || 0;
+      const consumed = result.rows[0]?.documents_generated || 0;
+      const available = Math.max(0, limit - consumed);
 
-      // 3. Calcula saldo disponível
-      const available = Math.max(0, smileaiRemaining - localConsumed);
-
-      // 4. Valida
-      if (available < estimatedWords) {
+      // 6. Valida se pode gerar
+      if (limit === 0) {
         return {
-          available,
-          smileaiRemaining,
-          localConsumed,
+          available: 0,
+          limit: 0,
+          consumed: 0,
           canGenerate: false,
-          message: `Créditos insuficientes. Disponível: ${available} palavras, Necessário: ${estimatedWords} palavras`
+          planName: planData.plan_name,
+          message: `Plano ${planData.plan_name} não permite gerar documentos. Faça upgrade para Standard ou Premium!`
         };
       }
 
+      if (consumed >= limit) {
+        return {
+          available: 0,
+          limit,
+          consumed,
+          canGenerate: false,
+          planName: planData.plan_name,
+          message: `Você atingiu o limite mensal de ${limit} documentos. Seu limite será renovado em ${this.getNextResetDate(planData.purchase_date)}.`,
+          needsRenewal: true
+        };
+      }
+
+      // Tudo OK!
       return {
         available,
-        smileaiRemaining,
-        localConsumed,
-        canGenerate: true
+        limit,
+        consumed,
+        canGenerate: true,
+        planName: planData.plan_name,
+        message: `Você pode gerar mais ${available} documentos este mês (plano ${planData.plan_name}).`
       };
     } catch (error) {
       logger.error(`Failed to check credits for user ${userId}:`, error);
-      // Em caso de erro, permite gerar (fallback)
+
+      // Fallback em caso de erro: permite gerar mas loga o erro
       return {
-        available: 10000,
-        smileaiRemaining: 10000,
-        localConsumed: 0,
-        canGenerate: true,
-        message: 'Credit check failed, using default limit'
+        available: 0,
+        limit: 0,
+        consumed: 0,
+        canGenerate: false,
+        planName: 'erro',
+        message: 'Erro ao verificar créditos. Por favor, tente novamente.'
       };
     }
   }
 
   /**
-   * Registra consumo de palavras DEPOIS de gerar documento
+   * Calcula a próxima data de reset (30 dias após purchase_date)
+   */
+  private getNextResetDate(purchaseDate?: string): string {
+    if (!purchaseDate) {
+      return 'em breve';
+    }
+
+    const purchase = new Date(purchaseDate);
+    const now = new Date();
+    const monthsSince = this.getMonthsDifference(purchase, now);
+
+    const nextReset = new Date(purchase);
+    nextReset.setMonth(nextReset.getMonth() + monthsSince + 1);
+
+    const daysUntil = Math.ceil((nextReset.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    return daysUntil === 1 ? '1 dia' : `${daysUntil} dias`;
+  }
+
+  /**
+   * Registra geração de DOCUMENTO (incrementa contador)
+   * Nova lógica: Conta documentos ao invés de palavras
    * IMPORTANTE: Só chamar quando documento for FINALIZADO!
    */
   async trackDocumentGeneration(
     userId: string,
-    wordCount: number,
+    wordCount: number, // Mantido para registro no histórico
     documentId: number,
     metadata?: any
   ): Promise<void> {
     try {
-      // 1. Incrementa consumo local
+      // 1. Incrementa contador de DOCUMENTOS (words_consumed_today agora conta documentos)
       await query(`
         UPDATE resea_usage
-        SET words_consumed_today = words_consumed_today + $1,
+        SET words_consumed_today = words_consumed_today + 1,
             updated_at = NOW()
-        WHERE user_id = $2
-      `, [wordCount, userId]);
+        WHERE user_id = $1
+      `, [userId]);
 
-      // 2. Salva no histórico
+      // 2. Salva no histórico (mantém word_count para referência)
       await query(`
         INSERT INTO credit_history (user_id, document_id, words_used, action, metadata)
         VALUES ($1, $2, $3, 'document_generation', $4)
       `, [userId, documentId, wordCount, JSON.stringify(metadata || {})]);
 
-      // 3. Invalida cache Redis para forçar nova consulta na SmileAI
-      const cacheKey = `credits:${userId}:smileai`;
+      // 3. Invalida cache Redis do plano (forçar nova consulta)
+      const cacheKey = `plan:${userId}:smileai`;
 
       if (this.redis && this.isConnected) {
         try {
@@ -491,7 +656,7 @@ export class CreditsService {
         this.deleteMemoryCache(cacheKey);
       }
 
-      logger.info(`Tracked document generation for user ${userId}: ${wordCount} words (document ${documentId})`);
+      logger.info(`Tracked document generation for user ${userId}: 1 document (${wordCount} words, ID: ${documentId})`);
     } catch (error) {
       logger.error(`Failed to track document generation for user ${userId}:`, error);
       throw error;
@@ -573,70 +738,83 @@ export class CreditsService {
   }
 
   /**
-   * Retorna estatísticas completas de créditos (HÍBRIDO: SmileAI + Local)
+   * Retorna estatísticas completas de créditos
+   * Nova lógica: Baseado em DOCUMENTOS gerados por mês
    */
   async getCreditStats(userId: string, accessToken?: string) {
     try {
-      // Se tiver accessToken, busca dados atualizados da SmileAI
-      let smileaiData: SmileAIUsageData | null = null;
+      // Busca dados do plano da SmileAI
+      let planData: SmileAIPlanData | null = null;
 
       if (accessToken) {
-        smileaiData = await this.getSmileAIUsageData(userId, accessToken);
+        planData = await this.getSmileAIPlanData(userId, accessToken);
       }
 
-      // Busca consumo local
-      await this.initializeUserTracking(userId);
+      if (!planData) {
+        // Fallback: plano básico
+        return {
+          plan: 'básico',
+          limit: 0,
+          consumed: 0,
+          remaining: 0,
+          percentage: 0,
+          is_active: false,
+          next_reset: 'Nenhum plano ativo',
+          message: 'Faça upgrade para gerar documentos!'
+        };
+      }
 
+      // Inicializa tracking
+      await this.initializeUserTracking(userId, planData.plan_name, planData.purchase_date);
+
+      // Verifica/reseta limite mensal
+      await this.checkAndResetMonthlyLimit(userId);
+
+      // Busca dados locais
       const result = await query(`
-        SELECT words_consumed_today, smileai_remaining_words
+        SELECT
+          words_consumed_today as documents_generated,
+          plan_name,
+          plan_purchase_date,
+          last_reset_date
         FROM resea_usage
         WHERE user_id = $1
       `, [userId]);
 
-      const localConsumed = result.rows[0]?.words_consumed_today || 0;
+      const consumed = result.rows[0]?.documents_generated || 0;
+      const currentPlan = result.rows[0]?.plan_name || planData.plan_name;
+      const limit = this.getDocumentLimit(currentPlan);
+      const remaining = Math.max(0, limit - consumed);
+      const percentage = limit > 0 ? Math.round((consumed / limit) * 100) : 0;
 
-      if (smileaiData) {
-        // Dados em tempo real da SmileAI
-        const available = Math.max(0, smileaiData.remaining_words - localConsumed);
-        const percentage = smileaiData.total_words > 0
-          ? Math.round(((smileaiData.total_words - available) / smileaiData.total_words) * 100)
-          : 0;
-
-        return {
-          plan: smileaiData.plan_name,
-          limit: smileaiData.total_words,
-          consumed: smileaiData.total_words - smileaiData.remaining_words,
-          remaining: available,
-          percentage,
-          resea_consumed_today: localConsumed,
-          smileai_remaining: smileaiData.remaining_words
-        };
-      } else {
-        // Fallback: usa dados em cache
-        const cachedRemaining = result.rows[0]?.smileai_remaining_words || 10000;
-        const available = Math.max(0, cachedRemaining - localConsumed);
-
-        return {
-          plan: 'unknown',
-          limit: 10000,
-          consumed: localConsumed,
-          remaining: available,
-          percentage: 0,
-          resea_consumed_today: localConsumed,
-          smileai_remaining: cachedRemaining
-        };
-      }
+      return {
+        plan: currentPlan,
+        limit,
+        consumed,
+        remaining,
+        percentage,
+        is_active: planData.is_active,
+        next_reset: this.getNextResetDate(planData.purchase_date),
+        purchase_date: planData.purchase_date,
+        message: remaining > 0
+          ? `Você pode gerar mais ${remaining} documentos este mês.`
+          : limit === 0
+          ? 'Seu plano não permite gerar documentos. Faça upgrade!'
+          : `Limite mensal atingido. Renova em ${this.getNextResetDate(planData.purchase_date)}.`
+      };
     } catch (error) {
       logger.error(`Failed to get credit stats for user ${userId}:`, error);
+
       // Fallback completo
       return {
-        plan: 'free',
-        limit: 10000,
+        plan: 'erro',
+        limit: 0,
         consumed: 0,
-        remaining: 10000,
+        remaining: 0,
         percentage: 0,
-        resea_consumed_today: 0,
-        smileai_remaining: 10000
+        is_active: false,
+        next_reset: 'Erro ao buscar dados',
+        message: 'Erro ao buscar estatísticas. Tente novamente.'
       };
     }
   }

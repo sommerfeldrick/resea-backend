@@ -99,13 +99,15 @@ router.post('/generate', async (req: Request, res: Response) => {
       if (!creditCheck.canGenerate) {
         return res.status(403).json({
           success: false,
-          error: creditCheck.message || 'Créditos insuficientes',
-          available: creditCheck.available,
-          required: estimatedWords
+          error: creditCheck.message || 'Limite de documentos atingido',
+          plan: creditCheck.planName,
+          limit: creditCheck.limit,
+          consumed: creditCheck.consumed,
+          available: creditCheck.available
         });
       }
 
-      logger.info(`Credit check passed: ${creditCheck.available} words available for user ${userId}`);
+      logger.info(`Credit check passed: ${creditCheck.available} documents available for user ${userId} (plan: ${creditCheck.planName})`);
     }
 
     // 2. TODO: Implement scraping (requires optional dependencies)
@@ -195,14 +197,16 @@ router.post('/finalize', async (req: Request, res: Response) => {
       if (!creditCheck.canGenerate) {
         return res.status(403).json({
           success: false,
-          error: creditCheck.message || 'Créditos insuficientes',
-          wordCount,
+          error: creditCheck.message || 'Limite de documentos atingido',
+          plan: creditCheck.planName,
+          limit: creditCheck.limit,
+          consumed: creditCheck.consumed,
           available: creditCheck.available
         });
       }
     }
 
-    // 3. AQUI SIM desconta créditos usando o sistema híbrido!
+    // 3. AQUI SIM registra geração de 1 documento!
     await creditsService.trackDocumentGeneration(
       userId.toString(),
       wordCount,
@@ -217,16 +221,16 @@ router.post('/finalize', async (req: Request, res: Response) => {
     // 4. Busca estatísticas atualizadas
     const stats = await creditsService.getCreditStats(userId.toString(), accessToken);
 
-    logger.info(`Document finalized: ${wordCount} words deducted. Remaining: ${stats.remaining}`);
+    logger.info(`Document finalized: 1 document generated (${wordCount} words). Remaining: ${stats.remaining} documents`);
 
     // 5. Retorna confirmação
     res.json({
       success: true,
       wordCount,
-      remaining: stats.remaining,
+      documentsRemaining: stats.remaining,
       stats,
       title: title || 'Documento sem título',
-      message: `Documento finalizado com sucesso! ${wordCount} palavras foram descontadas.`,
+      message: `Documento finalizado com sucesso! Você tem ${stats.remaining} documentos restantes este mês.`,
       timestamp: new Date().toISOString()
     });
 
