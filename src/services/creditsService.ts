@@ -166,7 +166,7 @@ export class CreditsService {
       );
 
       const planName = response.data.subscription_plan || 'free';
-      const limit = this.getWordLimit(planName);
+      const limit = this.getDocumentLimit(planName);
 
       const plan: UserPlan = { name: planName, limit };
       const planJson = JSON.stringify(plan);
@@ -664,49 +664,22 @@ export class CreditsService {
   }
 
   /**
-   * Sincroniza dados com SmileAI (detecta compras de créditos)
-   * Deve ser executado periodicamente (cron job)
+   * @deprecated Este método foi removido na versão 2.0
+   *
+   * Motivo: O sistema agora conta DOCUMENTOS por mês (não palavras),
+   * com renovação automática baseada na data de compra do plano.
+   *
+   * A sincronização com SmileAI agora acontece automaticamente via:
+   * - checkCreditsAvailable() - Verifica plano antes de gerar documento
+   * - checkAndResetMonthlyLimit() - Reseta contador mensalmente
+   * - getSmileAIPlanData() - Lê dados do plano da SmileAI
+   *
+   * Não é mais necessário detectar "compras de créditos" porque o sistema
+   * é baseado em limites mensais fixos por plano, não em saldo de palavras.
    */
   async syncWithSmileAI(userId: string, accessToken: string): Promise<void> {
-    try {
-      const smileaiData = await this.getSmileAIUsageData(userId, accessToken);
-
-      if (!smileaiData) {
-        logger.warn(`Sync failed: Could not fetch SmileAI data for user ${userId}`);
-        return;
-      }
-
-      const result = await query(`
-        SELECT smileai_remaining_words
-        FROM resea_usage
-        WHERE user_id = $1
-      `, [userId]);
-
-      const currentCache = result.rows[0]?.smileai_remaining_words || 0;
-
-      // Se saldo da SmileAI aumentou (comprou créditos), reseta contador local
-      if (smileaiData.remaining_words > currentCache) {
-        await query(`
-          UPDATE resea_usage
-          SET words_consumed_today = 0,
-              smileai_remaining_words = $1,
-              last_smileai_sync = NOW()
-          WHERE user_id = $2
-        `, [smileaiData.remaining_words, userId]);
-
-        logger.info(`User ${userId} credits reset - SmileAI balance increased from ${currentCache} to ${smileaiData.remaining_words}`);
-      } else {
-        // Apenas atualiza cache
-        await query(`
-          UPDATE resea_usage
-          SET smileai_remaining_words = $1,
-              last_smileai_sync = NOW()
-          WHERE user_id = $2
-        `, [smileaiData.remaining_words, userId]);
-      }
-    } catch (error) {
-      logger.error(`Sync with SmileAI failed for user ${userId}:`, error);
-    }
+    logger.warn('syncWithSmileAI() is deprecated and does nothing. Use checkCreditsAvailable() instead.');
+    return;
   }
 
   /**
