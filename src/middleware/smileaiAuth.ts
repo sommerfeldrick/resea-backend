@@ -60,6 +60,12 @@ export async function smileaiAuthRequired(
     req.smileaiUser = user;
     req.smileaiToken = token;
 
+    // Compatibilidade: também definir req.user para rotas que usam req.user
+    (req as any).user = {
+      ...user,
+      accessToken: token
+    };
+
     logger.debug('SmileAI Auth: User authenticated', {
       userId: user.id,
       email: user.email,
@@ -107,6 +113,13 @@ export async function smileaiAuthOptional(
       if (user) {
         req.smileaiUser = user;
         req.smileaiToken = token;
+
+        // Compatibilidade: também definir req.user para rotas que usam req.user
+        (req as any).user = {
+          ...user,
+          accessToken: token
+        };
+
         logger.debug('SmileAI Auth: Optional auth successful', {
           userId: user.id,
         });
