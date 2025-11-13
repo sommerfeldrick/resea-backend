@@ -33,7 +33,7 @@ router.get('/', async (req: Request, res: Response) => {
 
 /**
  * GET /api/documents/:id
- * Obter um documento específico
+ * Obter um documento específico (metadados + URL de download R2)
  */
 router.get('/:id', async (req: Request, res: Response) => {
   try {
@@ -49,6 +49,79 @@ router.get('/:id', async (req: Request, res: Response) => {
     res.json({ success: true, data: document });
   } catch (error) {
     logger.error('Erro ao buscar documento:', error);
+    res.status(404).json({ success: false, error: 'Documento não encontrado' });
+  }
+});
+
+/**
+ * GET /api/documents/:id/content
+ * Obter o conteúdo completo do documento (texto/HTML)
+ * Faz download do R2 se necessário, ou retorna do PostgreSQL
+ */
+router.get('/:id/content', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    const documentId = parseInt(req.params.id);
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Não autenticado' });
+    }
+
+    const content = await DocumentHistoryService.getDocumentContent(documentId, userId);
+
+    res.json({
+      success: true,
+      content,
+      message: 'Conteúdo recuperado com sucesso'
+    });
+  } catch (error) {
+    logger.error('Erro ao buscar conteúdo do documento:', error);
+    res.status(404).json({ success: false, error: 'Documento não encontrado' });
+  }
+});
+
+/**
+ * GET /api/documents/:id/download
+ * Download direto do documento como arquivo
+ * Retorna o arquivo com headers apropriados para download
+ */
+router.get('/:id/download', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    const documentId = parseInt(req.params.id);
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Não autenticado' });
+    }
+
+    const document = await DocumentHistoryService.getDocument(documentId, userId);
+    const content = await DocumentHistoryService.getDocumentContent(documentId, userId);
+
+    // Determina o Content-Type baseado no formato do arquivo
+    const contentTypes: Record<string, string> = {
+      'html': 'text/html',
+      'pdf': 'application/pdf',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'txt': 'text/plain',
+      'md': 'text/markdown',
+      'json': 'application/json'
+    };
+
+    const fileFormat = document.file_format || 'html';
+    const contentType = contentTypes[fileFormat] || 'application/octet-stream';
+
+    // Sanitiza o nome do arquivo
+    const sanitizedTitle = document.title.replace(/[^a-zA-Z0-9\s\-_]/g, '').substring(0, 100);
+    const fileName = `${sanitizedTitle}.${fileFormat}`;
+
+    // Define headers para download
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Cache-Control', 'no-cache');
+
+    res.send(content);
+  } catch (error) {
+    logger.error('Erro ao fazer download do documento:', error);
     res.status(404).json({ success: false, error: 'Documento não encontrado' });
   }
 });

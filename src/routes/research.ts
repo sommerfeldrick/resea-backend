@@ -68,8 +68,9 @@ router.post('/plan', async (req: Request, res: Response) => {
  */
 router.post('/generate', async (req: Request, res: Response) => {
   try {
-    const { query, template } = req.body;
+    const { query, template, estimatedWords = 1500 } = req.body;
     const userId = (req as any).user?.id;
+    const accessToken = (req as any).user?.accessToken || req.headers.authorization?.replace('Bearer ', '');
 
     if (!query || typeof query !== 'string') {
       return res.status(400).json({
@@ -87,14 +88,26 @@ router.post('/generate', async (req: Request, res: Response) => {
 
     logger.info(`Starting research generation for user ${userId}: "${query}"`);
 
-    // 1. Verifica créditos ANTES de gerar
-    const remaining = await creditsService.getRemainingWords(userId);
-    if (remaining < 100) {
-      return res.status(403).json({
-        success: false,
-        error: 'Créditos insuficientes',
-        remaining: 0
-      });
+    // 1. Verifica créditos ANTES de gerar (usando sistema híbrido)
+    if (accessToken) {
+      const creditCheck = await creditsService.checkCreditsAvailable(
+        userId.toString(),
+        accessToken,
+        estimatedWords
+      );
+
+      if (!creditCheck.canGenerate) {
+        return res.status(403).json({
+          success: false,
+          error: creditCheck.message || 'Limite de documentos atingido',
+          plan: creditCheck.planName,
+          limit: creditCheck.limit,
+          consumed: creditCheck.consumed,
+          available: creditCheck.available
+        });
+      }
+
+      logger.info(`Credit check passed: ${creditCheck.available} documents available for user ${userId} (plan: ${creditCheck.planName})`);
     }
 
     // 2. TODO: Implement scraping (requires optional dependencies)
@@ -143,8 +156,9 @@ router.post('/generate', async (req: Request, res: Response) => {
  */
 router.post('/finalize', async (req: Request, res: Response) => {
   try {
-    const { content, title } = req.body;
+    const { content, title, documentId, documentType, metadata } = req.body;
     const userId = (req as any).user?.id;
+    const accessToken = (req as any).user?.accessToken || req.headers.authorization?.replace('Bearer ', '');
 
     if (!content || typeof content !== 'string') {
       return res.status(400).json({
@@ -172,29 +186,51 @@ router.post('/finalize', async (req: Request, res: Response) => {
       });
     }
 
-    // 2. Verifica se tem créditos suficientes
-    const remaining = await creditsService.getRemainingWords(userId);
-    if (wordCount > remaining) {
-      return res.status(403).json({
-        success: false,
-        error: `Créditos insuficientes. Você precisa de ${wordCount} palavras mas tem apenas ${remaining}.`,
-        wordCount,
-        remaining
-      });
+    // 2. Verifica créditos novamente (validação final)
+    if (accessToken) {
+      const creditCheck = await creditsService.checkCreditsAvailable(
+        userId.toString(),
+        accessToken,
+        wordCount
+      );
+
+      if (!creditCheck.canGenerate) {
+        return res.status(403).json({
+          success: false,
+          error: creditCheck.message || 'Limite de documentos atingido',
+          plan: creditCheck.planName,
+          limit: creditCheck.limit,
+          consumed: creditCheck.consumed,
+          available: creditCheck.available
+        });
+      }
     }
 
-    // 3. AQUI SIM desconta créditos!
-    const newRemaining = await creditsService.incrementUsage(userId, wordCount);
+    // 3. AQUI SIM registra geração de 1 documento!
+    await creditsService.trackDocumentGeneration(
+      userId.toString(),
+      wordCount,
+      documentId,
+      {
+        title: title || 'Documento sem título',
+        document_type: documentType || 'research',
+        ...metadata
+      }
+    );
 
-    logger.info(`Document finalized: ${wordCount} words deducted. Remaining: ${newRemaining}`);
+    // 4. Busca estatísticas atualizadas
+    const stats = await creditsService.getCreditStats(userId.toString(), accessToken);
 
-    // 4. Retorna confirmação
+    logger.info(`Document finalized: 1 document generated (${wordCount} words). Remaining: ${stats.remaining} documents`);
+
+    // 5. Retorna confirmação
     res.json({
       success: true,
       wordCount,
-      remaining: newRemaining,
+      documentsRemaining: stats.remaining,
+      stats,
       title: title || 'Documento sem título',
-      message: `Documento finalizado com sucesso! ${wordCount} palavras foram descontadas.`,
+      message: `Documento finalizado com sucesso! Você tem ${stats.remaining} documentos restantes este mês.`,
       timestamp: new Date().toISOString()
     });
 
@@ -209,11 +245,12 @@ router.post('/finalize', async (req: Request, res: Response) => {
 
 /**
  * GET /api/research/credits
- * Consulta os créditos/palavras disponíveis do usuário
+ * Consulta os créditos/palavras disponíveis do usuário (HÍBRIDO: SmileAI + Local)
  */
 router.get('/credits', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.id;
+    const accessToken = (req as any).user?.accessToken || req.headers.authorization?.replace('Bearer ', '');
 
     if (!userId) {
       return res.status(401).json({
@@ -222,7 +259,7 @@ router.get('/credits', async (req: Request, res: Response) => {
       });
     }
 
-    const stats = await creditsService.getCreditStats(userId);
+    const stats = await creditsService.getCreditStats(userId.toString(), accessToken);
 
     res.json({
       success: true,
@@ -234,6 +271,39 @@ router.get('/credits', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Erro ao buscar créditos'
+    });
+  }
+});
+
+/**
+ * GET /api/research/credits/history
+ * Retorna histórico de uso de créditos do usuário
+ */
+router.get('/credits/history', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Usuário não autenticado'
+      });
+    }
+
+    const history = await creditsService.getCreditHistory(userId.toString(), limit);
+
+    res.json({
+      success: true,
+      history,
+      count: history.length
+    });
+
+  } catch (error) {
+    logger.error('Error fetching credit history:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro ao buscar histórico'
     });
   }
 });
