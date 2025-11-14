@@ -91,11 +91,25 @@ router.get('/:id/download', async (req: Request, res: Response) => {
     const documentId = parseInt(req.params.id);
 
     if (!userId) {
+      logger.warn('Download attempt without authentication');
       return res.status(401).json({ success: false, error: 'Não autenticado' });
     }
 
+    logger.info(`Download request: documentId=${documentId}, userId=${userId}`);
+
     const document = await DocumentHistoryService.getDocument(documentId, userId);
+
+    if (!document) {
+      logger.error(`Document not found: documentId=${documentId}, userId=${userId}`);
+      return res.status(404).json({ success: false, error: 'Documento não encontrado' });
+    }
+
     const content = await DocumentHistoryService.getDocumentContent(documentId, userId);
+
+    if (!content) {
+      logger.error(`Document content is empty: documentId=${documentId}`);
+      return res.status(404).json({ success: false, error: 'Conteúdo do documento não encontrado' });
+    }
 
     // Determina o Content-Type baseado no formato do arquivo
     const contentTypes: Record<string, string> = {
@@ -121,15 +135,29 @@ router.get('/:id/download', async (req: Request, res: Response) => {
 
     const fileName = `${sanitizedTitle}.${fileFormat}`;
 
+    logger.info(`Sending download: fileName=${fileName}, contentType=${contentType}, size=${content.length} bytes`);
+
     // Define headers para download
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.setHeader('Cache-Control', 'no-cache');
 
     res.send(content);
-  } catch (error) {
-    logger.error('Erro ao fazer download do documento:', error);
-    res.status(404).json({ success: false, error: 'Documento não encontrado' });
+  } catch (error: any) {
+    logger.error('Erro ao fazer download do documento:', {
+      error: error.message,
+      stack: error.stack,
+      documentId: req.params.id,
+      userId: (req as any).user?.id
+    });
+
+    // Retorna erro mais específico
+    const statusCode = error.message?.includes('não encontrado') ? 404 : 500;
+    res.status(statusCode).json({
+      success: false,
+      error: error.message || 'Erro ao fazer download do documento',
+      code: 'DOWNLOAD_ERROR'
+    });
   }
 });
 
