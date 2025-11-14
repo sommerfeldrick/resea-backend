@@ -107,7 +107,7 @@ router.get('/:id/download', async (req: Request, res: Response) => {
       'json': 'application/json'
     };
 
-    const fileFormat = document.file_format || 'html';
+    const fileFormat = document.file_format || 'docx';  // Default para Word
     const contentType = contentTypes[fileFormat] || 'application/octet-stream';
 
     // Sanitiza o nome do arquivo (remove caracteres especiais, acentos, quebras de linha)
