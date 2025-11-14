@@ -64,7 +64,7 @@ router.post('/plan', async (req: Request, res: Response) => {
 /**
  * POST /api/research/generate
  * Executa a pesquisa completa: scraping + geração de conteúdo
- * NÃO desconta créditos ainda (apenas quando finalizar)
+ * DESCONTA créditos AQUI (pois o custo da API já foi consumido)
  */
 router.post('/generate', async (req: Request, res: Response) => {
   try {
@@ -127,19 +127,39 @@ router.post('/generate', async (req: Request, res: Response) => {
     const FALLBACK_MESSAGE = `# ${query}\n\n## Conteúdo em desenvolvimento\n\nEste endpoint requer dependências opcionais (groq-sdk, openai) que não estão instaladas.\nUse o endpoint /api/generate-plan e /api/generate-content para funcionalidade completa.`;
     const content = FALLBACK_MESSAGE;
 
-    // 5. Conta palavras do rascunho
+    // 5. Conta palavras do conteúdo gerado
     const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
 
     logger.info(`Content generated successfully: ${wordCount} words`);
 
-    // 6. Retorna conteúdo MAS NÃO DESCONTA CRÉDITOS!
+    // 6. 🔥 DESCONTA CRÉDITOS AQUI (pois as APIs já foram consumidas!)
+    if (accessToken) {
+      await creditsService.trackDocumentGeneration(
+        userId.toString(),
+        wordCount,
+        undefined, // documentId será gerado ao salvar
+        {
+          title: query,
+          document_type: 'research',
+          research_query: query
+        }
+      );
+
+      // Atualiza estatísticas
+      const stats = await creditsService.getCreditStats(userId.toString(), accessToken);
+      remaining = stats.remaining;
+
+      logger.info(`✅ Credit deducted: 1 document generated (${wordCount} words). Remaining: ${remaining} documents`);
+    }
+
+    // 7. Retorna conteúdo com créditos já descontados
     res.json({
       success: true,
-      content, // Rascunho para o usuário editar
+      content, // Conteúdo gerado (usuário pode editar antes de salvar)
       wordCount,
       sourcesCount: sources.length,
       remaining,
-      message: 'Conteúdo gerado com sucesso! Edite e finalize quando estiver pronto.'
+      message: '✅ Documento gerado com sucesso! 1 crédito foi descontado.'
     });
 
   } catch (error) {
@@ -153,8 +173,7 @@ router.post('/generate', async (req: Request, res: Response) => {
 
 /**
  * POST /api/research/finalize
- * FINALIZA o documento e DESCONTA créditos
- * Este é o único endpoint que realmente decrementa palavras!
+ * FINALIZA o documento (apenas salva - créditos já foram descontados na geração!)
  */
 router.post('/finalize', async (req: Request, res: Response) => {
   try {
@@ -188,51 +207,20 @@ router.post('/finalize', async (req: Request, res: Response) => {
       });
     }
 
-    // 2. Verifica créditos novamente (validação final)
-    if (accessToken) {
-      const creditCheck = await creditsService.checkCreditsAvailable(
-        userId.toString(),
-        accessToken,
-        wordCount
-      );
-
-      if (!creditCheck.canGenerate) {
-        return res.status(403).json({
-          success: false,
-          error: creditCheck.message || 'Limite de documentos atingido',
-          plan: creditCheck.planName,
-          limit: creditCheck.limit,
-          consumed: creditCheck.consumed,
-          available: creditCheck.available
-        });
-      }
-    }
-
-    // 3. AQUI SIM registra geração de 1 documento!
-    await creditsService.trackDocumentGeneration(
-      userId.toString(),
-      wordCount,
-      documentId,
-      {
-        title: title || 'Documento sem título',
-        document_type: documentType || 'research',
-        ...metadata
-      }
-    );
-
-    // 4. Busca estatísticas atualizadas
+    // 2. ⚠️ CRÉDITOS JÁ FORAM DESCONTADOS NA GERAÇÃO!
+    // Aqui apenas retornamos as estatísticas atuais
     const stats = await creditsService.getCreditStats(userId.toString(), accessToken);
 
-    logger.info(`Document finalized: 1 document generated (${wordCount} words). Remaining: ${stats.remaining} documents`);
+    logger.info(`Document finalized: ${wordCount} words. User has ${stats.remaining} documents remaining`);
 
-    // 5. Retorna confirmação
+    // 3. Retorna confirmação (sem descontar créditos novamente)
     res.json({
       success: true,
       wordCount,
       documentsRemaining: stats.remaining,
       stats,
       title: title || 'Documento sem título',
-      message: `Documento finalizado com sucesso! Você tem ${stats.remaining} documentos restantes este mês.`,
+      message: `✅ Documento finalizado com sucesso! Você tem ${stats.remaining} documentos restantes este mês.`,
       timestamp: new Date().toISOString()
     });
 
