@@ -427,10 +427,13 @@ router.post('/generation/generate', async (req: Request, res: Response) => {
 /**
  * POST /api/research-flow/generation/complete
  * Gera documento completo com TODAS as seções (Introdução, Revisão, Metodologia, Resultados, Discussão, Conclusão)
+ * DESCONTA créditos após gerar o documento
  */
 router.post('/generation/complete', async (req: Request, res: Response) => {
   try {
     const { config, articles, query, focusSection } = req.body;
+    const userId = (req as any).user?.id;
+    const accessToken = (req as any).user?.accessToken || req.headers.authorization?.replace('Bearer ', '');
 
     if (!config || !articles || !query) {
       return res.status(400).json({
@@ -439,7 +442,37 @@ router.post('/generation/complete', async (req: Request, res: Response) => {
       });
     }
 
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Usuário não autenticado'
+      });
+    }
+
+    // 🔥 VERIFICA CRÉDITOS ANTES DE GERAR
+    if (accessToken) {
+      const creditCheck = await creditsService.checkCreditsAvailable(
+        userId.toString(),
+        accessToken,
+        5000 // Estimativa de palavras para documento completo
+      );
+
+      if (!creditCheck.canGenerate) {
+        return res.status(403).json({
+          success: false,
+          error: creditCheck.message || 'Limite de documentos atingido',
+          plan: creditCheck.planName,
+          limit: creditCheck.limit,
+          consumed: creditCheck.consumed,
+          available: creditCheck.available
+        });
+      }
+
+      logger.info(`Credit check passed for user ${userId}: ${creditCheck.available} documents available`);
+    }
+
     logger.info('API: Generate complete document', {
+      userId,
       focusSection,
       articleCount: articles.length
     });
@@ -463,9 +496,11 @@ router.post('/generation/complete', async (req: Request, res: Response) => {
 
       let totalChunks = 0;
       let lastChunk = '';
+      let fullContent = ''; // 🔥 Acumular conteúdo completo para descontar créditos
 
       for await (const chunk of stream) {
         lastChunk = chunk;
+        fullContent += chunk; // 🔥 Acumular todo o conteúdo gerado
 
         // Quebrar chunks muito grandes para evitar JSON truncado no TCP
         if (chunk.length > 500) {
@@ -482,6 +517,25 @@ router.post('/generation/complete', async (req: Request, res: Response) => {
       }
 
       logger.info('Complete document generation streaming finished', { totalChunks });
+
+      // 🔥 DESCONTA CRÉDITOS APÓS GERAR O DOCUMENTO COMPLETO!
+      const wordCount = fullContent.split(/\s+/).filter(w => w.length > 0).length;
+
+      if (accessToken && fullContent.length > 0) {
+        await creditsService.trackDocumentGeneration(
+          userId.toString(),
+          wordCount,
+          undefined, // documentId será gerado ao salvar
+          {
+            title: query,
+            document_type: 'research',
+            research_query: query,
+            focus_section: focusSection
+          }
+        );
+
+        logger.info(`✅ Credit deducted for user ${userId}: 1 document generated (${wordCount} words)`);
+      }
 
       // Enviar evento de flush para garantir que o buffer foi limpo
       res.write(`data: ${JSON.stringify({ type: 'flush', totalChunks })}\n\n`);

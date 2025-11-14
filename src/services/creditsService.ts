@@ -193,40 +193,103 @@ export class CreditsService {
 
   /**
    * Mapeia nome do plano para limite de DOCUMENTOS por mês
+   * Lê os limites das variáveis de ambiente para máxima flexibilidade
    */
   getDocumentLimit(planName: string): number {
-    const limits: Record<string, number> = {
-      'básico': 0,
-      'basico': 0,
-      'basic': 0,
-      'standard': 10,
-      'premium': 20,
-      'pro': 20,
-      'enterprise': 50 // Bonus para enterprise
+    const normalized = planName.toLowerCase().trim();
+
+    // Mapeia plano para variável de ambiente
+    const planToEnvVar: Record<string, string> = {
+      // Básico (mensal e anual)
+      'básico': 'PLAN_BASICO_LIMIT',
+      'basico': 'PLAN_BASICO_LIMIT',
+      'basic': 'PLAN_BASICO_LIMIT',
+      'básico - economize 20%': 'PLAN_BASICO_LIMIT',
+
+      // Intermediário (mensal e anual)
+      'intermediário': 'PLAN_INTERMEDIARIO_LIMIT',
+      'intermediario': 'PLAN_INTERMEDIARIO_LIMIT',
+      'intermediate': 'PLAN_INTERMEDIARIO_LIMIT',
+      'standard': 'PLAN_INTERMEDIARIO_LIMIT',
+      'intermediário - economize 30%': 'PLAN_INTERMEDIARIO_LIMIT',
+
+      // Avançado (mensal e anual)
+      'avançado': 'PLAN_AVANCADO_LIMIT',
+      'avancado': 'PLAN_AVANCADO_LIMIT',
+      'advanced': 'PLAN_AVANCADO_LIMIT',
+      'premium': 'PLAN_AVANCADO_LIMIT',
+      'pro': 'PLAN_AVANCADO_LIMIT',
+      'avançado - economize 40%': 'PLAN_AVANCADO_LIMIT',
+
+      // Enterprise (futuro)
+      'enterprise': 'PLAN_ENTERPRISE_LIMIT',
+      'empresarial': 'PLAN_ENTERPRISE_LIMIT',
+
+      // Free/Trial
+      'free': 'PLAN_FREE_LIMIT',
+      'trial': 'PLAN_FREE_LIMIT',
+      'gratuito': 'PLAN_FREE_LIMIT'
     };
 
-    const normalized = planName.toLowerCase().trim();
-    return limits[normalized] ?? 0; // Default: 0 documentos
+    const envVar = planToEnvVar[normalized];
+
+    if (envVar && process.env[envVar]) {
+      return parseInt(process.env[envVar], 10);
+    }
+
+    // Fallback: valores padrão se variável não existir
+    const defaultLimits: Record<string, number> = {
+      'PLAN_BASICO_LIMIT': 5,
+      'PLAN_INTERMEDIARIO_LIMIT': 15,
+      'PLAN_AVANCADO_LIMIT': 50,
+      'PLAN_ENTERPRISE_LIMIT': 100,
+      'PLAN_FREE_LIMIT': 0
+    };
+
+    return envVar ? (defaultLimits[envVar] ?? 0) : 0;
   }
 
   /**
    * Normaliza nome do plano (padronização)
+   * Mapeia os 6 planos da SmileAI + Enterprise + Free
    */
   normalizePlanName(planName: string): string {
     const normalized = planName.toLowerCase().trim();
 
     // Mapeia variações para nomes padrão
     const mapping: Record<string, string> = {
+      // Básico (mensal e anual)
       'básico': 'básico',
       'basico': 'básico',
       'basic': 'básico',
-      'standard': 'standard',
-      'premium': 'premium',
-      'pro': 'premium',
-      'enterprise': 'enterprise'
+      'básico - economize 20%': 'básico',
+
+      // Intermediário (mensal e anual)
+      'intermediário': 'intermediário',
+      'intermediario': 'intermediário',
+      'intermediate': 'intermediário',
+      'standard': 'intermediário',
+      'intermediário - economize 30%': 'intermediário',
+
+      // Avançado (mensal e anual)
+      'avançado': 'avançado',
+      'avancado': 'avançado',
+      'advanced': 'avançado',
+      'premium': 'avançado',
+      'pro': 'avançado',
+      'avançado - economize 40%': 'avançado',
+
+      // Enterprise (futuro)
+      'enterprise': 'enterprise',
+      'empresarial': 'enterprise',
+
+      // Free/Trial
+      'free': 'free',
+      'trial': 'free',
+      'gratuito': 'free'
     };
 
-    return mapping[normalized] || 'básico';
+    return mapping[normalized] || 'free';
   }
 
   /**
