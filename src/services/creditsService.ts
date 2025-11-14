@@ -857,9 +857,5 @@ export class CreditsService {
 }
 
 // Singleton instance
+// Note: Connection is managed by server.ts to avoid initialization issues
 export const creditsService = new CreditsService();
-
-// Conecta ao Redis se disponível
-creditsService.connect()
-  .then(() => logger.info('✅ Credits service initialized'))
-  .catch(err => logger.warn('⚠️ Credits service will use memory cache:', err.message));
