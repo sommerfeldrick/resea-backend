@@ -65,6 +65,7 @@ const allowedOrigins = [
   'https://smileai.com.br',
   'http://localhost:3000',
   'http://localhost:5173',
+  'https://resea-frontend.onrender.com',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
@@ -74,12 +75,22 @@ app.use(
       // Permitir requisições sem origin (como mobile apps ou curl)
       if (!origin) return callback(null, true);
 
+      // Verificar se é uma origem permitida exata
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
-      } else {
-        logger.warn(`CORS blocked origin: ${origin}`);
-        callback(null, false);
+        return;
       }
+
+      // Permitir qualquer subdomínio .onrender.com (para deploys de preview e produção)
+      if (origin.endsWith('.onrender.com')) {
+        logger.info(`CORS allowed Render origin: ${origin}`);
+        callback(null, true);
+        return;
+      }
+
+      // Bloquear outras origens
+      logger.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
