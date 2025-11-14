@@ -110,6 +110,7 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const userId = (req as any).user?.id;
+      const accessToken = req.smileaiToken;
 
       if (!userId) {
         return res.status(401).json({
@@ -118,41 +119,28 @@ router.get(
         });
       }
 
-      // Busca ou cria os dados de uso do usuário
-      const usage = await creditsService.getUserUsage(userId);
+      // Busca estatísticas de crédito do usuário
+      const stats = await creditsService.getCreditStats(userId.toString(), accessToken);
 
-      if (!usage) {
+      if (!stats) {
         return res.status(404).json({
           success: false,
           error: 'Dados de uso não encontrados',
         });
       }
 
-      // Calcula documentos restantes
-      const documentsRemaining = Math.max(0, usage.monthly_limit - usage.words_consumed_today);
-
-      // Calcula data do próximo reset (próximo aniversário da compra)
-      const purchaseDate = new Date(usage.plan_purchase_date);
-      const nextResetDate = new Date(purchaseDate);
-      const now = new Date();
-
-      // Avança mês a mês até encontrar a próxima data de reset
-      while (nextResetDate <= now) {
-        nextResetDate.setMonth(nextResetDate.getMonth() + 1);
-      }
-
       // Retorna dados no formato esperado pelo frontend
       res.json({
         success: true,
         data: {
-          words_left: documentsRemaining,
-          total_words: usage.monthly_limit,
-          words_consumed_today: usage.words_consumed_today,
-          plan_name: usage.plan_name || 'Básico',
-          plan_status: 'active',
-          plan_purchase_date: usage.plan_purchase_date,
-          next_reset_date: nextResetDate.toISOString(),
-          smileai_remaining_words: usage.smileai_remaining_words || 0,
+          words_left: stats.remaining,
+          total_words: stats.limit,
+          words_consumed_today: stats.consumed,
+          plan_name: stats.plan || 'Básico',
+          plan_status: stats.is_active ? 'active' : 'inactive',
+          plan_purchase_date: stats.purchase_date,
+          next_reset_date: stats.next_reset,
+          smileai_remaining_words: 0, // Placeholder, pode ser implementado depois se necessário
         },
       });
     } catch (error: any) {
