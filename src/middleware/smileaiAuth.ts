@@ -7,6 +7,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger.js';
 import { smileaiAuth, extractTokenFromHeader } from '../services/smileaiAuth.js';
+import { UserSyncService } from '../services/userSyncService.js';
 
 // Extend Express Request to include SmileAI user
 declare global {
@@ -45,9 +46,9 @@ export async function smileaiAuthRequired(
     }
 
     // Validar token e obter usuário
-    const user = await smileaiAuth.getUserInfo(token);
+    const smileaiUser = await smileaiAuth.getUserInfo(token);
 
-    if (!user) {
+    if (!smileaiUser) {
       res.status(401).json({
         success: false,
         error: 'Token inválido ou expirado',
@@ -56,19 +57,27 @@ export async function smileaiAuthRequired(
       return;
     }
 
+    // 🔥 SINCRONIZAR USUÁRIO COM BANCO LOCAL
+    // Isso garante que o user_id existe na tabela users (para foreign keys)
+    const localUserId = await UserSyncService.syncUser(smileaiUser);
+
     // Anexar usuário e token ao request
-    req.smileaiUser = user;
+    req.smileaiUser = smileaiUser;
     req.smileaiToken = token;
 
     // Compatibilidade: também definir req.user para rotas que usam req.user
+    // IMPORTANTE: req.user.id agora é o ID LOCAL (da tabela users), não o ID do SmileAI
     (req as any).user = {
-      ...user,
+      ...smileaiUser,
+      id: localUserId,           // ID local (PostgreSQL)
+      smileaiId: smileaiUser.id, // ID original do SmileAI
       accessToken: token
     };
 
-    logger.debug('SmileAI Auth: User authenticated', {
-      userId: user.id,
-      email: user.email,
+    logger.debug('SmileAI Auth: User authenticated and synced', {
+      localUserId: localUserId,
+      smileaiId: smileaiUser.id,
+      email: smileaiUser.email,
     });
 
     next();
@@ -109,19 +118,25 @@ export async function smileaiAuthOptional(
     const token = extractTokenFromHeader(req.headers.authorization);
 
     if (token) {
-      const user = await smileaiAuth.getUserInfo(token);
-      if (user) {
-        req.smileaiUser = user;
+      const smileaiUser = await smileaiAuth.getUserInfo(token);
+      if (smileaiUser) {
+        // Sincronizar usuário com banco local
+        const localUserId = await UserSyncService.syncUser(smileaiUser);
+
+        req.smileaiUser = smileaiUser;
         req.smileaiToken = token;
 
         // Compatibilidade: também definir req.user para rotas que usam req.user
         (req as any).user = {
-          ...user,
+          ...smileaiUser,
+          id: localUserId,           // ID local (PostgreSQL)
+          smileaiId: smileaiUser.id, // ID original do SmileAI
           accessToken: token
         };
 
-        logger.debug('SmileAI Auth: Optional auth successful', {
-          userId: user.id,
+        logger.debug('SmileAI Auth: Optional auth successful and synced', {
+          localUserId: localUserId,
+          smileaiId: smileaiUser.id,
         });
       }
     }

@@ -15,6 +15,7 @@ import {
   processEditRequest,
   verifyDocumentQuality
 } from '../services/researchFlowService.js';
+import { creditsService } from '../services/creditsService.js';
 import type {
   ClarificationAnswer,
   FlowSearchProgress
