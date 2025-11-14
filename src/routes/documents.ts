@@ -110,8 +110,15 @@ router.get('/:id/download', async (req: Request, res: Response) => {
     const fileFormat = document.file_format || 'html';
     const contentType = contentTypes[fileFormat] || 'application/octet-stream';
 
-    // Sanitiza o nome do arquivo
-    const sanitizedTitle = document.title.replace(/[^a-zA-Z0-9\s\-_]/g, '').substring(0, 100);
+    // Sanitiza o nome do arquivo (remove caracteres especiais, acentos, quebras de linha)
+    const sanitizedTitle = document.title
+      .normalize('NFD')                           // Decompõe acentos
+      .replace(/[\u0300-\u036f]/g, '')           // Remove diacríticos
+      .replace(/[^a-zA-Z0-9\s\-_]/g, '')         // Remove caracteres especiais
+      .replace(/\s+/g, '_')                       // Substitui espaços por underscore
+      .substring(0, 100)
+      .trim() || 'documento';                     // Fallback se ficar vazio
+
     const fileName = `${sanitizedTitle}.${fileFormat}`;
 
     // Define headers para download
