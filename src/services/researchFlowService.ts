@@ -328,7 +328,7 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
         {
           id: 'q1',
           questionNumber: 1,
-          totalQuestions: 3,
+          totalQuestions: 4,
           type: 'multiple_choice',
           question: 'Qual seção do documento você deseja escrever?',
           description: 'Isso ajudará a priorizar os tipos de artigos mais relevantes',
@@ -336,6 +336,9 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
             { value: 'introducao', label: 'Introdução', description: 'Contextualização geral do tema', estimatedArticles: 20 },
             { value: 'revisao', label: 'Revisão de Literatura', description: 'Estado da arte e fundamentação teórica', estimatedArticles: 60 },
             { value: 'metodologia', label: 'Metodologia', description: 'Métodos e procedimentos', estimatedArticles: 15 },
+            { value: 'resultados', label: 'Resultados', description: 'Apresentação de dados e achados', estimatedArticles: 25 },
+            { value: 'discussao', label: 'Discussão', description: 'Interpretação e análise dos resultados', estimatedArticles: 30 },
+            { value: 'conclusao', label: 'Conclusão', description: 'Síntese e considerações finais', estimatedArticles: 15 },
             { value: 'todas', label: 'Todas as seções', description: 'Documento completo', estimatedArticles: 100 }
           ],
           required: true
@@ -343,32 +346,41 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
         {
           id: 'q2',
           questionNumber: 2,
-          totalQuestions: 3,
+          totalQuestions: 4,
           type: 'multiple_choice',
           question: 'Que período de publicação você prefere?',
-          description: 'Selecione o intervalo de tempo para os artigos',
+          description: 'Artigos mais recentes tendem a ter melhor qualidade e relevância',
           options: [
-            { value: 'ultimos_2_anos', label: 'Últimos 2 anos', description: 'Pesquisas mais recentes', estimatedArticles: 30 },
-            { value: 'ultimos_5_anos', label: 'Últimos 5 anos', description: 'Trabalhos recentes e relevantes', estimatedArticles: 60 },
-            { value: 'ultimos_10_anos', label: 'Últimos 10 anos', description: 'Base sólida de literatura', estimatedArticles: 100 },
-            { value: 'sem_restricao', label: 'Sem restrição', description: 'Todos os períodos', estimatedArticles: 150 }
+            { value: 'ultimos_3_anos', label: 'Últimos 3 anos (2022-2025)', description: 'Estado da arte mais atual', estimatedArticles: 40 },
+            { value: 'ultimos_5_anos', label: 'Últimos 5 anos (2020-2025)', description: 'Equilíbrio entre atualidade e volume', estimatedArticles: 70 },
+            { value: 'ultimos_10_anos', label: 'Últimos 10 anos (2015-2025)', description: 'Base sólida e consolidada', estimatedArticles: 120 },
+            { value: 'sem_restricao', label: 'Sem restrição de período', description: 'Todos os artigos disponíveis', estimatedArticles: 200 }
           ],
           required: true
         },
         {
           id: 'q3',
           questionNumber: 3,
-          totalQuestions: 3,
+          totalQuestions: 4,
           type: 'multiple_choice',
-          question: 'Que tipo de estudo você prefere?',
-          description: 'Selecione o tipo de pesquisa mais adequado',
+          question: 'Qual nível de profundidade você precisa?',
+          description: 'Isso afetará o tipo de conteúdo e densidade técnica',
           options: [
-            { value: 'empiricos', label: 'Estudos Empíricos', description: 'Pesquisas com dados e experimentos', estimatedArticles: 40 },
-            { value: 'teoricos', label: 'Estudos Teóricos', description: 'Revisões e frameworks conceituais', estimatedArticles: 30 },
-            { value: 'revisoes', label: 'Revisões Sistemáticas', description: 'Meta-análises e sínteses', estimatedArticles: 20 },
-            { value: 'todos', label: 'Todos os tipos', description: 'Sem preferência', estimatedArticles: 100 }
+            { value: 'basico', label: 'Visão Geral', description: 'Conceitos básicos e introdutórios', estimatedArticles: 50 },
+            { value: 'intermediario', label: 'Detalhado', description: 'Análise técnica e metodológica', estimatedArticles: 80 },
+            { value: 'avancado', label: 'Aprofundado', description: 'Teoria avançada e aspectos complexos', estimatedArticles: 60 }
           ],
           required: true
+        },
+        {
+          id: 'q4',
+          questionNumber: 4,
+          totalQuestions: 4,
+          type: 'text',
+          question: 'Você tem algum contexto ou aplicação específica? (Opcional)',
+          description: 'Ex: "contexto brasileiro", "pequenas empresas", "ensino fundamental", etc.',
+          placeholder: 'Digite aqui se tiver algo específico...',
+          required: false
         }
       ],
       answers: [],
@@ -413,45 +425,44 @@ export async function processClarificationAnswers(
       const value = answer.answer?.toString().toLowerCase() || '';
       const questionText = answer.questionId?.toLowerCase() || '';
 
-      // Detectar período temporal
-      if (value.includes('recente') || value === 'recente') {
+      // Detectar período temporal (Q2)
+      if (value.includes('ultimos_3_anos') || value === 'ultimos_3_anos') {
+        dateRange = { start: currentYear - 3, end: currentYear };
+      } else if (value.includes('ultimos_5_anos') || value === 'ultimos_5_anos') {
         dateRange = { start: currentYear - 5, end: currentYear };
-      } else if (value.includes('amplo') || value === 'amplo') {
+      } else if (value.includes('ultimos_10_anos') || value === 'ultimos_10_anos') {
         dateRange = { start: currentYear - 10, end: currentYear };
-      } else if (value.includes('historico') || value === 'historico') {
-        dateRange = { start: currentYear - 20, end: currentYear };
-      } else if (value.includes('todos') || value === 'todos' || value.includes('sem restrição')) {
-        dateRange = { start: 1900, end: currentYear }; // SEM RESTRIÇÃO!
+      } else if (value.includes('sem_restricao') || value.includes('sem restrição')) {
+        dateRange = { start: 1900, end: currentYear };
       }
 
-      // Detectar tipo de estudo
-      if (value.includes('empirico') || value.includes('empírico')) {
-        documentTypes.push('empirical study', 'clinical study', 'experimental study');
-      } else if (value.includes('revisao') || value.includes('revisão') || value.includes('sistemática')) {
-        documentTypes.push('systematic review', 'meta-analysis', 'literature review');
-      } else if (value.includes('teorico') || value.includes('teórico')) {
-        documentTypes.push('theoretical study', 'conceptual framework');
-      }
-
-      // Detectar seção foco
+      // Detectar seção foco (Q1)
       if (value.includes('introducao') || value.includes('introdução')) {
         focusSection = 'introducao';
       } else if (value.includes('revisao') || value.includes('revisão')) {
         focusSection = 'revisao';
       } else if (value.includes('metodologia')) {
         focusSection = 'metodologia';
+      } else if (value.includes('resultados')) {
+        focusSection = 'resultados';
+      } else if (value.includes('discussao') || value.includes('discussão')) {
+        focusSection = 'discussao';
+      } else if (value.includes('conclusao') || value.includes('conclusão')) {
+        focusSection = 'conclusao';
       }
 
-      // Detectar nível de detalhe
-      if (value.includes('basico') || value.includes('básico')) {
+      // Detectar nível de profundidade (Q3)
+      if (value.includes('basico') || value.includes('básico') || value.includes('visao') || value.includes('visão')) {
         detailLevel = 'basico';
-      } else if (value.includes('avancado') || value.includes('avançado') || value.includes('aprofundada')) {
+      } else if (value.includes('intermediario') || value.includes('intermediário') || value.includes('detalhado')) {
+        detailLevel = 'intermediario';
+      } else if (value.includes('avancado') || value.includes('avançado') || value.includes('aprofundado')) {
         detailLevel = 'avancado';
       }
 
-      // Capturar termos específicos de respostas texto
-      if (typeof answer.answer === 'string' && answer.answer.length > 10 && !['sim', 'nao', 'talvez', 'todos'].includes(value)) {
-        specificTerms.push(answer.answer);
+      // Capturar contexto específico (Q4 - texto livre)
+      if (answer.questionId === 'q4' && typeof answer.answer === 'string' && answer.answer.trim().length > 3) {
+        specificTerms.push(answer.answer.trim());
       }
     }
 
@@ -463,8 +474,9 @@ Respostas: ${JSON.stringify(answers)}
 Retorne um parágrafo conciso (máximo 200 palavras) resumindo:
 - O que o usuário quer pesquisar
 - Qual seção ele quer focar
-- Preferências de tipo de estudo
-- Contexto e período
+- Nível de profundidade desejado
+- Contexto específico (se houver)
+- Período de publicação
 
 Responda em português do Brasil, de forma direta e objetiva.`;
 
@@ -579,7 +591,7 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
   },
   "filters": {
     "dateRange": { "start": 2020, "end": 2025 },
-    "languages": ["pt", "en"],
+    "languages": ["en"],
     "documentTypes": ["article", "review", "conference_paper"]
   },
   "targetArticles": 70,
@@ -766,7 +778,7 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
       },
       filters: {
         dateRange: { start: currentYear - 5, end: currentYear }, // Focado em últimos 5 anos
-        languages: ['pt', 'en'],
+        languages: ['en'], // Artigos em inglês (melhor qualidade)
         documentTypes: ['article', 'review', 'conference_paper']
       },
       targetArticles: 70,
