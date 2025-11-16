@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
 import { logger } from '../config/logger.js';
-import { extractPDFContent } from '../services/pdfExtractor.js';
+import { extractPDFFromBuffer } from '../services/pdfExtractor.js';
 
 const router = Router();
 
@@ -213,11 +213,11 @@ router.post('/:id/process', async (req: Request, res: Response) => {
 
       if (mimeType === 'application/pdf') {
         // Extrair texto de PDF
-        const pdfData = await extractPDFContent(fileBuffer);
-        extractedText = pdfData.text || '';
+        const pdfData = await extractPDFFromBuffer(fileBuffer);
+        extractedText = pdfData?.fullText || pdfData?.text || '';
         metadata = {
-          pageCount: pdfData.numpages || 0,
-          wordCount: extractedText.split(/\s+/).filter(w => w.length > 0).length
+          pageCount: pdfData?.metadata?.pages || 0,
+          wordCount: pdfData?.metadata?.wordCount || extractedText.split(/\s+/).filter(w => w.length > 0).length
         };
         logger.info('PDF processed', { fileId: id, pages: metadata.pageCount, words: metadata.wordCount });
       } else if (mimeType === 'text/plain' || mimeType === 'text/csv') {

@@ -4,7 +4,7 @@ import { logger } from '../config/logger.js';
 import type { PDFExtractionResult } from '../types/index.js';
 
 /**
- * Extract text content from PDF URL or buffer
+ * Extract text content from PDF URL
  */
 export async function extractPDFContent(pdfUrl: string): Promise<PDFExtractionResult | null> {
   try {
@@ -21,6 +21,21 @@ export async function extractPDFContent(pdfUrl: string): Promise<PDFExtractionRe
     });
 
     const buffer = Buffer.from(response.data);
+    return await extractPDFFromBuffer(buffer);
+  } catch (error: any) {
+    logger.error('PDF extraction failed', {
+      pdfUrl,
+      error: error.message
+    });
+    return null;
+  }
+}
+
+/**
+ * Extract text content from PDF Buffer
+ */
+export async function extractPDFFromBuffer(buffer: Buffer): Promise<PDFExtractionResult | null> {
+  try {
     const data = await pdfParse(buffer);
 
     const fullText = data.text;
@@ -35,8 +50,7 @@ export async function extractPDFContent(pdfUrl: string): Promise<PDFExtractionRe
       }
     };
   } catch (error: any) {
-    logger.error('PDF extraction failed', {
-      pdfUrl,
+    logger.error('PDF buffer extraction failed', {
       error: error.message
     });
     return null;
