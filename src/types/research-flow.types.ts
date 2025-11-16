@@ -21,6 +21,7 @@ export interface ClarificationQuestion {
     description?: string;
     estimatedArticles?: number;
   }>;
+  placeholder?: string;
   defaultValue?: any;
   required: boolean;
 }
