@@ -182,19 +182,82 @@ router.post('/:id/process', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // Aqui você implementaria o processamento do arquivo
-    // Extrair texto de PDF, DOCX, etc.
-
     logger.info('File processing started', { fileId: id });
 
-    res.json({
-      success: true,
-      data: {
-        id,
-        status: 'processing',
-        message: 'Processamento iniciado'
+    // Buscar informações do arquivo do corpo da requisição
+    // Em produção, isso viria do banco de dados
+    const fileInfo = req.body;
+
+    if (!fileInfo || !fileInfo.filename) {
+      return res.json({
+        success: true,
+        data: {
+          id,
+          status: 'ready',
+          extractedText: '',
+          metadata: { wordCount: 0 }
+        }
+      });
+    }
+
+    const filePath = path.join(process.cwd(), 'uploads', fileInfo.filename);
+    let extractedText = '';
+    let metadata: any = {};
+
+    try {
+      // Verificar se o arquivo existe
+      await fs.access(filePath);
+
+      const fileBuffer = await fs.readFile(filePath);
+      const mimeType = fileInfo.mimeType || '';
+
+      if (mimeType === 'application/pdf') {
+        // Extrair texto de PDF
+        const pdfData = await extractPDFContent(fileBuffer);
+        extractedText = pdfData.text || '';
+        metadata = {
+          pageCount: pdfData.numpages || 0,
+          wordCount: extractedText.split(/\s+/).filter(w => w.length > 0).length
+        };
+        logger.info('PDF processed', { fileId: id, pages: metadata.pageCount, words: metadata.wordCount });
+      } else if (mimeType === 'text/plain' || mimeType === 'text/csv') {
+        // Ler arquivo de texto
+        extractedText = fileBuffer.toString('utf-8');
+        metadata = {
+          wordCount: extractedText.split(/\s+/).filter(w => w.length > 0).length
+        };
+        logger.info('Text file processed', { fileId: id, words: metadata.wordCount });
+      } else if (mimeType.includes('wordprocessingml') || mimeType.includes('msword')) {
+        // DOCX/DOC - placeholder para implementação futura
+        extractedText = '[Extração de DOCX em desenvolvimento. Por favor, converta para PDF ou TXT]';
+        metadata = { wordCount: 0 };
+        logger.warn('DOCX not yet supported', { fileId: id });
       }
-    });
+
+      res.json({
+        success: true,
+        data: {
+          id,
+          status: 'ready',
+          extractedText: extractedText.substring(0, 50000), // Limitar a 50k caracteres
+          metadata,
+          processedAt: new Date()
+        }
+      });
+    } catch (fileError: any) {
+      logger.error('File read/extraction failed', { fileId: id, error: fileError.message });
+
+      res.json({
+        success: true,
+        data: {
+          id,
+          status: 'error',
+          extractedText: '',
+          metadata: {},
+          error: `Falha ao processar arquivo: ${fileError.message}`
+        }
+      });
+    }
   } catch (error: any) {
     logger.error('File processing failed', { error: error.message });
     res.status(500).json({

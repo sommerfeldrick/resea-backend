@@ -60,7 +60,7 @@ function cleanStringForJSON(str: any): string {
  */
 router.post('/clarification/generate', async (req: Request, res: Response) => {
   try {
-    const { query } = req.body;
+    const { query, attachedFiles } = req.body;
 
     if (!query || typeof query !== 'string') {
       return res.status(400).json({
@@ -69,7 +69,11 @@ router.post('/clarification/generate', async (req: Request, res: Response) => {
       });
     }
 
-    logger.info('API: Generate clarification questions', { query });
+    logger.info('API: Generate clarification questions', {
+      query: query.substring(0, 200) + '...',
+      hasAttachedFiles: !!attachedFiles,
+      filesCount: attachedFiles?.length || 0
+    });
 
     const session = await generateClarificationQuestions(query);
 
