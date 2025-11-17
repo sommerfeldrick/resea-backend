@@ -929,88 +929,143 @@ export async function generateSearchStrategy(
       `${structuredData.dateRange.start}-${structuredData.dateRange.end}` :
       '2020-2025';
 
-    const prompt = `Você é um especialista em busca acadêmica. Crie uma estratégia de busca ALTAMENTE ESPECÍFICA E OTIMIZADA.
+    const prompt = `You are an expert in academic search with Boolean operators. Create a HIGHLY SPECIFIC AND OPTIMIZED search strategy.
 
 ═══════════════════════════════════════════════════════════════
-📚 CONTEXTO DO TRABALHO ACADÊMICO
+📚 ACADEMIC WORK CONTEXT
 ═══════════════════════════════════════════════════════════════
 
-⚠️ TEMA DA PESQUISA: "${query}"
+⚠️ RESEARCH TOPIC: "${query}"
 
-📋 TIPO DE TRABALHO: ${workTypeDesc}
-📑 SEÇÃO ESPECÍFICA: ${sectionDesc}
-📊 NÍVEL DE PROFUNDIDADE: ${detailDesc}
-📅 PERÍODO: ${yearRange}
-${additionalContext ? `🎯 CONTEXTO ESPECÍFICO: ${additionalContext}` : ''}
+📋 WORK TYPE: ${workTypeDesc}
+📑 SPECIFIC SECTION: ${sectionDesc}
+📊 DEPTH LEVEL: ${detailDesc}
+📅 PERIOD: ${yearRange}
+${additionalContext ? `🎯 SPECIFIC CONTEXT: ${additionalContext}` : ''}
 
-RESUMO: ${clarificationSummary}
+SUMMARY: ${clarificationSummary}
 
 ═══════════════════════════════════════════════════════════════
-🎯 DIRETRIZES PARA CRIAÇÃO DA ESTRATÉGIA
+🎯 CRITICAL INSTRUCTIONS FOR QUERY CREATION
 ═══════════════════════════════════════════════════════════════
 
-**IMPORTANTE:** Adapte as queries baseado no TIPO DE TRABALHO e SEÇÃO:
+**MANDATORY RULES:**
+
+1. **LANGUAGE**: ALL queries MUST be in ENGLISH
+   - Academic databases (Semantic Scholar, PubMed, etc.) are 95%+ in English
+   - Portuguese queries will return almost ZERO results
+   - Translate topic "${query}" to proper English technical terms
+
+2. **BOOLEAN OPERATORS**: Use correctly
+   - AND: Combine multiple REQUIRED terms
+   - OR: Synonyms and variations (use parentheses)
+   - Quotes: Exact phrases ("finite element analysis")
+   - Examples:
+     * ("term1" OR "synonym1") AND "term2" AND ("term3" OR "term4")
+     * "exact phrase" AND (variation1 OR variation2)
+
+3. **FORBIDDEN GENERIC TERMS**: NEVER use these useless words:
+   ❌ "introduction" "background" "motivation" "context" "overview" "survey"
+   ❌ "systematic review introduction" "literature review background"
+   ❌ Combining topic with section names (e.g., "FEM introduction")
+   ✅ USE INSTEAD: Specific methods, techniques, applications, clinical contexts
+
+4. **FOCUS ON TECHNICAL SPECIFICITY**:
+   - Domain-specific terminology
+   - Methods, techniques, protocols, instruments
+   - Real applications and contexts (e.g., "implant design", "biomechanics")
+   - Clinical/practical terms, NOT academic structure terms
+
+═══════════════════════════════════════════════════════════════
+📝 WORK-TYPE SPECIFIC GUIDELINES
+═══════════════════════════════════════════════════════════════
 
 ${workType === 'revisao_sistematica' ? `
-- Este é uma REVISÃO SISTEMÁTICA! Priorize:
-  * Artigos metodológicos sobre protocolo PRISMA
-  * Meta-análises e revisões sistemáticas similares
-  * Estudos primários de alta qualidade sobre "${query}"
-  * Critérios de seleção e avaliação de qualidade
+**SYSTEMATIC REVIEW**:
+- Use: "systematic review" OR "meta-analysis" OR "scoping review" OR "PRISMA"
+- Focus on methodology and quality assessment
+- Combine with specific clinical outcomes or interventions
 ` : ''}
 
 ${section === 'introducao' ? `
-- Para INTRODUÇÃO, busque:
-  * Contextualização e panorama geral de "${query}"
-  * Definições de conceitos fundamentais
-  * Justificativas e lacunas na literatura
-  * Estatísticas e dados relevantes
+**INTRODUCTION SECTION**:
+- Focus: prevalence, epidemiology, current state, definitions
+- Use: "prevalence" OR "epidemiology" OR "incidence" OR "distribution"
+- Avoid: "introduction", "background" (these are useless!)
 ` : ''}
 
 ${section === 'metodologia' ? `
-- Para METODOLOGIA, busque:
-  * Métodos de pesquisa aplicados em "${query}"
-  * Instrumentos e ferramentas utilizadas
-  * Procedimentos metodológicos detalhados
-  * Validação de métodos
+**METHODOLOGY SECTION**:
+- Focus: specific methods, protocols, instruments, validation
+- Use: "method" OR "protocol" OR "technique" OR "measurement" OR "validation"
+- Include: tool names, procedure names, analysis methods
 ` : ''}
 
 ${section === 'revisao' ? `
-- Para REVISÃO DE LITERATURA, busque:
-  * Estado da arte sobre "${query}"
-  * Teorias fundamentais e frameworks
-  * Evolução histórica do tema
-  * Autores seminais e trabalhos clássicos
+**LITERATURE REVIEW**:
+- Focus: comprehensive coverage, theoretical frameworks
+- Use: "review" OR "state of the art" OR "recent advances" OR "progress"
+- Avoid: "literature review" (redundant term)
+` : ''}
+
+${section === 'resultados' ? `
+**RESULTS SECTION**:
+- Focus: outcomes, findings, efficacy, effectiveness
+- Use: "results" OR "outcomes" OR "findings" OR "efficacy" OR "effectiveness"
+` : ''}
+
+${section === 'discussao' ? `
+**DISCUSSION SECTION**:
+- Focus: comparisons, advantages, limitations, implications
+- Use: "comparison" OR "advantages" OR "limitations" OR "clinical implications"
 ` : ''}
 
 ${structuredData?.detailLevel === 'basico' ? `
-- Nível BÁSICO: Priorize artigos de revisão, overviews, surveys e trabalhos introdutórios
+**BASIC LEVEL**: Include review articles and general studies
 ` : structuredData?.detailLevel === 'avancado' ? `
-- Nível AVANÇADO: Priorize artigos teóricos densos, debates epistemológicos e estudos empíricos complexos
+**ADVANCED LEVEL**: Focus on complex methods and theoretical depth
 ` : ''}
 
 ═══════════════════════════════════════════════════════════════
-📊 ESTRUTURA DE PRIORIDADES (THRESHOLDS ATUALIZADOS)
+📊 PRIORITY STRUCTURE (UPDATED THRESHOLDS)
 ═══════════════════════════════════════════════════════════════
 
-**P1 (Score ≥70)**: Artigos EXCELENTES sobre "${query}"
-- Queries MUITO específicas com termos técnicos
-- Combine "${query}" + termos metodológicos específicos
-- Alvo: 30-40 artigos | ${yearRange}
-- Ex: "${query} systematic review", "${query} ${section} empirical study"
+**P1 (Score ≥70)**: EXCELLENT articles - HIGHLY SPECIFIC
+- Combine CORE concept + SPECIFIC methods/applications/contexts
+- Use AND between required terms, OR for synonyms
+- Target: 30-40 articles | ${yearRange}
+- Example: ("finite element" OR "FEM") AND dentistry AND ("stress analysis" OR biomechanics OR "implant design")
 
-**P2 (Score ≥45)**: Artigos BONS sobre "${query}"
-- Queries abrangentes com sinônimos e variações
-- Alvo: 20-25 artigos | ${yearRange}
-- Ex: "${query} research", "${query} ${section} analysis"
+**P2 (Score ≥45)**: GOOD articles - MODERATE SPECIFICITY
+- Broader combinations with domain variations
+- Include related techniques and contexts
+- Target: 20-25 articles | ${yearRange}
+- Example: ("finite element" OR "computational modeling") AND (dental OR orthodontics)
 
-**P3 (Score 30-44)**: Artigos ACEITÁVEIS sobre "${query}"
-- Queries gerais para contexto e background
-- Alvo: 10-15 artigos | ${yearRange}
-- Ex: "${query} overview", "${query} survey"
+**P3 (Score 30-44)**: ACCEPTABLE articles - GENERAL
+- Core concepts for background
+- Simpler Boolean combinations
+- Target: 10-15 articles | ${yearRange}
+- Example: "finite element" AND dentistry
 
 ═══════════════════════════════════════════════════════════════
-✅ RETORNE APENAS JSON VÁLIDO (SEM MARKDOWN)
+✅ EXAMPLES: CORRECT vs INCORRECT QUERIES
+═══════════════════════════════════════════════════════════════
+
+❌ WRONG (will return BAD results):
+- "elementos finitos odontologia" → Portuguese! Zero results!
+- "finite element dentistry introduction" → "introduction" is useless!
+- "dental FEA background" → "background" is useless!
+- "FEM overview" → "overview" finds nothing useful!
+
+✅ CORRECT (will return GOOD results):
+- ("finite element analysis" OR "FEA") AND dentistry AND (biomechanics OR "stress distribution")
+- ("finite element method" OR "FEM") AND (dental OR orthodontics) AND (simulation OR modeling)
+- "finite element" AND dentistry AND ("implant design" OR prosthesis OR restoration)
+- ("computational modeling" OR "numerical simulation") AND oral AND ("bone remodeling" OR osseointegration)
+
+═══════════════════════════════════════════════════════════════
+✅ RETURN ONLY VALID JSON (NO MARKDOWN)
 ═══════════════════════════════════════════════════════════════
 
 {
@@ -1018,22 +1073,22 @@ ${structuredData?.detailLevel === 'basico' ? `
   "originalQuery": "${query}",
   "queries": {
     "P1": [
-      { "query": "query P1 específica", "priority": "P1", "expectedResults": 12 },
-      { "query": "query P1 específica 2", "priority": "P1", "expectedResults": 12 },
-      { "query": "query P1 específica 3", "priority": "P1", "expectedResults": 12 }
+      { "query": "highly specific with Boolean AND/OR", "priority": "P1", "expectedResults": 12 },
+      { "query": "highly specific 2 with technical terms", "priority": "P1", "expectedResults": 12 },
+      { "query": "highly specific 3 with applications", "priority": "P1", "expectedResults": 12 }
     ],
     "P2": [
-      { "query": "query P2 abrangente", "priority": "P2", "expectedResults": 15 },
-      { "query": "query P2 abrangente 2", "priority": "P2", "expectedResults": 15 }
+      { "query": "moderate specificity with variations", "priority": "P2", "expectedResults": 15 },
+      { "query": "moderate 2 with broader domain terms", "priority": "P2", "expectedResults": 15 }
     ],
     "P3": [
-      { "query": "query P3 geral", "priority": "P3", "expectedResults": 10 }
+      { "query": "general core concepts only", "priority": "P3", "expectedResults": 10 }
     ]
   },
   "keyTerms": {
-    "primary": ["termo principal 1", "termo principal 2"],
-    "specific": ["termo específico 1", "termo específico 2", "termo específico 3"],
-    "methodological": ["systematic review", "meta-analysis", "empirical study"]
+    "primary": ["main English term 1", "main English term 2"],
+    "specific": ["specific technical term 1", "specific term 2", "method/technique 1"],
+    "methodological": ["method 1", "technique 1", "application 1"]
   },
   "filters": {
     "dateRange": ${JSON.stringify(structuredData?.dateRange || { start: 2020, end: 2025 })},
@@ -1041,11 +1096,11 @@ ${structuredData?.detailLevel === 'basico' ? `
     "documentTypes": ["article", "review", "conference_paper"]
   },
   "targetArticles": 70,
-  "estimatedTime": "3-5 minutos"
+  "estimatedTime": "3-5 minutes"
 }`;
 
     const response = await generateText(prompt, {
-      systemPrompt: 'Você é um especialista em estratégia de busca acadêmica. Retorne APENAS JSON válido.',
+      systemPrompt: 'You are an expert in academic search strategy with Boolean operators. Return ONLY valid JSON, no markdown.',
       temperature: 0.6,
       maxTokens: 8000  // Limite do DeepSeek-chat: 8192 tokens
     });
