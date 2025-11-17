@@ -12,6 +12,19 @@ import { QdrantClient } from '@qdrant/js-client-rest';
 const router = Router();
 
 /**
+ * GET /api/health/ping
+ * Lightweight ping endpoint for cold start wake-up
+ * Returns immediately without heavy checks
+ */
+router.get('/ping', (req: Request, res: Response) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+/**
  * GET /api/health
  * Complete health check endpoint with all services
  */
