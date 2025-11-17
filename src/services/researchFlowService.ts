@@ -408,6 +408,11 @@ export async function processClarificationAnswers(
     focusSection: string;
     specificTerms: string[];
     detailLevel: string;
+    workType?: string;              // NOVO
+    section?: string;               // NOVO
+    additionalContext?: string;     // NOVO
+    targetWordCount?: number;       // NOVO
+    targetArticles?: number;        // NOVO
   }
 }> {
   logger.info('Processing clarification answers', { sessionId, answerCount: answers.length });
@@ -421,10 +426,35 @@ export async function processClarificationAnswers(
     let specificTerms: string[] = [];
     let detailLevel = 'intermediario';
 
+    // NOVOS CAMPOS
+    let workType: string | undefined = undefined;
+    let section: string | undefined = undefined;
+    let additionalContext: string | undefined = undefined;
+
     // Processar cada resposta
     for (const answer of answers) {
       const value = answer.answer?.toString().toLowerCase() || '';
-      const questionText = answer.questionId?.toLowerCase() || '';
+      const questionId = answer.questionId || '';
+
+      // NOVO: Extrair tipo de trabalho (Q0)
+      if (questionId === 'q0_work_type') {
+        workType = answer.answer?.toString() || undefined;
+        logger.info('Extracted workType', { workType });
+      }
+
+      // NOVO: Extrair seção (Q1) - já captura focusSection, agora também section
+      if (questionId === 'q1') {
+        section = answer.answer?.toString() || undefined;
+        focusSection = section || 'todas';  // Manter compatibilidade
+        logger.info('Extracted section', { section });
+      }
+
+      // NOVO: Extrair contexto adicional (Q4)
+      if (questionId === 'q4' && typeof answer.answer === 'string' && answer.answer.trim().length > 3) {
+        additionalContext = answer.answer.trim();
+        specificTerms.push(additionalContext);  // Manter compatibilidade
+        logger.info('Extracted additionalContext', { additionalContext });
+      }
 
       // Detectar período temporal (Q2)
       if (value.includes('ultimos_3_anos') || value === 'ultimos_3_anos') {
@@ -461,10 +491,25 @@ export async function processClarificationAnswers(
         detailLevel = 'avancado';
       }
 
-      // Capturar contexto específico (Q4 - texto livre)
-      if (answer.questionId === 'q4' && typeof answer.answer === 'string' && answer.answer.trim().length > 3) {
-        specificTerms.push(answer.answer.trim());
-      }
+      // Capturar contexto específico (Q4 - texto livre) - JÁ TRATADO ACIMA
+      // Removido duplicação
+    }
+
+    // NOVO: Calcular metas de palavras e artigos baseado no tipo de trabalho e seção
+    let targetWordCount: number | undefined;
+    let targetArticles: number | undefined;
+
+    if (workType && section) {
+      const targets = calculateTargets(workType, section);
+      targetWordCount = targets.words;
+      targetArticles = targets.articles;
+
+      logger.info('Calculated targets based on workType and section', {
+        workType,
+        section,
+        targetWordCount,
+        targetArticles
+      });
     }
 
     // Gerar resumo textual
@@ -492,12 +537,21 @@ Responda em português do Brasil, de forma direta e objetiva.`;
       documentTypes,
       focusSection,
       specificTerms,
-      detailLevel
+      detailLevel,
+      // NOVOS CAMPOS
+      workType,
+      section,
+      additionalContext,
+      targetWordCount,
+      targetArticles
     };
 
     logger.info('Clarification answers processed with structured data', {
       sessionId,
-      structuredData
+      structuredData,
+      hasWorkType: !!workType,
+      hasSection: !!section,
+      hasTargets: !!(targetWordCount && targetArticles)
     });
 
     return {
