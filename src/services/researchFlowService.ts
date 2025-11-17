@@ -1670,20 +1670,38 @@ async function tryMultipleFulltextSources(
     );
   }
 
-  // [2] Unpaywall (se tem DOI)
+  // [2] Unpaywall (se tem DOI) + PDF Extraction
   if (article.doi) {
     attempts.push(
       (async () => {
         try {
           const result = await services.unpaywall.getByDOI(article.doi!);
           if (result && result.pdfUrl) {
-            // Download PDF e extrai texto (simplificado - pode melhorar)
-            return {
-              success: true,
-              fullContent: result.abstract || '', // TODO: baixar PDF e extrair texto
-              source: 'Unpaywall',
-              format: 'pdf'
-            };
+            // ✨ NOVO: Download PDF e extrai texto
+            const { pdfExtractionService } = await import('./pdfExtraction.service.js');
+            const extraction = await pdfExtractionService.extractPdfText(result.pdfUrl);
+
+            if (extraction.success && extraction.text) {
+              logger.debug('PDF extracted from Unpaywall', {
+                doi: article.doi,
+                textLength: extraction.text.length
+              });
+
+              return {
+                success: true,
+                fullContent: extraction.text,
+                source: 'Unpaywall (PDF)',
+                format: 'pdf'
+              };
+            } else {
+              // Fallback para abstract se extração falhar
+              return {
+                success: !!result.abstract,
+                fullContent: result.abstract || '',
+                source: 'Unpaywall',
+                format: 'pdf'
+              };
+            }
           }
         } catch (error) {
           logger.debug(`Unpaywall failed for ${article.doi}`);
@@ -1758,6 +1776,35 @@ async function tryMultipleFulltextSources(
   //   attempts.push(...);
   // }
 
+  // [7] ✨ FALLBACK FINAL: Direct PDF extraction (se artigo tem pdfUrl)
+  if (article.pdfUrl) {
+    attempts.push(
+      (async () => {
+        try {
+          const { pdfExtractionService } = await import('./pdfExtraction.service.js');
+          const extraction = await pdfExtractionService.extractPdfText(article.pdfUrl!);
+
+          if (extraction.success && extraction.text) {
+            logger.debug('PDF extracted from direct URL', {
+              title: article.title.substring(0, 50),
+              textLength: extraction.text.length
+            });
+
+            return {
+              success: true,
+              fullContent: extraction.text,
+              source: `Direct PDF (${article.source})`,
+              format: 'pdf'
+            };
+          }
+        } catch (error) {
+          logger.debug(`Direct PDF extraction failed`);
+        }
+        return { success: false };
+      })()
+    );
+  }
+
   // Executar todas as tentativas em paralelo, retornar a primeira que funcionar
   if (attempts.length === 0) {
     return { success: false };
@@ -1784,9 +1831,10 @@ async function tryMultipleFulltextSources(
  */
 export async function executeExhaustiveSearch(
   strategy: FlowSearchStrategy,
-  onProgress?: (progress: FlowSearchProgress) => void
+  onProgress?: (progress: FlowSearchProgress) => void,
+  researchId?: number
 ): Promise<FlowEnrichedArticle[]> {
-  logger.info('Starting exhaustive search', { topic: strategy.topic });
+  logger.info('Starting exhaustive search', { topic: strategy.topic, researchId });
 
   const allArticles: FlowEnrichedArticle[] = [];
   const startTime = Date.now();
@@ -2058,6 +2106,34 @@ export async function executeExhaustiveSearch(
       withFulltext: enrichedArticles.filter(a => a.hasFulltext).length,
       withAbstract: enrichedArticles.filter(a => !a.hasFulltext).length
     });
+
+    // 💾 PERSISTÊNCIA: Salvar artigos no banco de dados (se researchId fornecido)
+    if (researchId) {
+      try {
+        const { articlePersistenceService } = await import('./articlePersistence.service.js');
+        const { researchPersistenceService } = await import('./researchPersistence.service.js');
+
+        await articlePersistenceService.saveArticles(researchId, enrichedArticles);
+
+        // Atualizar estatísticas da pesquisa
+        await researchPersistenceService.updateResearchStats(researchId, {
+          totalArticlesFound: enrichedArticles.length,
+          articlesWithFulltext: enrichedArticles.filter(a => a.hasFulltext).length,
+          currentPhase: 'analysis'
+        });
+
+        logger.info('Articles persisted to database', {
+          researchId,
+          count: enrichedArticles.length
+        });
+      } catch (error: any) {
+        logger.error('Failed to persist articles (non-critical)', {
+          error: error.message,
+          researchId
+        });
+        // Não falhar a busca se a persistência falhar
+      }
+    }
 
     return enrichedArticles;
   } catch (error: any) {
