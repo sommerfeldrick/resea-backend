@@ -1859,6 +1859,8 @@ export async function validateAndRefineArticles(
 
     // 3. BUSCAR: Executar novas buscas
     let articlesAdded = 0;
+    const newArticlesThisIteration: FlowEnrichedArticle[] = [];
+
     for (const refinedQuery of refinedQueries) {
       const newResults = await buscaAcademicaUniversal(refinedQuery.query, {
         maxResults: refinedQuery.expectedResults,
@@ -1899,21 +1901,48 @@ export async function validateAndRefineArticles(
           sections: {}
         };
 
-        currentArticles.push(enrichedArticle);
+        newArticlesThisIteration.push(enrichedArticle);
         articlesAdded++;
       }
     }
 
     logger.info(`Iteration ${iteration} complete: added ${articlesAdded} new articles`);
 
-    if (onProgress) {
-      onProgress({ iteration, gaps, articlesAdded });
-    }
-
     // Se não conseguiu adicionar artigos, parar
     if (articlesAdded === 0) {
       logger.warn('Could not find new articles for gaps, stopping refinement');
+      if (onProgress) {
+        onProgress({ iteration, gaps, articlesAdded: 0 });
+      }
       break;
+    }
+
+    // 4. ENRIQUECER: Adicionar fulltext aos novos artigos
+    logger.info(`🚀 Enriching ${newArticlesThisIteration.length} new articles with fulltext`);
+
+    const enrichedNewArticles = await enrichArticlesWithFulltext(
+      newArticlesThisIteration,
+      (progress) => {
+        logger.debug('Fulltext enrichment progress for refined articles', {
+          iteration,
+          current: progress.current,
+          total: progress.total,
+          successful: progress.successful
+        });
+      }
+    );
+
+    logger.info(`✅ Enrichment complete for iteration ${iteration}`, {
+      articlesEnriched: enrichedNewArticles.length,
+      withFulltext: enrichedNewArticles.filter(a => a.hasFulltext).length,
+      withAbstractOnly: enrichedNewArticles.filter(a => !a.hasFulltext).length
+    });
+
+    // Adicionar artigos enriquecidos ao array principal
+    currentArticles.push(...enrichedNewArticles);
+
+    if (onProgress) {
+      onProgress({ iteration, gaps, articlesAdded });
     }
   }
 
