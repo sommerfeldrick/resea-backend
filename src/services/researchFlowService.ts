@@ -180,9 +180,9 @@ export function generateBranchedQuestions(
     question: 'Qual período de publicação você prefere para os artigos?',
     description: 'Artigos mais recentes trazem descobertas atuais, mas tópicos clássicos podem precisar de um período maior.',
     options: [
-      { value: 'ultimos_3_anos', label: `Últimos 3 anos (${threeYearsAgo}-${currentYear})`, description: 'Muito atual - Descobertas recentes', estimatedArticles: 40 },
-      { value: 'ultimos_5_anos', label: `Últimos 5 anos (${fiveYearsAgo}-${currentYear})`, description: 'Equilíbrio ideal - Recomendado', estimatedArticles: 70 },
-      { value: 'ultimos_10_anos', label: `Últimos 10 anos (${tenYearsAgo}-${currentYear})`, description: 'Base consolidada - Maior volume', estimatedArticles: 120 },
+      { value: 'ultimos_3_anos', label: 'Últimos 3 anos', description: 'Muito atual - Descobertas recentes', estimatedArticles: 40 },
+      { value: 'ultimos_5_anos', label: 'Últimos 5 anos', description: 'Equilíbrio ideal - Recomendado', estimatedArticles: 70 },
+      { value: 'ultimos_10_anos', label: 'Últimos 10 anos', description: 'Base consolidada - Maior volume', estimatedArticles: 120 },
       { value: 'sem_restricao', label: 'Sem restrição de período', description: 'Inclui trabalhos clássicos', estimatedArticles: 200 }
     ],
     required: true
@@ -206,8 +206,8 @@ export function generateBranchedQuestions(
     id: 'q_contexto',
     type: 'text' as const,
     question: 'Você tem algum contexto ou aplicação específica? (Opcional)',
-    description: 'Exemplos: "contexto brasileiro", "pequenas empresas", "ensino fundamental", "zona rural", "saúde pública"',
-    placeholder: 'Digite aqui qualquer especificidade do seu tema...',
+    description: 'Use este campo para especificar: público-alvo, contexto geográfico, setor de aplicação, faixa etária, ou qualquer outra particularidade relevante para sua pesquisa.',
+    placeholder: 'Ex: contexto brasileiro, pequenas empresas, ensino fundamental...',
     required: false
   };
 
@@ -526,8 +526,9 @@ export async function processClarificationAnswers(
         logger.info('Extracted workType', { workType });
       }
 
-      // NOVO: Extrair seção (Q1) - já captura focusSection, agora também section
-      if (questionId === 'q1') {
+      // NOVO: Extrair seção (Q1 ou q_secao, q_componente_revisao, q_tipo_artigo, etc)
+      if (questionId === 'q1' || questionId === 'q_secao' || questionId === 'q_componente_revisao' ||
+          questionId === 'q_tipo_artigo' || questionId === 'q_componente_projeto' || questionId === 'q_componente_relatorio') {
         section = answer.answer?.toString() || undefined;
         focusSection = section || 'todas';  // Manter compatibilidade
         logger.info('Extracted section', { section });
@@ -545,22 +546,26 @@ export async function processClarificationAnswers(
         logger.info('Extracted region', { region });
       }
 
-      // NOVO: Extrair contexto adicional (Q6 - renomeado de Q4)
-      if ((questionId === 'q4' || questionId === 'q6_contexto') && typeof answer.answer === 'string' && answer.answer.trim().length > 3) {
+      // NOVO: Extrair contexto adicional (q_contexto, Q4, Q6)
+      if ((questionId === 'q_contexto' || questionId === 'q4' || questionId === 'q6_contexto') &&
+          typeof answer.answer === 'string' && answer.answer.trim().length > 3) {
         additionalContext = answer.answer.trim();
         specificTerms.push(additionalContext);  // Manter compatibilidade
         logger.info('Extracted additionalContext', { additionalContext });
       }
 
-      // Detectar período temporal (Q2)
-      if (value.includes('ultimos_3_anos') || value === 'ultimos_3_anos') {
-        dateRange = { start: currentYear - 3, end: currentYear };
-      } else if (value.includes('ultimos_5_anos') || value === 'ultimos_5_anos') {
-        dateRange = { start: currentYear - 5, end: currentYear };
-      } else if (value.includes('ultimos_10_anos') || value === 'ultimos_10_anos') {
-        dateRange = { start: currentYear - 10, end: currentYear };
-      } else if (value.includes('sem_restricao') || value.includes('sem restrição')) {
-        dateRange = { start: 1900, end: currentYear };
+      // Detectar período temporal (q_periodo, Q2)
+      if (questionId === 'q_periodo' || questionId === 'q2') {
+        if (value.includes('ultimos_3_anos') || value === 'ultimos_3_anos') {
+          dateRange = { start: currentYear - 3, end: currentYear };
+        } else if (value.includes('ultimos_5_anos') || value === 'ultimos_5_anos') {
+          dateRange = { start: currentYear - 5, end: currentYear };
+        } else if (value.includes('ultimos_10_anos') || value === 'ultimos_10_anos') {
+          dateRange = { start: currentYear - 10, end: currentYear };
+        } else if (value.includes('sem_restricao') || value.includes('sem restrição')) {
+          dateRange = { start: 1900, end: currentYear };
+        }
+        logger.info('Extracted period', { dateRange });
       }
 
       // Detectar seção foco (Q1)
@@ -578,13 +583,16 @@ export async function processClarificationAnswers(
         focusSection = 'conclusao';
       }
 
-      // Detectar nível de profundidade (Q3)
-      if (value.includes('basico') || value.includes('básico') || value.includes('visao') || value.includes('visão')) {
-        detailLevel = 'basico';
-      } else if (value.includes('intermediario') || value.includes('intermediário') || value.includes('detalhado')) {
-        detailLevel = 'intermediario';
-      } else if (value.includes('avancado') || value.includes('avançado') || value.includes('aprofundado')) {
-        detailLevel = 'avancado';
+      // Detectar nível de profundidade (q_profundidade, Q3)
+      if (questionId === 'q_profundidade' || questionId === 'q3') {
+        if (value.includes('basico') || value.includes('básico') || value.includes('visao') || value.includes('visão')) {
+          detailLevel = 'basico';
+        } else if (value.includes('intermediario') || value.includes('intermediário') || value.includes('detalhado')) {
+          detailLevel = 'intermediario';
+        } else if (value.includes('avancado') || value.includes('avançado') || value.includes('aprofundado')) {
+          detailLevel = 'avancado';
+        }
+        logger.info('Extracted detail level', { detailLevel });
       }
 
       // Capturar contexto específico (Q4 - texto livre) - JÁ TRATADO ACIMA
@@ -886,63 +894,149 @@ export async function generateSearchStrategy(
   }
 
   try {
-    const prompt = `Você é um especialista em busca acadêmica. Crie uma estratégia de busca otimizada para o tema específico do usuário.
+    // Mapear workType e section para descrições legíveis
+    const workTypeLabels: Record<string, string> = {
+      'tcc': 'TCC (Trabalho de Conclusão de Curso)',
+      'dissertacao': 'Dissertação de Mestrado',
+      'tese': 'Tese de Doutorado',
+      'artigo_cientifico': 'Artigo Científico',
+      'revisao_sistematica': 'Revisão Sistemática',
+      'projeto_pesquisa': 'Projeto de Pesquisa',
+      'relatorio_tecnico': 'Relatório Técnico'
+    };
 
-⚠️ ATENÇÃO CRÍTICA: O tema da pesquisa é EXATAMENTE: "${query}"
-NÃO invente outro tema! NÃO use exemplos genéricos! Use APENAS o tema fornecido!
+    const sectionLabels: Record<string, string> = {
+      'introducao': 'Introdução',
+      'revisao': 'Revisão de Literatura',
+      'metodologia': 'Metodologia',
+      'resultados': 'Resultados',
+      'discussao': 'Discussão',
+      'conclusao': 'Conclusão',
+      'protocolo': 'Protocolo de Revisão Sistemática',
+      'completo': 'Documento Completo'
+    };
 
-INTENÇÃO DO USUÁRIO:
-Query original: "${query}"
-Contexto adicional: ${clarificationSummary}
+    const detailLabels: Record<string, string> = {
+      'basico': 'básico (conceitos e definições)',
+      'intermediario': 'intermediário (análise técnica e metodológica)',
+      'avancado': 'avançado (teoria complexa e debates aprofundados)'
+    };
 
-Crie queries de busca organizadas por prioridade (THRESHOLDS ATUALIZADOS):
+    const workTypeDesc = workTypeLabels[workType] || workType;
+    const sectionDesc = sectionLabels[section] || section;
+    const detailDesc = detailLabels[structuredData?.detailLevel || 'intermediario'] || 'intermediário';
+    const yearRange = structuredData?.dateRange ?
+      `${structuredData.dateRange.start}-${structuredData.dateRange.end}` :
+      '2020-2025';
+
+    const prompt = `Você é um especialista em busca acadêmica. Crie uma estratégia de busca ALTAMENTE ESPECÍFICA E OTIMIZADA.
+
+═══════════════════════════════════════════════════════════════
+📚 CONTEXTO DO TRABALHO ACADÊMICO
+═══════════════════════════════════════════════════════════════
+
+⚠️ TEMA DA PESQUISA: "${query}"
+
+📋 TIPO DE TRABALHO: ${workTypeDesc}
+📑 SEÇÃO ESPECÍFICA: ${sectionDesc}
+📊 NÍVEL DE PROFUNDIDADE: ${detailDesc}
+📅 PERÍODO: ${yearRange}
+${additionalContext ? `🎯 CONTEXTO ESPECÍFICO: ${additionalContext}` : ''}
+
+RESUMO: ${clarificationSummary}
+
+═══════════════════════════════════════════════════════════════
+🎯 DIRETRIZES PARA CRIAÇÃO DA ESTRATÉGIA
+═══════════════════════════════════════════════════════════════
+
+**IMPORTANTE:** Adapte as queries baseado no TIPO DE TRABALHO e SEÇÃO:
+
+${workType === 'revisao_sistematica' ? `
+- Este é uma REVISÃO SISTEMÁTICA! Priorize:
+  * Artigos metodológicos sobre protocolo PRISMA
+  * Meta-análises e revisões sistemáticas similares
+  * Estudos primários de alta qualidade sobre "${query}"
+  * Critérios de seleção e avaliação de qualidade
+` : ''}
+
+${section === 'introducao' ? `
+- Para INTRODUÇÃO, busque:
+  * Contextualização e panorama geral de "${query}"
+  * Definições de conceitos fundamentais
+  * Justificativas e lacunas na literatura
+  * Estatísticas e dados relevantes
+` : ''}
+
+${section === 'metodologia' ? `
+- Para METODOLOGIA, busque:
+  * Métodos de pesquisa aplicados em "${query}"
+  * Instrumentos e ferramentas utilizadas
+  * Procedimentos metodológicos detalhados
+  * Validação de métodos
+` : ''}
+
+${section === 'revisao' ? `
+- Para REVISÃO DE LITERATURA, busque:
+  * Estado da arte sobre "${query}"
+  * Teorias fundamentais e frameworks
+  * Evolução histórica do tema
+  * Autores seminais e trabalhos clássicos
+` : ''}
+
+${structuredData?.detailLevel === 'basico' ? `
+- Nível BÁSICO: Priorize artigos de revisão, overviews, surveys e trabalhos introdutórios
+` : structuredData?.detailLevel === 'avancado' ? `
+- Nível AVANÇADO: Priorize artigos teóricos densos, debates epistemológicos e estudos empíricos complexos
+` : ''}
+
+═══════════════════════════════════════════════════════════════
+📊 ESTRUTURA DE PRIORIDADES (THRESHOLDS ATUALIZADOS)
+═══════════════════════════════════════════════════════════════
 
 **P1 (Score ≥70)**: Artigos EXCELENTES sobre "${query}"
-- Queries muito específicas, palavras-chave técnicas e acadêmicas SOBRE "${query}"
-- Esperados: artigos recentes (2020+), relevantes, com citações normalizadas
-- Alvo: 30-40 artigos
-- Use padrões como: "${query} systematic review", "${query} empirical study", "${query} meta-analysis"
+- Queries MUITO específicas com termos técnicos
+- Combine "${query}" + termos metodológicos específicos
+- Alvo: 30-40 artigos | ${yearRange}
+- Ex: "${query} systematic review", "${query} ${section} empirical study"
 
 **P2 (Score ≥45)**: Artigos BONS sobre "${query}"
-- Queries mais abrangentes, sinônimos e variações de "${query}"
-- Esperados: artigos relevantes, contexto sólido
-- Alvo: 20-25 artigos
-- Use padrões como: "${query} research", "${query} literature review", "${query} study"
+- Queries abrangentes com sinônimos e variações
+- Alvo: 20-25 artigos | ${yearRange}
+- Ex: "${query} research", "${query} ${section} analysis"
 
 **P3 (Score 30-44)**: Artigos ACEITÁVEIS sobre "${query}"
-- Queries gerais para contexto e background de "${query}"
-- Esperados: artigos de suporte, overview
-- Alvo: 10-15 artigos
-- Use padrões como: "${query} overview", "${query} survey", termos relacionados a "${query}"
-- Artigos com score < 30 são automaticamente descartados (baixíssima qualidade)
+- Queries gerais para contexto e background
+- Alvo: 10-15 artigos | ${yearRange}
+- Ex: "${query} overview", "${query} survey"
 
-IMPORTANTE: Com o novo sistema de pontuação, artigos recentes (2020-2025) com boa relevância no título atingem P1 facilmente!
+═══════════════════════════════════════════════════════════════
+✅ RETORNE APENAS JSON VÁLIDO (SEM MARKDOWN)
+═══════════════════════════════════════════════════════════════
 
-Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
 {
   "topic": "${query}",
   "originalQuery": "${query}",
   "queries": {
     "P1": [
-      { "query": "query específica sobre ${query}", "priority": "P1", "expectedResults": 12 },
-      { "query": "outra query sobre ${query}", "priority": "P1", "expectedResults": 12 },
-      { "query": "terceira query sobre ${query}", "priority": "P1", "expectedResults": 12 }
+      { "query": "query P1 específica", "priority": "P1", "expectedResults": 12 },
+      { "query": "query P1 específica 2", "priority": "P1", "expectedResults": 12 },
+      { "query": "query P1 específica 3", "priority": "P1", "expectedResults": 12 }
     ],
     "P2": [
-      { "query": "query P2 sobre ${query}", "priority": "P2", "expectedResults": 15 },
-      { "query": "outra query P2 sobre ${query}", "priority": "P2", "expectedResults": 15 }
+      { "query": "query P2 abrangente", "priority": "P2", "expectedResults": 15 },
+      { "query": "query P2 abrangente 2", "priority": "P2", "expectedResults": 15 }
     ],
     "P3": [
-      { "query": "query P3 sobre ${query}", "priority": "P3", "expectedResults": 10 }
+      { "query": "query P3 geral", "priority": "P3", "expectedResults": 10 }
     ]
   },
   "keyTerms": {
-    "primary": ["termo principal 1 de ${query}", "termo principal 2 de ${query}"],
+    "primary": ["termo principal 1", "termo principal 2"],
     "specific": ["termo específico 1", "termo específico 2", "termo específico 3"],
     "methodological": ["systematic review", "meta-analysis", "empirical study"]
   },
   "filters": {
-    "dateRange": { "start": 2020, "end": 2025 },
+    "dateRange": ${JSON.stringify(structuredData?.dateRange || { start: 2020, end: 2025 })},
     "languages": ["en"],
     "documentTypes": ["article", "review", "conference_paper"]
   },
