@@ -2741,6 +2741,22 @@ COMECE A ESCREVER AGORA:`;
  * Gera documento acadêmico COMPLETO com múltiplas seções
  * Gera: Introdução, Revisão de Literatura, Metodologia, Resultados, Discussão, Conclusão
  */
+/**
+ * Adiciona lista de referências ABNT ao documento gerado
+ */
+export async function appendReferencesToDocument(
+  generatedContent: string,
+  articles: FlowEnrichedArticle[]
+): Promise<string> {
+  try {
+    const { abntReferencesService } = await import('./abntReferences.service.js');
+    return abntReferencesService.appendReferencesToDocument(generatedContent, articles);
+  } catch (error: any) {
+    logger.error('Failed to append references', { error: error.message });
+    return generatedContent; // Return original content if references fail
+  }
+}
+
 export async function* generateCompleteDocument(
   baseConfig: ContentGenerationConfig,
   articles: FlowEnrichedArticle[],
