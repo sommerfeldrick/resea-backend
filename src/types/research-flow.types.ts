@@ -3,6 +3,36 @@
  */
 
 // ============================================
+// FASE 1: ACADEMIC WORK TYPES
+// ============================================
+
+/**
+ * Tipos de trabalhos acadêmicos suportados
+ * Baseado nos padrões ABNT e universidades brasileiras
+ */
+export type AcademicWorkType =
+  | 'tcc'                    // Trabalho de Conclusão de Curso (40-60 páginas)
+  | 'dissertacao'            // Dissertação de Mestrado (80-120 páginas)
+  | 'tese'                   // Tese de Doutorado (150-250 páginas)
+  | 'projeto_pesquisa'       // Projeto de Pesquisa (10-20 páginas)
+  | 'artigo_cientifico'      // Artigo Científico (15-25 páginas)
+  | 'revisao_sistematica'    // Revisão Sistemática (20-40 páginas)
+  | 'relatorio_tecnico';     // Relatório Técnico (variável)
+
+/**
+ * Seções disponíveis por tipo de trabalho
+ */
+export const ACADEMIC_WORK_SECTIONS: Record<AcademicWorkType, string[]> = {
+  tcc: ['introducao', 'revisao', 'metodologia', 'resultados', 'discussao', 'conclusao'],
+  dissertacao: ['introducao', 'revisao', 'metodologia', 'resultados', 'discussao', 'conclusao'],
+  tese: ['introducao', 'revisao', 'metodologia', 'resultados', 'discussao', 'conclusao'],
+  projeto_pesquisa: ['completo_padrao', 'completo_detalhado'],
+  artigo_cientifico: ['completo_padrao', 'completo_detalhado'],
+  revisao_sistematica: ['completo_padrao', 'completo_detalhado'],
+  relatorio_tecnico: ['completo_padrao', 'completo_detalhado']
+};
+
+// ============================================
 // FASE 2: AI CLARIFICATION & REFINEMENT
 // ============================================
 
@@ -34,6 +64,13 @@ export interface ClarificationAnswer {
 export interface ClarificationSession {
   sessionId: string;
   query: string;
+
+  // Dados capturados na sessão (passados para FASE 3)
+  workType?: AcademicWorkType;      // Tipo de trabalho escolhido pelo usuário
+  section?: string;                  // Seção específica (para TCC/dissertação/tese)
+  targetWordCount?: number;          // Meta de palavras baseada no tipo de trabalho
+  targetArticles?: number;           // Meta de artigos baseada no tipo de trabalho
+
   questions: ClarificationQuestion[];
   answers: ClarificationAnswer[];
   completed: boolean;
@@ -47,6 +84,38 @@ export interface ClarificationSession {
 export type PriorityLevel = 'P1' | 'P2' | 'P3';
 export type ScoreRange = { min: number; max: number };
 
+/**
+ * Roteiro mental do que será escrito ANTES de buscar artigos
+ * Esta é a inovação central: a IA planeja o que vai escrever,
+ * depois busca artigos que sustentam esse roteiro
+ */
+export interface ContentOutline {
+  mainArgument: string;                    // Argumento central em 1 frase
+  topicsToAddress: string[];               // Tópicos que DEVEM aparecer no texto
+  keyConceptsNeeded: string[];             // Conceitos-chave que precisam ser explicados
+  expectedStructure: Array<{               // Estrutura esperada do texto
+    subtopic: string;                      // Nome do subtópico
+    focus: string;                         // O que abordar neste subtópico
+    expectedArticles: number;              // Quantos artigos espera-se usar aqui
+  }>;
+}
+
+/**
+ * Critérios para validar se um artigo encontrado
+ * realmente sustenta o roteiro planejado
+ */
+export interface ArticleValidationCriteria {
+  mustContainTopics: string[];             // Tópicos obrigatórios que o artigo deve abordar
+  mustDefineConcepts: string[];            // Conceitos que o artigo deve explicar
+  preferredMethodology?: string[];         // Metodologias preferidas (ex: "empirical", "systematic review")
+  minimumQuality: number;                  // Score mínimo para aceitar o artigo (0-100)
+  relaxationLevels?: Array<{               // Níveis de relaxamento se não achar artigos suficientes
+    level: number;                         // Nível de relaxamento (1, 2, 3...)
+    minimumQuality: number;                // Novo score mínimo
+    allowPartialTopicMatch: boolean;       // Aceita match parcial de tópicos
+  }>;
+}
+
 export interface SearchQuery {
   query: string;
   priority: PriorityLevel;
@@ -56,6 +125,16 @@ export interface SearchQuery {
 export interface FlowSearchStrategy {
   topic: string;
   originalQuery: string;
+
+  // Dados recebidos da FASE 2 (Clarification)
+  workType: AcademicWorkType;              // Tipo de trabalho acadêmico
+  section: string;                         // Seção sendo trabalhada
+
+  // Roteiro de conteúdo (gerado ANTES da busca)
+  contentOutline: ContentOutline;          // O que a IA planeja escrever
+  validationCriteria: ArticleValidationCriteria; // Como validar artigos encontrados
+
+  // Estratégia de busca (baseada no roteiro)
   queries: {
     P1: SearchQuery[];  // Score ≥ 75
     P2: SearchQuery[];  // Score ≥ 50
@@ -225,10 +304,17 @@ export type WritingPerspective = 'first_person_plural' | 'third_person';
 export type CitationDensity = 'low' | 'medium' | 'high';
 
 export interface ContentGenerationConfig {
-  section: string;
-  style: WritingStyle;
-  perspective: WritingPerspective;
-  citationDensity: CitationDensity;
+  // Dados recebidos das fases anteriores
+  workType: AcademicWorkType;              // Da FASE 2
+  section: string;                         // Da FASE 2
+  contentOutline: ContentOutline;          // Da FASE 3
+  targetWordCount: number;                 // Da FASE 2
+
+  // Configurações automáticas (baseadas no workType)
+  style: WritingStyle;                     // Determinado automaticamente
+  perspective: WritingPerspective;         // Determinado automaticamente
+  citationDensity: CitationDensity;        // Determinado automaticamente
+
   criticalAnalysis: {
     includeCriticalAnalysis: boolean;
     pointOutLimitations: boolean;

@@ -90,6 +90,169 @@ function tryCompleteJSON(text: string): string {
 }
 
 // ============================================
+// HELPER: ACADEMIC WORK STANDARDS
+// ============================================
+
+/**
+ * Calcula metas de palavras e artigos baseado em padrões ABNT
+ * e práticas de universidades brasileiras
+ */
+export function calculateTargets(
+  workType: string,
+  section?: string
+): { words: number; articles: number } {
+  type Standards = {
+    [key: string]: {
+      [section: string]: { words: number; articles: number };
+    };
+  };
+
+  const standards: Standards = {
+    tcc: {
+      introducao: { words: 1350, articles: 15 },
+      revisao: { words: 4050, articles: 35 },
+      metodologia: { words: 1050, articles: 12 },
+      resultados: { words: 2700, articles: 15 },
+      discussao: { words: 3300, articles: 30 },
+      conclusao: { words: 1200, articles: 8 }
+    },
+    dissertacao: {
+      introducao: { words: 2700, articles: 30 },
+      revisao: { words: 9000, articles: 90 },
+      metodologia: { words: 2400, articles: 25 },
+      resultados: { words: 6000, articles: 40 },
+      discussao: { words: 7500, articles: 70 },
+      conclusao: { words: 2400, articles: 20 }
+    },
+    tese: {
+      introducao: { words: 4500, articles: 50 },
+      revisao: { words: 15000, articles: 150 },
+      metodologia: { words: 4500, articles: 40 },
+      resultados: { words: 12000, articles: 80 },
+      discussao: { words: 13500, articles: 120 },
+      conclusao: { words: 4500, articles: 30 }
+    },
+    projeto_pesquisa: {
+      completo_padrao: { words: 4500, articles: 25 },
+      completo_detalhado: { words: 6750, articles: 35 }
+    },
+    artigo_cientifico: {
+      completo_padrao: { words: 6000, articles: 30 },
+      completo_detalhado: { words: 9000, articles: 45 }
+    },
+    revisao_sistematica: {
+      completo_padrao: { words: 9000, articles: 60 },
+      completo_detalhado: { words: 13500, articles: 90 }
+    },
+    relatorio_tecnico: {
+      completo_padrao: { words: 4500, articles: 20 },
+      completo_detalhado: { words: 7500, articles: 30 }
+    }
+  };
+
+  const workTypeData = standards[workType];
+  if (!workTypeData) {
+    return { words: 3000, articles: 30 }; // Default fallback
+  }
+
+  const sectionData = workTypeData[section || 'completo_padrao'];
+  return sectionData || { words: 3000, articles: 30 };
+}
+
+/**
+ * Gera perguntas ramificadas baseadas no tipo de trabalho
+ */
+export function generateBranchedQuestions(
+  query: string,
+  workType: string
+): any[] {
+  // Q1: Sempre pergunta sobre período temporal
+  const q1 = {
+    id: 'q1_periodo',
+    questionNumber: 1,
+    totalQuestions: 4,
+    type: 'multiple_choice' as const,
+    question: 'Período de publicação dos artigos',
+    description: 'Artigos mais recentes tendem a ter metodologias atualizadas',
+    options: [
+      { value: 'ultimos_3_anos', label: 'Últimos 3 anos (2022-2025)', estimatedArticles: 40 },
+      { value: 'ultimos_5_anos', label: 'Últimos 5 anos (2020-2025)', estimatedArticles: 70 },
+      { value: 'ultimos_10_anos', label: 'Últimos 10 anos (2015-2025)', estimatedArticles: 120 }
+    ],
+    required: true
+  };
+
+  // Q2: Sempre pergunta sobre profundidade
+  const q2 = {
+    id: 'q2_profundidade',
+    questionNumber: 2,
+    totalQuestions: 4,
+    type: 'multiple_choice' as const,
+    question: 'Profundidade da pesquisa',
+    description: 'Define quantos artigos e o nível de detalhe',
+    options: [
+      { value: 'rapida', label: 'Pesquisa rápida (20-30 artigos)', estimatedArticles: 25 },
+      { value: 'moderada', label: 'Pesquisa moderada (40-60 artigos)', estimatedArticles: 50 },
+      { value: 'profunda', label: 'Pesquisa profunda (70-100+ artigos)', estimatedArticles: 85 }
+    ],
+    required: true
+  };
+
+  // Q3: Pergunta específica baseada no tipo de trabalho
+  let q3: any;
+
+  if (workType === 'tcc' || workType === 'dissertacao' || workType === 'tese') {
+    // Para trabalhos acadêmicos longos: perguntar qual seção
+    q3 = {
+      id: 'q3_secao',
+      questionNumber: 3,
+      totalQuestions: 4,
+      type: 'multiple_choice' as const,
+      question: `Qual seção do ${workType.toUpperCase()} você quer escrever?`,
+      description: `Para ${workType}, recomendamos escrever uma seção por vez para melhor qualidade`,
+      options: [
+        { value: 'introducao', label: 'Introdução', estimatedArticles: workType === 'tcc' ? 15 : workType === 'dissertacao' ? 30 : 50 },
+        { value: 'revisao', label: 'Revisão de Literatura', estimatedArticles: workType === 'tcc' ? 35 : workType === 'dissertacao' ? 90 : 150 },
+        { value: 'metodologia', label: 'Metodologia', estimatedArticles: workType === 'tcc' ? 12 : workType === 'dissertacao' ? 25 : 40 },
+        { value: 'resultados', label: 'Resultados', estimatedArticles: workType === 'tcc' ? 15 : workType === 'dissertacao' ? 40 : 80 },
+        { value: 'discussao', label: 'Discussão', estimatedArticles: workType === 'tcc' ? 30 : workType === 'dissertacao' ? 70 : 120 },
+        { value: 'conclusao', label: 'Conclusão', estimatedArticles: workType === 'tcc' ? 8 : workType === 'dissertacao' ? 20 : 30 }
+      ],
+      required: true
+    };
+  } else {
+    // Para documentos completos: perguntar formato
+    q3 = {
+      id: 'q3_formato',
+      questionNumber: 3,
+      totalQuestions: 4,
+      type: 'multiple_choice' as const,
+      question: 'Formato do documento',
+      description: 'Define o nível de detalhe do documento completo',
+      options: [
+        { value: 'completo_padrao', label: 'Documento completo padrão', estimatedArticles: 25 },
+        { value: 'completo_detalhado', label: 'Documento completo detalhado', estimatedArticles: 40 }
+      ],
+      required: true
+    };
+  }
+
+  // Q4: Contexto adicional (sempre)
+  const q4 = {
+    id: 'q4_contexto',
+    questionNumber: 4,
+    totalQuestions: 4,
+    type: 'text' as const,
+    question: 'Contexto adicional (opcional)',
+    description: 'Informações extras que podem ajudar na busca',
+    placeholder: 'Ex: Foco em estudos brasileiros, metodologia específica, etc.',
+    required: false
+  };
+
+  return [q1, q2, q3, q4];
+}
+
+// ============================================
 // FASE 2: AI CLARIFICATION & REFINEMENT
 // ============================================
 
@@ -509,6 +672,158 @@ Responda em português do Brasil, de forma direta e objetiva.`;
 // ============================================
 
 /**
+ * FUNÇÃO CRÍTICA: Gera roteiro mental do conteúdo ANTES de buscar artigos
+ *
+ * Esta é a inovação central do sistema: primeiro a IA planeja o que vai escrever,
+ * depois busca artigos que sustentam esse roteiro - e não o contrário!
+ *
+ * Isso garante que os artigos encontrados sejam realmente úteis para o texto final.
+ */
+export async function generateContentOutline(
+  query: string,
+  workType: string,
+  section: string,
+  additionalContext?: string
+): Promise<{ outline: any; criteria: any }> {
+  logger.info('Generating content outline', { query, workType, section });
+
+  const sectionDescriptions: Record<string, string> = {
+    introducao: 'Introdução - apresentar o tema, contextualizar, justificar relevância, objetivos',
+    revisao: 'Revisão de Literatura - fundamentação teórica, estado da arte, conceitos-chave',
+    metodologia: 'Metodologia - métodos de pesquisa, procedimentos, instrumentos, análise',
+    resultados: 'Resultados - apresentar dados, achados, evidências coletadas',
+    discussao: 'Discussão - interpretar resultados, comparar com literatura, implicações',
+    conclusao: 'Conclusão - síntese, contribuições, limitações, trabalhos futuros',
+    completo_padrao: 'Documento completo padrão - todas as seções de forma concisa',
+    completo_detalhado: 'Documento completo detalhado - todas as seções de forma aprofundada'
+  };
+
+  const sectionDesc = sectionDescriptions[section] || section;
+
+  const prompt = `Você é um especialista em escrita acadêmica. O usuário quer escrever sobre: "${query}"
+
+TIPO DE TRABALHO: ${workType.toUpperCase()}
+SEÇÃO: ${sectionDesc}
+${additionalContext ? `CONTEXTO ADICIONAL: ${additionalContext}` : ''}
+
+ANTES de buscar artigos, você precisa criar um ROTEIRO MENTAL do que será escrito.
+
+Pense: "O que EU preciso escrever nesta seção?" e "Que artigos ME AJUDARIAM a escrever isso?"
+
+Retorne APENAS um JSON válido (sem markdown) com esta estrutura:
+{
+  "outline": {
+    "mainArgument": "UM argumento central desta seção em 1 frase clara",
+    "topicsToAddress": [
+      "Tópico 1 que DEVE aparecer no texto",
+      "Tópico 2 que DEVE aparecer no texto",
+      "Tópico 3 que DEVE aparecer no texto"
+    ],
+    "keyConceptsNeeded": [
+      "Conceito-chave 1 que precisa ser explicado",
+      "Conceito-chave 2 que precisa ser explicado"
+    ],
+    "expectedStructure": [
+      {
+        "subtopic": "Nome do primeiro subtópico",
+        "focus": "O que abordar neste subtópico (2-3 frases)",
+        "expectedArticles": 8
+      },
+      {
+        "subtopic": "Nome do segundo subtópico",
+        "focus": "O que abordar neste subtópico (2-3 frases)",
+        "expectedArticles": 12
+      },
+      {
+        "subtopic": "Nome do terceiro subtópico",
+        "focus": "O que abordar neste subtópico (2-3 frases)",
+        "expectedArticles": 10
+      }
+    ]
+  },
+  "criteria": {
+    "mustContainTopics": [
+      "Tópico obrigatório 1 que os artigos DEVEM abordar",
+      "Tópico obrigatório 2 que os artigos DEVEM abordar"
+    ],
+    "mustDefineConcepts": [
+      "Conceito que deve ser explicado nos artigos"
+    ],
+    "preferredMethodology": ["empirical study", "systematic review"],
+    "minimumQuality": 65
+  }
+}
+
+IMPORTANTE:
+- Seja ESPECÍFICO sobre "${query}" - não use termos genéricos
+- Os tópicos devem refletir o que REALMENTE precisa aparecer no texto
+- Os conceitos devem ser aqueles que o leitor precisa entender
+- A estrutura deve guiar a escrita de forma lógica`;
+
+  try {
+    const response = await generateText(prompt, {
+      systemPrompt: 'Você é um especialista em estruturação de textos acadêmicos. Retorne APENAS JSON válido.',
+      temperature: 0.6,
+      maxTokens: 3000
+    });
+
+    let cleanedText = response.text.trim()
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```\s*$/i, '');
+
+    const parsed = JSON.parse(cleanedText);
+
+    logger.info('Content outline generated', {
+      topicsCount: parsed.outline?.topicsToAddress?.length || 0,
+      conceptsCount: parsed.outline?.keyConceptsNeeded?.length || 0,
+      subtopicsCount: parsed.outline?.expectedStructure?.length || 0
+    });
+
+    return {
+      outline: parsed.outline,
+      criteria: parsed.criteria
+    };
+  } catch (error: any) {
+    logger.error('Failed to generate content outline', {
+      error: error.message,
+      query, workType, section
+    });
+
+    // Fallback: criar outline básico
+    return {
+      outline: {
+        mainArgument: `Análise sobre ${query}`,
+        topicsToAddress: [query],
+        keyConceptsNeeded: [query],
+        expectedStructure: [
+          {
+            subtopic: 'Fundamentação',
+            focus: `Conceitos fundamentais sobre ${query}`,
+            expectedArticles: 10
+          },
+          {
+            subtopic: 'Evidências',
+            focus: `Estudos e evidências sobre ${query}`,
+            expectedArticles: 15
+          },
+          {
+            subtopic: 'Síntese',
+            focus: `Síntese e lacunas sobre ${query}`,
+            expectedArticles: 10
+          }
+        ]
+      },
+      criteria: {
+        mustContainTopics: [query],
+        mustDefineConcepts: [],
+        minimumQuality: 60
+      }
+    };
+  }
+}
+
+/**
  * Gera estratégia de busca otimizada baseada nas respostas do usuário
  */
 export async function generateSearchStrategy(
@@ -727,6 +1042,46 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
       });
     }
 
+    // TODO: Add proper values from ClarificationSession when function is refactored
+    // For now, add default values to satisfy type requirements
+    if (!strategy.workType) {
+      strategy.workType = 'tcc';
+    }
+    if (!strategy.section) {
+      strategy.section = structuredData?.focusSection || 'revisao';
+    }
+    if (!strategy.contentOutline) {
+      strategy.contentOutline = {
+        mainArgument: `Análise acadêmica sobre ${query.trim()}`,
+        topicsToAddress: [query.trim()],
+        keyConceptsNeeded: [query.trim()],
+        expectedStructure: [
+          {
+            subtopic: 'Contexto e fundamentação',
+            focus: `Conceitos fundamentais relacionados a ${query.trim()}`,
+            expectedArticles: 20
+          },
+          {
+            subtopic: 'Evidências e estudos',
+            focus: `Estudos empíricos e revisões sobre ${query.trim()}`,
+            expectedArticles: 30
+          },
+          {
+            subtopic: 'Síntese e gaps',
+            focus: `Lacunas e direções futuras em ${query.trim()}`,
+            expectedArticles: 20
+          }
+        ]
+      };
+    }
+    if (!strategy.validationCriteria) {
+      strategy.validationCriteria = {
+        mustContainTopics: [query.trim()],
+        mustDefineConcepts: [],
+        minimumQuality: 60
+      };
+    }
+
     logger.info('Search strategy generated', {
       topic: strategy.topic,
       totalQueries: Object.values(strategy.queries).flat().length,
@@ -743,11 +1098,44 @@ Retorne APENAS um objeto JSON válido (sem markdown) com esta estrutura:
     });
 
     // Fallback: return default strategy
+    // TODO: This fallback needs to be updated to generate proper contentOutline and validationCriteria
     logger.info('Using fallback default search strategy');
     const currentYear = new Date().getFullYear();
     const strategy: FlowSearchStrategy = {
       topic: query.trim(),
       originalQuery: query,
+
+      // Temporary defaults - will be replaced with proper values from ClarificationSession
+      workType: 'tcc',
+      section: 'revisao',
+      contentOutline: {
+        mainArgument: `Análise acadêmica sobre ${query.trim()}`,
+        topicsToAddress: [query.trim()],
+        keyConceptsNeeded: [query.trim()],
+        expectedStructure: [
+          {
+            subtopic: 'Contexto e fundamentação',
+            focus: `Conceitos fundamentais relacionados a ${query.trim()}`,
+            expectedArticles: 20
+          },
+          {
+            subtopic: 'Evidências e estudos',
+            focus: `Estudos empíricos e revisões sobre ${query.trim()}`,
+            expectedArticles: 30
+          },
+          {
+            subtopic: 'Síntese e gaps',
+            focus: `Lacunas e direções futuras em ${query.trim()}`,
+            expectedArticles: 20
+          }
+        ]
+      },
+      validationCriteria: {
+        mustContainTopics: [query.trim()],
+        mustDefineConcepts: [],
+        minimumQuality: 60
+      },
+
       queries: {
         P1: [
           { query: `${query.trim()} systematic review`, priority: 'P1', expectedResults: 12 },
