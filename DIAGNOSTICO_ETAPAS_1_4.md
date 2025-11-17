@@ -531,19 +531,25 @@ focusSection = section;  // Manter compatibilidade
 
 ---
 
-### 3. **Enriquecimento de fulltext**
+### 3. **Enriquecimento de fulltext** ✅ RESOLVIDO
 
-**Observação:** `executeExhaustiveSearch` busca fulltext, mas `validateAndRefineArticles` não faz enriquecimento dos novos artigos.
+**Observação:** ~~`executeExhaustiveSearch` busca fulltext, mas `validateAndRefineArticles` não fazia enriquecimento dos novos artigos.~~
 
-**Impacto:** Artigos adicionados durante refinamento podem não ter fulltext.
+**Status:** ✅ **CORRIGIDO** (commit 5b6394d)
 
-**Recomendação:** 🔄 Considerar adicionar enriquecimento em `validateAndRefineArticles`:
+**Implementação:** `validateAndRefineArticles` agora enriquece todos os artigos adicionados durante o refinamento:
 
 ```typescript
-// Após adicionar novos artigos
-const enrichedNewArticles = await enrichArticlesWithFulltext([...newArticles]);
+// Coletar novos artigos
+const newArticlesThisIteration: FlowEnrichedArticle[] = [];
+// ... buscar e adicionar artigos ...
+
+// Enriquecer com fulltext
+const enrichedNewArticles = await enrichArticlesWithFulltext(newArticlesThisIteration);
 currentArticles.push(...enrichedNewArticles);
 ```
+
+**Impacto:** ✅ Todos os artigos (iniciais + refinados) agora têm fulltext quando disponível
 
 ---
 
@@ -575,8 +581,8 @@ As **Etapas 1-4** estão:
 ### 🚀 Próximos Passos Recomendados:
 
 1. **Testes manuais end-to-end** para validar fluxo completo
-2. **Remover TODOs** antigos do código (linhas 994-1029)
-3. **Adicionar enriquecimento de fulltext** em `validateAndRefineArticles`
+2. **Remover TODOs** antigos do código (linhas 994-1029) - opcional
+3. ~~**Adicionar enriquecimento de fulltext**~~ ✅ CONCLUÍDO
 4. **Monitorar logs** em produção para ajustes finos
 5. **Coletar feedback** de usuários reais
 
@@ -585,6 +591,8 @@ As **Etapas 1-4** estão:
 ## 📝 COMMITS RELACIONADOS
 
 ```bash
+5b6394d - Fix critical issue: Add fulltext enrichment for refined articles ✅ NOVO
+f8a38a6 - Add comprehensive diagnostic report for Etapas 1-4
 ece6dd5 - Implement Etapa 4: Article validation and iterative refinement
 f9809d1 - Implement Etapa 3: Extract workType and section from clarification answers
 827482e - Implement Etapa 2: Integrate content outline into search strategy
