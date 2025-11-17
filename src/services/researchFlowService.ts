@@ -166,18 +166,25 @@ export function generateBranchedQuestions(
   query: string,
   workType: string
 ): any[] {
+  // Calcular anos dinamicamente
+  const currentYear = new Date().getFullYear();
+  const threeYearsAgo = currentYear - 3;
+  const fiveYearsAgo = currentYear - 5;
+  const tenYearsAgo = currentYear - 10;
+
   // Q1: Sempre pergunta sobre período temporal
   const q1 = {
     id: 'q1_periodo',
     questionNumber: 1,
     totalQuestions: 4,
     type: 'multiple_choice' as const,
-    question: 'Período de publicação dos artigos',
-    description: 'Artigos mais recentes tendem a ter metodologias atualizadas',
+    question: '📅 Qual período de publicação você prefere para os artigos?',
+    description: 'Artigos recentes trazem as descobertas mais atuais, mas tópicos clássicos podem precisar de um período maior.',
     options: [
-      { value: 'ultimos_3_anos', label: 'Últimos 3 anos (2022-2025)', estimatedArticles: 40 },
-      { value: 'ultimos_5_anos', label: 'Últimos 5 anos (2020-2025)', estimatedArticles: 70 },
-      { value: 'ultimos_10_anos', label: 'Últimos 10 anos (2015-2025)', estimatedArticles: 120 }
+      { value: 'ultimos_3_anos', label: `🔥 Últimos 3 anos (${threeYearsAgo}-${currentYear})`, description: 'Muito atual • Descobertas recentes', estimatedArticles: 40 },
+      { value: 'ultimos_5_anos', label: `⚡ Últimos 5 anos (${fiveYearsAgo}-${currentYear})`, description: 'Equilíbrio ideal • Recomendado', estimatedArticles: 70 },
+      { value: 'ultimos_10_anos', label: `📚 Últimos 10 anos (${tenYearsAgo}-${currentYear})`, description: 'Base consolidada • Maior volume', estimatedArticles: 120 },
+      { value: 'sem_restricao', label: '🌐 Sem restrição de período', description: 'Inclui trabalhos clássicos', estimatedArticles: 200 }
     ],
     required: true
   };
@@ -188,12 +195,12 @@ export function generateBranchedQuestions(
     questionNumber: 2,
     totalQuestions: 4,
     type: 'multiple_choice' as const,
-    question: 'Profundidade da pesquisa',
-    description: 'Define quantos artigos e o nível de detalhe',
+    question: '🎓 Que tipo de conteúdo você precisa no seu trabalho?',
+    description: 'Isso define o nível de aprofundamento teórico e a densidade técnica do texto gerado.',
     options: [
-      { value: 'rapida', label: 'Pesquisa rápida (20-30 artigos)', estimatedArticles: 25 },
-      { value: 'moderada', label: 'Pesquisa moderada (40-60 artigos)', estimatedArticles: 50 },
-      { value: 'profunda', label: 'Pesquisa profunda (70-100+ artigos)', estimatedArticles: 85 }
+      { value: 'basico', label: '📘 Conceitos Básicos e Definições', description: 'Para entender o tema • Contextualizar', estimatedArticles: 50 },
+      { value: 'intermediario', label: '🔬 Análise Técnica e Metodológica', description: 'Para discutir métodos • Comparar estudos', estimatedArticles: 80 },
+      { value: 'avancado', label: '🎓 Teoria Avançada e Aspectos Complexos', description: 'Para aprofundar discussões • Alta densidade', estimatedArticles: 100 }
     ],
     required: true
   };
@@ -203,20 +210,21 @@ export function generateBranchedQuestions(
 
   if (workType === 'tcc' || workType === 'dissertacao' || workType === 'tese') {
     // Para trabalhos acadêmicos longos: perguntar qual seção
+    const workTypeLabel = workType === 'tcc' ? 'TCC' : workType === 'dissertacao' ? 'Dissertação' : 'Tese';
     q3 = {
       id: 'q3_secao',
       questionNumber: 3,
       totalQuestions: 4,
       type: 'multiple_choice' as const,
-      question: `Qual seção do ${workType.toUpperCase()} você quer escrever?`,
-      description: `Para ${workType}, recomendamos escrever uma seção por vez para melhor qualidade`,
+      question: `📝 Qual seção do seu ${workTypeLabel} você quer escrever agora?`,
+      description: `Para ${workTypeLabel}, recomendamos escrever uma seção por vez para garantir qualidade e profundidade adequadas.`,
       options: [
-        { value: 'introducao', label: 'Introdução', estimatedArticles: workType === 'tcc' ? 15 : workType === 'dissertacao' ? 30 : 50 },
-        { value: 'revisao', label: 'Revisão de Literatura', estimatedArticles: workType === 'tcc' ? 35 : workType === 'dissertacao' ? 90 : 150 },
-        { value: 'metodologia', label: 'Metodologia', estimatedArticles: workType === 'tcc' ? 12 : workType === 'dissertacao' ? 25 : 40 },
-        { value: 'resultados', label: 'Resultados', estimatedArticles: workType === 'tcc' ? 15 : workType === 'dissertacao' ? 40 : 80 },
-        { value: 'discussao', label: 'Discussão', estimatedArticles: workType === 'tcc' ? 30 : workType === 'dissertacao' ? 70 : 120 },
-        { value: 'conclusao', label: 'Conclusão', estimatedArticles: workType === 'tcc' ? 8 : workType === 'dissertacao' ? 20 : 30 }
+        { value: 'introducao', label: '🎯 Introdução', description: 'Contextualização • Justificativa • Objetivos', estimatedArticles: workType === 'tcc' ? 15 : workType === 'dissertacao' ? 30 : 50 },
+        { value: 'revisao', label: '📖 Revisão de Literatura', description: 'Estado da arte • Teorias principais', estimatedArticles: workType === 'tcc' ? 35 : workType === 'dissertacao' ? 90 : 150 },
+        { value: 'metodologia', label: '🔬 Metodologia', description: 'Métodos • Procedimentos • Instrumentos', estimatedArticles: workType === 'tcc' ? 12 : workType === 'dissertacao' ? 25 : 40 },
+        { value: 'resultados', label: '📊 Resultados', description: 'Dados • Achados principais • Evidências', estimatedArticles: workType === 'tcc' ? 15 : workType === 'dissertacao' ? 40 : 80 },
+        { value: 'discussao', label: '💬 Discussão', description: 'Interpretação • Comparação • Implicações', estimatedArticles: workType === 'tcc' ? 30 : workType === 'dissertacao' ? 70 : 120 },
+        { value: 'conclusao', label: '✅ Conclusão', description: 'Síntese • Limitações • Recomendações', estimatedArticles: workType === 'tcc' ? 8 : workType === 'dissertacao' ? 20 : 30 }
       ],
       required: true
     };
@@ -227,11 +235,11 @@ export function generateBranchedQuestions(
       questionNumber: 3,
       totalQuestions: 4,
       type: 'multiple_choice' as const,
-      question: 'Formato do documento',
-      description: 'Define o nível de detalhe do documento completo',
+      question: '📄 Que nível de detalhamento você precisa no documento?',
+      description: 'Define a profundidade e extensão do conteúdo gerado.',
       options: [
-        { value: 'completo_padrao', label: 'Documento completo padrão', estimatedArticles: 25 },
-        { value: 'completo_detalhado', label: 'Documento completo detalhado', estimatedArticles: 40 }
+        { value: 'completo_padrao', label: '📝 Documento Padrão', description: 'Estrutura completa • Conteúdo essencial', estimatedArticles: 25 },
+        { value: 'completo_detalhado', label: '📚 Documento Detalhado', description: 'Análise aprofundada • Maior volume', estimatedArticles: 40 }
       ],
       required: true
     };
@@ -243,9 +251,9 @@ export function generateBranchedQuestions(
     questionNumber: 4,
     totalQuestions: 4,
     type: 'text' as const,
-    question: 'Contexto adicional (opcional)',
-    description: 'Informações extras que podem ajudar na busca',
-    placeholder: 'Ex: Foco em estudos brasileiros, metodologia específica, etc.',
+    question: '🎯 Você tem algum contexto ou aplicação específica? (Opcional)',
+    description: 'Exemplos: "contexto brasileiro", "pequenas empresas", "ensino fundamental", "zona rural", "saúde pública"',
+    placeholder: 'Digite aqui qualquer especificidade do seu tema...',
     required: false
   };
 
@@ -298,6 +306,12 @@ export async function generateClarificationQuestions(
   // SIMPLIFICADO: não usa mais IA, apenas perguntas fixas otimizadas
   logger.info('Using fixed questions with workType as first question');
 
+  // Calcular anos dinamicamente
+  const currentYear = new Date().getFullYear();
+  const threeYearsAgo = currentYear - 3;
+  const fiveYearsAgo = currentYear - 5;
+  const tenYearsAgo = currentYear - 10;
+
   const session: ClarificationSession = {
     sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     query,
@@ -306,18 +320,53 @@ export async function generateClarificationQuestions(
       {
         id: 'q0_work_type',
         questionNumber: 1,
-        totalQuestions: 5,
+        totalQuestions: 7,
         type: 'multiple_choice',
-        question: 'Que tipo de trabalho acadêmico você está escrevendo?',
-        description: 'Isso define o formato e os padrões ABNT adequados',
+        question: '📚 Que tipo de trabalho acadêmico você está escrevendo?',
+        description: 'Escolha o formato que melhor descreve seu projeto. Isso define os padrões ABNT e a estrutura do documento.',
         options: [
-          { value: 'tcc', label: 'TCC - Trabalho de Conclusão de Curso', description: '40-60 páginas, graduação', estimatedArticles: 30 },
-          { value: 'dissertacao', label: 'Dissertação de Mestrado', description: '80-120 páginas, mestrado', estimatedArticles: 80 },
-          { value: 'tese', label: 'Tese de Doutorado', description: '150-250 páginas, doutorado', estimatedArticles: 150 },
-          { value: 'projeto_pesquisa', label: 'Projeto de Pesquisa', description: '10-20 páginas, proposta', estimatedArticles: 25 },
-          { value: 'artigo_cientifico', label: 'Artigo Científico', description: '15-25 páginas, publicação', estimatedArticles: 30 },
-          { value: 'revisao_sistematica', label: 'Revisão Sistemática', description: '20-40 páginas, revisão de literatura', estimatedArticles: 60 },
-          { value: 'relatorio_tecnico', label: 'Relatório Técnico', description: 'Formato variável, documentação técnica', estimatedArticles: 20 }
+          {
+            value: 'tcc',
+            label: 'TCC - Trabalho de Conclusão de Curso',
+            description: 'Graduação • 40-60 páginas • Padrão ABNT simplificado',
+            estimatedArticles: 30
+          },
+          {
+            value: 'dissertacao',
+            label: 'Dissertação de Mestrado',
+            description: 'Mestrado • 80-120 páginas • Pesquisa aprofundada',
+            estimatedArticles: 80
+          },
+          {
+            value: 'tese',
+            label: 'Tese de Doutorado',
+            description: 'Doutorado • 150-250 páginas • Contribuição original obrigatória',
+            estimatedArticles: 150
+          },
+          {
+            value: 'projeto_pesquisa',
+            label: 'Projeto de Pesquisa',
+            description: 'Proposta de pesquisa • 10-20 páginas • Fundamentação teórica',
+            estimatedArticles: 25
+          },
+          {
+            value: 'artigo_cientifico',
+            label: 'Artigo Científico',
+            description: 'Publicação em revista • 15-25 páginas • Formatação específica',
+            estimatedArticles: 30
+          },
+          {
+            value: 'revisao_sistematica',
+            label: 'Revisão Sistemática',
+            description: 'Síntese de evidências • 20-40 páginas • Protocolo rigoroso',
+            estimatedArticles: 60
+          },
+          {
+            value: 'relatorio_tecnico',
+            label: 'Relatório Técnico',
+            description: 'Documentação profissional • Formato variável',
+            estimatedArticles: 20
+          }
         ],
         required: true
       },
@@ -325,18 +374,53 @@ export async function generateClarificationQuestions(
       {
         id: 'q1',
         questionNumber: 2,
-        totalQuestions: 5,
+        totalQuestions: 7,
         type: 'multiple_choice',
-        question: 'Qual seção do documento você deseja escrever?',
-        description: 'Isso ajudará a priorizar os tipos de artigos mais relevantes',
+        question: '📝 Qual seção do seu trabalho você quer escrever agora?',
+        description: 'Cada seção tem características e necessidades diferentes de fundamentação.',
         options: [
-          { value: 'introducao', label: 'Introdução', description: 'Contextualização geral do tema', estimatedArticles: 20 },
-          { value: 'revisao', label: 'Revisão de Literatura', description: 'Estado da arte e fundamentação teórica', estimatedArticles: 60 },
-          { value: 'metodologia', label: 'Metodologia', description: 'Métodos e procedimentos', estimatedArticles: 15 },
-          { value: 'resultados', label: 'Resultados', description: 'Apresentação de dados e achados', estimatedArticles: 25 },
-          { value: 'discussao', label: 'Discussão', description: 'Interpretação e análise dos resultados', estimatedArticles: 30 },
-          { value: 'conclusao', label: 'Conclusão', description: 'Síntese e considerações finais', estimatedArticles: 15 },
-          { value: 'todas', label: 'Todas as seções / Documento completo', description: 'Projeto, artigo ou documento completo', estimatedArticles: 100 }
+          {
+            value: 'introducao',
+            label: '🎯 Introdução',
+            description: 'Contextualização do tema • Justificativa • Objetivos',
+            estimatedArticles: 20
+          },
+          {
+            value: 'revisao',
+            label: '📖 Revisão de Literatura',
+            description: 'Estado da arte • Teorias principais • Conceitos fundamentais',
+            estimatedArticles: 60
+          },
+          {
+            value: 'metodologia',
+            label: '🔬 Metodologia',
+            description: 'Métodos de pesquisa • Procedimentos • Instrumentos',
+            estimatedArticles: 15
+          },
+          {
+            value: 'resultados',
+            label: '📊 Resultados',
+            description: 'Apresentação de dados • Achados principais • Evidências',
+            estimatedArticles: 25
+          },
+          {
+            value: 'discussao',
+            label: '💬 Discussão',
+            description: 'Interpretação dos resultados • Comparação com literatura • Implicações',
+            estimatedArticles: 30
+          },
+          {
+            value: 'conclusao',
+            label: '✅ Conclusão',
+            description: 'Síntese dos achados • Limitações • Recomendações futuras',
+            estimatedArticles: 15
+          },
+          {
+            value: 'todas',
+            label: '📑 Documento Completo',
+            description: 'Todas as seções integradas do início ao fim',
+            estimatedArticles: 100
+          }
         ],
         required: true
       },
@@ -344,15 +428,35 @@ export async function generateClarificationQuestions(
       {
         id: 'q2',
         questionNumber: 3,
-        totalQuestions: 5,
+        totalQuestions: 7,
         type: 'multiple_choice',
-        question: 'Que período de publicação você prefere?',
-        description: 'Artigos mais recentes tendem a ter melhor qualidade e relevância',
+        question: '📅 Qual período de publicação você prefere para os artigos?',
+        description: 'Artigos recentes trazem as descobertas mais atuais, mas tópicos clássicos podem precisar de um período maior.',
         options: [
-          { value: 'ultimos_3_anos', label: 'Últimos 3 anos (2022-2025)', description: 'Estado da arte mais atual', estimatedArticles: 40 },
-          { value: 'ultimos_5_anos', label: 'Últimos 5 anos (2020-2025)', description: 'Equilíbrio entre atualidade e volume', estimatedArticles: 70 },
-          { value: 'ultimos_10_anos', label: 'Últimos 10 anos (2015-2025)', description: 'Base sólida e consolidada', estimatedArticles: 120 },
-          { value: 'sem_restricao', label: 'Sem restrição de período', description: 'Todos os artigos disponíveis', estimatedArticles: 200 }
+          {
+            value: 'ultimos_3_anos',
+            label: `🔥 Últimos 3 anos (${threeYearsAgo}-${currentYear})`,
+            description: 'Muito atual • Descobertas recentes • Estado da arte',
+            estimatedArticles: 40
+          },
+          {
+            value: 'ultimos_5_anos',
+            label: `⚡ Últimos 5 anos (${fiveYearsAgo}-${currentYear})`,
+            description: 'Equilíbrio ideal • Atualidade + Volume • Recomendado',
+            estimatedArticles: 70
+          },
+          {
+            value: 'ultimos_10_anos',
+            label: `📚 Últimos 10 anos (${tenYearsAgo}-${currentYear})`,
+            description: 'Base consolidada • Teorias estabelecidas • Maior volume',
+            estimatedArticles: 120
+          },
+          {
+            value: 'sem_restricao',
+            label: '🌐 Sem restrição de período',
+            description: 'Todos os artigos disponíveis • Inclui trabalhos clássicos',
+            estimatedArticles: 200
+          }
         ],
         required: true
       },
@@ -360,26 +464,125 @@ export async function generateClarificationQuestions(
       {
         id: 'q3',
         questionNumber: 4,
-        totalQuestions: 5,
+        totalQuestions: 7,
         type: 'multiple_choice',
-        question: 'Qual nível de profundidade você precisa?',
-        description: 'Isso afetará o tipo de conteúdo e densidade técnica',
+        question: '🎓 Que tipo de conteúdo você precisa no seu trabalho?',
+        description: 'Isso define o nível de aprofundamento teórico e a densidade técnica do texto gerado.',
         options: [
-          { value: 'basico', label: 'Visão Geral', description: 'Conceitos básicos e introdutórios', estimatedArticles: 50 },
-          { value: 'intermediario', label: 'Detalhado', description: 'Análise técnica e metodológica', estimatedArticles: 80 },
-          { value: 'avancado', label: 'Aprofundado', description: 'Teoria avançada e aspectos complexos', estimatedArticles: 60 }
+          {
+            value: 'basico',
+            label: '📘 Conceitos Básicos e Definições',
+            description: 'Para entender o tema • Contextualizar • Linguagem acessível',
+            estimatedArticles: 50
+          },
+          {
+            value: 'intermediario',
+            label: '🔬 Análise Técnica e Metodológica',
+            description: 'Para discutir métodos • Comparar estudos • Nível acadêmico padrão',
+            estimatedArticles: 80
+          },
+          {
+            value: 'avancado',
+            label: '🎓 Teoria Avançada e Aspectos Complexos',
+            description: 'Para aprofundar discussões • Debates teóricos • Alta densidade',
+            estimatedArticles: 60
+          }
         ],
         required: true
       },
-      // Q4: CONTEXTO ADICIONAL
+      // Q4: PREFERÊNCIA METODOLÓGICA (NOVA)
       {
-        id: 'q4',
+        id: 'q4_metodologia',
         questionNumber: 5,
-        totalQuestions: 5,
+        totalQuestions: 7,
+        type: 'multiple_choice',
+        question: '🧪 Você tem preferência por algum tipo de estudo? (Opcional)',
+        description: 'Ajuda a priorizar artigos com metodologias específicas que você precisa citar ou discutir.',
+        options: [
+          {
+            value: 'quantitativos',
+            label: '📊 Estudos Quantitativos',
+            description: 'Estatísticas • Experimentos • Dados numéricos • Análise quantitativa',
+            estimatedArticles: 60
+          },
+          {
+            value: 'qualitativos',
+            label: '💬 Estudos Qualitativos',
+            description: 'Entrevistas • Observações • Análise de conteúdo • Etnografia',
+            estimatedArticles: 50
+          },
+          {
+            value: 'mistos',
+            label: '🔄 Estudos Mistos (Quanti + Quali)',
+            description: 'Combinação de métodos quantitativos e qualitativos',
+            estimatedArticles: 40
+          },
+          {
+            value: 'revisoes',
+            label: '📚 Revisões e Meta-análises',
+            description: 'Revisões sistemáticas • Meta-análises • Sínteses de evidências',
+            estimatedArticles: 45
+          },
+          {
+            value: 'sem_preferencia',
+            label: '🌐 Sem Preferência',
+            description: 'Incluir todos os tipos de metodologia',
+            estimatedArticles: 100
+          }
+        ],
+        required: false
+      },
+      // Q5: REGIÃO/CONTEXTO GEOGRÁFICO (NOVA)
+      {
+        id: 'q5_regiao',
+        questionNumber: 6,
+        totalQuestions: 7,
+        type: 'multiple_choice',
+        question: '🌍 Há algum país ou região de interesse específico? (Opcional)',
+        description: 'Prioriza estudos realizados em contextos geográficos ou culturais específicos.',
+        options: [
+          {
+            value: 'brasil',
+            label: '🇧🇷 Brasil / América Latina',
+            description: 'Estudos brasileiros e latino-americanos • Contexto regional',
+            estimatedArticles: 35
+          },
+          {
+            value: 'eua_canada',
+            label: '🇺🇸 Estados Unidos / Canadá',
+            description: 'América do Norte • Contexto norte-americano',
+            estimatedArticles: 70
+          },
+          {
+            value: 'europa',
+            label: '🇪🇺 Europa',
+            description: 'União Europeia e países europeus',
+            estimatedArticles: 60
+          },
+          {
+            value: 'asia',
+            label: '🌏 Ásia / Oceania',
+            description: 'China, Japão, Índia, Austrália e região asiática',
+            estimatedArticles: 50
+          },
+          {
+            value: 'global',
+            label: '🌐 Global (Todos os países)',
+            description: 'Sem restrição geográfica • Estudos internacionais',
+            estimatedArticles: 150
+          }
+        ],
+        required: false
+      },
+      // Q6: CONTEXTO ADICIONAL (RENOMEADO DE Q4)
+      {
+        id: 'q6_contexto',
+        questionNumber: 7,
+        totalQuestions: 7,
         type: 'text',
-        question: 'Você tem algum contexto ou aplicação específica? (Opcional)',
-        description: 'Ex: "contexto brasileiro", "pequenas empresas", "ensino fundamental", etc.',
-        placeholder: 'Digite aqui se tiver algo específico...',
+        question: '🎯 Você tem algum contexto ou aplicação específica adicional? (Opcional)',
+        description: 'Exemplos: "pequenas empresas", "ensino fundamental", "zona rural", "saúde pública", "terceiro setor"',
+        placeholder: 'Digite aqui qualquer outra especificidade do seu tema...',
         required: false
       }
     ],
@@ -413,6 +616,8 @@ export async function processClarificationAnswers(
     additionalContext?: string;     // NOVO
     targetWordCount?: number;       // NOVO
     targetArticles?: number;        // NOVO
+    methodology?: string;           // NOVO C.9
+    region?: string;                // NOVO C.9
   }
 }> {
   logger.info('Processing clarification answers', { sessionId, answerCount: answers.length });
@@ -430,6 +635,8 @@ export async function processClarificationAnswers(
     let workType: string | undefined = undefined;
     let section: string | undefined = undefined;
     let additionalContext: string | undefined = undefined;
+    let methodology: string | undefined = undefined;       // NOVO C.9
+    let region: string | undefined = undefined;           // NOVO C.9
 
     // Processar cada resposta
     for (const answer of answers) {
@@ -449,8 +656,20 @@ export async function processClarificationAnswers(
         logger.info('Extracted section', { section });
       }
 
-      // NOVO: Extrair contexto adicional (Q4)
-      if (questionId === 'q4' && typeof answer.answer === 'string' && answer.answer.trim().length > 3) {
+      // NOVO C.9: Extrair preferência metodológica (Q4)
+      if (questionId === 'q4_metodologia') {
+        methodology = answer.answer?.toString() || undefined;
+        logger.info('Extracted methodology', { methodology });
+      }
+
+      // NOVO C.9: Extrair região (Q5)
+      if (questionId === 'q5_regiao') {
+        region = answer.answer?.toString() || undefined;
+        logger.info('Extracted region', { region });
+      }
+
+      // NOVO: Extrair contexto adicional (Q6 - renomeado de Q4)
+      if ((questionId === 'q4' || questionId === 'q6_contexto') && typeof answer.answer === 'string' && answer.answer.trim().length > 3) {
         additionalContext = answer.answer.trim();
         specificTerms.push(additionalContext);  // Manter compatibilidade
         logger.info('Extracted additionalContext', { additionalContext });
@@ -543,7 +762,9 @@ Responda em português do Brasil, de forma direta e objetiva.`;
       section,
       additionalContext,
       targetWordCount,
-      targetArticles
+      targetArticles,
+      methodology,        // NOVO C.9
+      region             // NOVO C.9
     };
 
     logger.info('Clarification answers processed with structured data', {
