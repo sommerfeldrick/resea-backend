@@ -257,298 +257,145 @@ export function generateBranchedQuestions(
 // ============================================
 
 /**
- * Gera perguntas inteligentes baseadas na query inicial do usuário
+ * NOVA VERSÃO: Gera perguntas ramificadas baseadas no tipo de trabalho
+ *
+ * FASE 1 (esta chamada): Retorna APENAS a pergunta sobre tipo de trabalho
+ * FASE 2 (próxima chamada): Baseado na resposta, gera perguntas específicas
+ *
+ * Para manter compatibilidade, por enquanto retorna perguntas fixas padrão
+ * TODO: Implementar lógica de duas fases no frontend
  */
 export async function generateClarificationQuestions(
-  query: string
+  query: string,
+  workType?: string  // Se fornecido, gera perguntas específicas para esse tipo
 ): Promise<ClarificationSession> {
-  logger.info('Generating clarification questions', { query });
+  logger.info('Generating clarification questions (branched)', { query, workType });
 
-  try {
-    const prompt = `Você é um assistente de pesquisa acadêmica experiente. O usuário quer pesquisar sobre: "${query}".
-
-Para fazer a melhor busca possível, gere 4 perguntas estratégicas que ajudarão a refinar a busca. As perguntas devem cobrir:
-
-1. Qual seção do documento ele quer escrever (introdução, revisão de literatura, metodologia, resultados, discussão, conclusão, etc)
-2. Período temporal de interesse (últimos 3, 5, 10 anos ou sem restrição)
-3. Nível de profundidade desejado (básico/visão geral, intermediário/detalhado, avançado/aprofundado)
-4. Contexto ou aplicação específica (opcional - campo de texto livre)
-
-Retorne APENAS um objeto JSON válido (sem markdown, sem \`\`\`json) com esta estrutura:
-{
-  "questions": [
-    {
-      "id": "q1",
-      "questionNumber": 1,
-      "totalQuestions": 5,
-      "type": "multiple_choice",
-      "question": "Qual seção você quer escrever primeiro?",
-      "description": "Isso ajudará a priorizar os tipos de artigos",
-      "options": [
-        {
-          "value": "introducao",
-          "label": "Introdução",
-          "description": "Contextualização e motivação",
-          "estimatedArticles": 20
-        },
-        {
-          "value": "revisao_literatura",
-          "label": "Revisão de Literatura",
-          "description": "Estado da arte e fundamentação teórica",
-          "estimatedArticles": 60
-        },
-        {
-          "value": "metodologia",
-          "label": "Metodologia",
-          "description": "Métodos e técnicas",
-          "estimatedArticles": 15
-        },
-        {
-          "value": "todas",
-          "label": "Todas as seções",
-          "description": "Documento completo",
-          "estimatedArticles": 100
-        }
-      ],
-      "required": true
-    }
-  ]
-}
-
-IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
-
-    const response = await generateText(prompt, {
-      systemPrompt: 'Você é um assistente de pesquisa especialista. Retorne APENAS JSON válido, sem formatação markdown.',
-      temperature: 0.7,
-      maxTokens: 3000
-    });
-
-    // Clean markdown code blocks
-    let cleanedText = response.text.trim()
-      .replace(/^```json\s*/i, '')
-      .replace(/^```\s*/i, '')
-      .replace(/```\s*$/i, '');
-
-    logger.info('AI response for clarification', {
-      originalLength: response.text.length,
-      cleanedLength: cleanedText.length,
-      preview: cleanedText.substring(0, 200)
-    });
-
-    let questionsData;
-    try {
-      questionsData = JSON.parse(cleanedText);
-    } catch (parseError: any) {
-      logger.error('JSON parse failed, attempting to fix', {
-        error: parseError.message,
-        textPreview: cleanedText.substring(0, 500)
-      });
-
-      // Try 1: Complete truncated JSON
-      try {
-        const completed = tryCompleteJSON(cleanedText);
-        logger.info('Attempting to parse completed JSON', {
-          originalLength: cleanedText.length,
-          completedLength: completed.length
-        });
-        questionsData = JSON.parse(completed);
-        logger.info('Successfully parsed completed JSON');
-      } catch (completeError: any) {
-        // Try 2: Find JSON object in the text
-        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const completed2 = tryCompleteJSON(jsonMatch[0]);
-          questionsData = JSON.parse(completed2);
-        } else {
-          throw new Error('Could not extract valid JSON from response');
-        }
-      }
-    }
-
-    // Validate and fix questions
-    const validatedQuestions = questionsData.questions.map((q: any, index: number) => {
-      // FORÇAR todas as perguntas a serem multiple_choice (frontend só suporta isso)
-      const needsOptions = !q.options || !Array.isArray(q.options) || q.options.length === 0;
-
-      if (needsOptions) {
-        logger.warn('Question needs options, adding contextual defaults', {
-          questionId: q.id,
-          originalType: q.type,
-          question: q.question
-        });
-
-        // FORÇAR type para multiple_choice
-        q.type = 'multiple_choice';
-
-        // Detectar tipo de pergunta e adicionar opções contextuais
-        const questionText = (q.question || '').toLowerCase();
-
-        if (questionText.includes('período') || questionText.includes('temporal') || questionText.includes('ano') || questionText.includes('publicação')) {
-          // Pergunta sobre período temporal
-          q.options = [
-            { value: 'recente', label: 'Últimos 5 anos (2020-2025)', description: 'Pesquisas mais recentes e atuais', estimatedArticles: 50 },
-            { value: 'amplo', label: 'Últimos 10 anos (2015-2025)', description: 'Boa cobertura com estudos consolidados', estimatedArticles: 120 },
-            { value: 'historico', label: 'Últimos 20 anos (2005-2025)', description: 'Visão histórica e evolutiva do tema', estimatedArticles: 200 },
-            { value: 'todos', label: 'Sem restrição de período', description: 'Todos os artigos disponíveis', estimatedArticles: 300 }
-          ];
-        } else if (questionText.includes('aplicação') || questionText.includes('específica') || questionText.includes('interessa') || questionText.includes('foco')) {
-          // Pergunta sobre aplicações específicas ou foco da pesquisa
-          q.options = [
-            { value: 'geral', label: 'Visão geral do tema', description: 'Sem foco específico', estimatedArticles: 100 },
-            { value: 'especifico1', label: 'Tenho um foco específico', description: 'Buscar apenas sobre aplicação particular', estimatedArticles: 40 },
-            { value: 'comparativo', label: 'Comparação entre abordagens', description: 'Estudos comparativos', estimatedArticles: 60 },
-            { value: 'todos', label: 'Todas as aplicações', description: 'Cobertura ampla', estimatedArticles: 120 }
-          ];
-        } else if (questionText.includes('seção') || questionText.includes('parte')) {
-          // Pergunta sobre seção do documento
-          q.options = [
-            { value: 'introducao', label: 'Introdução', description: 'Contextualização e motivação', estimatedArticles: 20 },
-            { value: 'revisao', label: 'Revisão de Literatura', description: 'Estado da arte e fundamentação teórica', estimatedArticles: 60 },
-            { value: 'metodologia', label: 'Metodologia', description: 'Métodos e procedimentos', estimatedArticles: 15 },
-            { value: 'resultados', label: 'Resultados', description: 'Apresentação de dados e achados', estimatedArticles: 25 },
-            { value: 'discussao', label: 'Discussão', description: 'Interpretação e análise dos resultados', estimatedArticles: 30 },
-            { value: 'conclusao', label: 'Conclusão', description: 'Síntese e considerações finais', estimatedArticles: 15 },
-            { value: 'todas', label: 'Todas as seções', description: 'Documento completo', estimatedArticles: 100 }
-          ];
-        } else if (questionText.includes('nível') || questionText.includes('detalhe') || questionText.includes('profundidade')) {
-          // Pergunta sobre nível de detalhe/profundidade
-          q.options = [
-            { value: 'basico', label: 'Conceitos básicos', description: 'Visão geral e introdutória', estimatedArticles: 40 },
-            { value: 'intermediario', label: 'Nível intermediário', description: 'Detalhes metodológicos e aplicações', estimatedArticles: 70 },
-            { value: 'avancado', label: 'Análise aprofundada', description: 'Aspectos teóricos e técnicos avançados', estimatedArticles: 50 },
-            { value: 'todos', label: 'Todos os níveis', description: 'Cobertura completa', estimatedArticles: 100 }
-          ];
-        } else {
-          // Fallback genérico
-          q.options = [
-            { value: 'sim', label: 'Sim', description: 'Incluir este critério', estimatedArticles: 60 },
-            { value: 'nao', label: 'Não', description: 'Não incluir', estimatedArticles: 30 },
-            { value: 'talvez', label: 'Indiferente', description: 'Não tenho preferência', estimatedArticles: 100 }
-          ];
-        }
-      }
-
-      // Ensure required fields exist
-      return {
-        ...q,
-        id: q.id || `q${index + 1}`,
-        questionNumber: q.questionNumber || index + 1,
-        totalQuestions: q.totalQuestions || questionsData.questions.length,
-        type: q.type || 'multiple_choice',
-        required: q.required !== undefined ? q.required : true
-      };
-    });
+  // Se workType já foi fornecido, gera perguntas específicas
+  if (workType) {
+    const branchedQuestions = generateBranchedQuestions(query, workType);
 
     const session: ClarificationSession = {
       sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       query,
-      questions: validatedQuestions,
+      workType: workType as any,
+      questions: branchedQuestions,
       answers: [],
       completed: false,
       createdAt: new Date()
     };
 
-    // Log detalhado de CADA pergunta para debug
-    validatedQuestions.forEach((q: any, idx: number) => {
-      logger.info(`Question ${idx + 1} details:`, {
-        id: q.id,
-        type: q.type,
-        question: q.question,
-        hasOptions: !!q.options,
-        optionsCount: q.options?.length || 0,
-        optionsPreview: q.options?.map((opt: any) => opt.label).join(', ') || 'NONE'
-      });
-    });
-
-    logger.info('Clarification session complete', {
+    logger.info('Generated branched questions', {
       sessionId: session.sessionId,
-      questionCount: session.questions.length,
-      allQuestionsHaveOptions: validatedQuestions.every((q: any) => q.options && q.options.length > 0)
+      workType,
+      questionCount: branchedQuestions.length
     });
-
-    return session;
-  } catch (error: any) {
-    logger.error('Failed to generate clarification questions', {
-      error: error.message,
-      query
-    });
-
-    // Fallback: return default questions
-    logger.info('Using fallback default questions');
-    const session: ClarificationSession = {
-      sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      query,
-      questions: [
-        {
-          id: 'q1',
-          questionNumber: 1,
-          totalQuestions: 4,
-          type: 'multiple_choice',
-          question: 'Qual seção do documento você deseja escrever?',
-          description: 'Isso ajudará a priorizar os tipos de artigos mais relevantes',
-          options: [
-            { value: 'introducao', label: 'Introdução', description: 'Contextualização geral do tema', estimatedArticles: 20 },
-            { value: 'revisao', label: 'Revisão de Literatura', description: 'Estado da arte e fundamentação teórica', estimatedArticles: 60 },
-            { value: 'metodologia', label: 'Metodologia', description: 'Métodos e procedimentos', estimatedArticles: 15 },
-            { value: 'resultados', label: 'Resultados', description: 'Apresentação de dados e achados', estimatedArticles: 25 },
-            { value: 'discussao', label: 'Discussão', description: 'Interpretação e análise dos resultados', estimatedArticles: 30 },
-            { value: 'conclusao', label: 'Conclusão', description: 'Síntese e considerações finais', estimatedArticles: 15 },
-            { value: 'todas', label: 'Todas as seções', description: 'Documento completo', estimatedArticles: 100 }
-          ],
-          required: true
-        },
-        {
-          id: 'q2',
-          questionNumber: 2,
-          totalQuestions: 4,
-          type: 'multiple_choice',
-          question: 'Que período de publicação você prefere?',
-          description: 'Artigos mais recentes tendem a ter melhor qualidade e relevância',
-          options: [
-            { value: 'ultimos_3_anos', label: 'Últimos 3 anos (2022-2025)', description: 'Estado da arte mais atual', estimatedArticles: 40 },
-            { value: 'ultimos_5_anos', label: 'Últimos 5 anos (2020-2025)', description: 'Equilíbrio entre atualidade e volume', estimatedArticles: 70 },
-            { value: 'ultimos_10_anos', label: 'Últimos 10 anos (2015-2025)', description: 'Base sólida e consolidada', estimatedArticles: 120 },
-            { value: 'sem_restricao', label: 'Sem restrição de período', description: 'Todos os artigos disponíveis', estimatedArticles: 200 }
-          ],
-          required: true
-        },
-        {
-          id: 'q3',
-          questionNumber: 3,
-          totalQuestions: 4,
-          type: 'multiple_choice',
-          question: 'Qual nível de profundidade você precisa?',
-          description: 'Isso afetará o tipo de conteúdo e densidade técnica',
-          options: [
-            { value: 'basico', label: 'Visão Geral', description: 'Conceitos básicos e introdutórios', estimatedArticles: 50 },
-            { value: 'intermediario', label: 'Detalhado', description: 'Análise técnica e metodológica', estimatedArticles: 80 },
-            { value: 'avancado', label: 'Aprofundado', description: 'Teoria avançada e aspectos complexos', estimatedArticles: 60 }
-          ],
-          required: true
-        },
-        {
-          id: 'q4',
-          questionNumber: 4,
-          totalQuestions: 4,
-          type: 'text',
-          question: 'Você tem algum contexto ou aplicação específica? (Opcional)',
-          description: 'Ex: "contexto brasileiro", "pequenas empresas", "ensino fundamental", etc.',
-          placeholder: 'Digite aqui se tiver algo específico...',
-          required: false
-        }
-      ],
-      answers: [],
-      completed: false,
-      createdAt: new Date()
-    };
 
     return session;
   }
+
+  // Retorna perguntas fixas padrão com tipo de trabalho PRIMEIRO
+  // SIMPLIFICADO: não usa mais IA, apenas perguntas fixas otimizadas
+  logger.info('Using fixed questions with workType as first question');
+
+  const session: ClarificationSession = {
+    sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    query,
+    questions: [
+      // Q0: TIPO DE TRABALHO (NOVA - PRIMEIRA PERGUNTA)
+      {
+        id: 'q0_work_type',
+        questionNumber: 1,
+        totalQuestions: 5,
+        type: 'multiple_choice',
+        question: 'Que tipo de trabalho acadêmico você está escrevendo?',
+        description: 'Isso define o formato e os padrões ABNT adequados',
+        options: [
+          { value: 'tcc', label: 'TCC - Trabalho de Conclusão de Curso', description: '40-60 páginas, graduação', estimatedArticles: 30 },
+          { value: 'dissertacao', label: 'Dissertação de Mestrado', description: '80-120 páginas, mestrado', estimatedArticles: 80 },
+          { value: 'tese', label: 'Tese de Doutorado', description: '150-250 páginas, doutorado', estimatedArticles: 150 },
+          { value: 'projeto_pesquisa', label: 'Projeto de Pesquisa', description: '10-20 páginas, proposta', estimatedArticles: 25 },
+          { value: 'artigo_cientifico', label: 'Artigo Científico', description: '15-25 páginas, publicação', estimatedArticles: 30 },
+          { value: 'revisao_sistematica', label: 'Revisão Sistemática', description: '20-40 páginas, revisão de literatura', estimatedArticles: 60 },
+          { value: 'relatorio_tecnico', label: 'Relatório Técnico', description: 'Formato variável, documentação técnica', estimatedArticles: 20 }
+        ],
+        required: true
+      },
+      // Q1: SEÇÃO/FORMATO
+      {
+        id: 'q1',
+        questionNumber: 2,
+        totalQuestions: 5,
+        type: 'multiple_choice',
+        question: 'Qual seção do documento você deseja escrever?',
+        description: 'Isso ajudará a priorizar os tipos de artigos mais relevantes',
+        options: [
+          { value: 'introducao', label: 'Introdução', description: 'Contextualização geral do tema', estimatedArticles: 20 },
+          { value: 'revisao', label: 'Revisão de Literatura', description: 'Estado da arte e fundamentação teórica', estimatedArticles: 60 },
+          { value: 'metodologia', label: 'Metodologia', description: 'Métodos e procedimentos', estimatedArticles: 15 },
+          { value: 'resultados', label: 'Resultados', description: 'Apresentação de dados e achados', estimatedArticles: 25 },
+          { value: 'discussao', label: 'Discussão', description: 'Interpretação e análise dos resultados', estimatedArticles: 30 },
+          { value: 'conclusao', label: 'Conclusão', description: 'Síntese e considerações finais', estimatedArticles: 15 },
+          { value: 'todas', label: 'Todas as seções / Documento completo', description: 'Projeto, artigo ou documento completo', estimatedArticles: 100 }
+        ],
+        required: true
+      },
+      // Q2: PERÍODO
+      {
+        id: 'q2',
+        questionNumber: 3,
+        totalQuestions: 5,
+        type: 'multiple_choice',
+        question: 'Que período de publicação você prefere?',
+        description: 'Artigos mais recentes tendem a ter melhor qualidade e relevância',
+        options: [
+          { value: 'ultimos_3_anos', label: 'Últimos 3 anos (2022-2025)', description: 'Estado da arte mais atual', estimatedArticles: 40 },
+          { value: 'ultimos_5_anos', label: 'Últimos 5 anos (2020-2025)', description: 'Equilíbrio entre atualidade e volume', estimatedArticles: 70 },
+          { value: 'ultimos_10_anos', label: 'Últimos 10 anos (2015-2025)', description: 'Base sólida e consolidada', estimatedArticles: 120 },
+          { value: 'sem_restricao', label: 'Sem restrição de período', description: 'Todos os artigos disponíveis', estimatedArticles: 200 }
+        ],
+        required: true
+      },
+      // Q3: PROFUNDIDADE
+      {
+        id: 'q3',
+        questionNumber: 4,
+        totalQuestions: 5,
+        type: 'multiple_choice',
+        question: 'Qual nível de profundidade você precisa?',
+        description: 'Isso afetará o tipo de conteúdo e densidade técnica',
+        options: [
+          { value: 'basico', label: 'Visão Geral', description: 'Conceitos básicos e introdutórios', estimatedArticles: 50 },
+          { value: 'intermediario', label: 'Detalhado', description: 'Análise técnica e metodológica', estimatedArticles: 80 },
+          { value: 'avancado', label: 'Aprofundado', description: 'Teoria avançada e aspectos complexos', estimatedArticles: 60 }
+        ],
+        required: true
+      },
+      // Q4: CONTEXTO ADICIONAL
+      {
+        id: 'q4',
+        questionNumber: 5,
+        totalQuestions: 5,
+        type: 'text',
+        question: 'Você tem algum contexto ou aplicação específica? (Opcional)',
+        description: 'Ex: "contexto brasileiro", "pequenas empresas", "ensino fundamental", etc.',
+        placeholder: 'Digite aqui se tiver algo específico...',
+        required: false
+      }
+    ],
+    answers: [],
+    completed: false,
+    createdAt: new Date()
+  };
+
+  logger.info('Clarification session created with fixed questions', {
+    sessionId: session.sessionId,
+    questionCount: session.questions.length
+  });
+
+  return session;
 }
 
-/**
- * Processa as respostas do usuário e finaliza a sessão de clarificação
- */
 export async function processClarificationAnswers(
   sessionId: string,
   answers: ClarificationAnswer[]
@@ -835,9 +682,56 @@ export async function generateSearchStrategy(
     focusSection: string;
     specificTerms: string[];
     detailLevel: string;
+    workType?: string;  // NOVO: tipo de trabalho acadêmico
+    section?: string;   // NOVO: seção específica
+    additionalContext?: string;  // NOVO: contexto adicional do usuário
   }
 ): Promise<FlowSearchStrategy> {
-  logger.info('Generating search strategy', { query, structuredData });
+  logger.info('Generating search strategy with content outline', { query, structuredData });
+
+  // ETAPA 1: Gerar roteiro de conteúdo ANTES de buscar artigos
+  const workType = structuredData?.workType || 'tcc';
+  const section = structuredData?.section || 'revisao';
+  const additionalContext = structuredData?.additionalContext || '';
+
+  logger.info('Generating content outline before search', { workType, section });
+
+  let contentOutline, validationCriteria;
+  try {
+    const outlineResult = await generateContentOutline(
+      query,
+      workType,
+      section,
+      additionalContext
+    );
+    contentOutline = outlineResult.outline;
+    validationCriteria = outlineResult.criteria;
+
+    logger.info('Content outline generated successfully', {
+      topicsCount: contentOutline.topicsToAddress?.length,
+      conceptsCount: contentOutline.keyConceptsNeeded?.length
+    });
+  } catch (error: any) {
+    logger.error('Failed to generate content outline, using fallback', {
+      error: error.message
+    });
+    // Fallback se falhar
+    contentOutline = {
+      mainArgument: `Análise sobre ${query}`,
+      topicsToAddress: [query],
+      keyConceptsNeeded: [query],
+      expectedStructure: [
+        { subtopic: 'Fundamentação', focus: `Conceitos sobre ${query}`, expectedArticles: 15 },
+        { subtopic: 'Evidências', focus: `Estudos sobre ${query}`, expectedArticles: 25 },
+        { subtopic: 'Síntese', focus: `Lacunas sobre ${query}`, expectedArticles: 10 }
+      ]
+    };
+    validationCriteria = {
+      mustContainTopics: [query],
+      mustDefineConcepts: [],
+      minimumQuality: 60
+    };
+  }
 
   try {
     const prompt = `Você é um especialista em busca acadêmica. Crie uma estratégia de busca otimizada para o tema específico do usuário.
