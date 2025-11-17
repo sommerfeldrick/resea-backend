@@ -104,13 +104,12 @@ export async function generateClarificationQuestions(
   try {
     const prompt = `Você é um assistente de pesquisa acadêmica experiente. O usuário quer pesquisar sobre: "${query}".
 
-Para fazer a melhor busca possível, gere 3-5 perguntas estratégicas que ajudarão a refinar a busca. As perguntas devem cobrir:
+Para fazer a melhor busca possível, gere 4 perguntas estratégicas que ajudarão a refinar a busca. As perguntas devem cobrir:
 
-1. Qual seção do documento ele quer escrever (introdução, revisão de literatura, metodologia, etc)
-2. Que tipos de estudo prefere (empíricos, teóricos, revisões sistemáticas, etc)
-3. Período temporal de interesse
-4. Contexto específico ou aplicação (se aplicável)
-5. Nível de profundidade desejado
+1. Qual seção do documento ele quer escrever (introdução, revisão de literatura, metodologia, resultados, discussão, conclusão, etc)
+2. Período temporal de interesse (últimos 3, 5, 10 anos ou sem restrição)
+3. Nível de profundidade desejado (básico/visão geral, intermediário/detalhado, avançado/aprofundado)
+4. Contexto ou aplicação específica (opcional - campo de texto livre)
 
 Retorne APENAS um objeto JSON válido (sem markdown, sem \`\`\`json) com esta estrutura:
 {
@@ -247,14 +246,6 @@ IMPORTANTE: Adapte as perguntas especificamente para o tema "${query}".`;
             { value: 'discussao', label: 'Discussão', description: 'Interpretação e análise dos resultados', estimatedArticles: 30 },
             { value: 'conclusao', label: 'Conclusão', description: 'Síntese e considerações finais', estimatedArticles: 15 },
             { value: 'todas', label: 'Todas as seções', description: 'Documento completo', estimatedArticles: 100 }
-          ];
-        } else if (questionText.includes('tipo') || questionText.includes('estudo')) {
-          // Pergunta sobre tipo de estudo
-          q.options = [
-            { value: 'empirico', label: 'Estudos Empíricos', description: 'Pesquisas com dados experimentais', estimatedArticles: 40 },
-            { value: 'revisao', label: 'Revisões Sistemáticas', description: 'Meta-análises e sínteses', estimatedArticles: 30 },
-            { value: 'teorico', label: 'Estudos Teóricos', description: 'Frameworks e modelos', estimatedArticles: 20 },
-            { value: 'todos', label: 'Todos os tipos', description: 'Sem restrição', estimatedArticles: 100 }
           ];
         } else if (questionText.includes('nível') || questionText.includes('detalhe') || questionText.includes('profundidade')) {
           // Pergunta sobre nível de detalhe/profundidade
