@@ -1794,6 +1794,207 @@ export async function executeExhaustiveSearch(
 }
 
 // ============================================
+// ETAPA 4: ARTICLE VALIDATION & REFINEMENT
+// ============================================
+
+/**
+ * ETAPA 4: Valida artigos contra content outline e refaz busca se necessário
+ *
+ * Esta função garante que os artigos encontrados realmente sustentam
+ * o conteúdo planejado no outline. Se houver gaps (tópicos sem artigos
+ * adequados), ela refaz a busca automaticamente.
+ */
+export async function validateAndRefineArticles(
+  articles: FlowEnrichedArticle[],
+  strategy: FlowSearchStrategy,
+  onProgress?: (status: { iteration: number; gaps: string[]; articlesAdded: number }) => void
+): Promise<FlowEnrichedArticle[]> {
+  const MAX_ITERATIONS = 3;
+  let currentArticles = [...articles];
+
+  logger.info('🎯 ETAPA 4: Starting article validation and refinement', {
+    initialArticles: articles.length,
+    outlineTopics: strategy.contentOutline?.topicsToAddress?.length || 0,
+    outlineConcepts: strategy.contentOutline?.keyConceptsNeeded?.length || 0
+  });
+
+  // Se não tem contentOutline, retorna artigos originais
+  if (!strategy.contentOutline) {
+    logger.info('No content outline available, skipping validation');
+    return currentArticles;
+  }
+
+  for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+    logger.info(`Validation iteration ${iteration}/${MAX_ITERATIONS}`);
+
+    // 1. VALIDAR: Verificar cobertura dos tópicos
+    const gaps = await identifyContentGaps(currentArticles, strategy.contentOutline, strategy.validationCriteria);
+
+    if (gaps.length === 0) {
+      logger.info('✅ All topics covered! Validation complete', {
+        iteration,
+        totalArticles: currentArticles.length
+      });
+      break;
+    }
+
+    logger.info(`Found ${gaps.length} content gaps`, { gaps });
+
+    if (onProgress) {
+      onProgress({ iteration, gaps, articlesAdded: 0 });
+    }
+
+    // Se última iteração, aceitar o que tem
+    if (iteration === MAX_ITERATIONS) {
+      logger.warn('Reached max iterations, accepting current articles', {
+        remainingGaps: gaps.length
+      });
+      break;
+    }
+
+    // 2. REFINAR: Gerar novas queries para preencher gaps
+    const refinedQueries = await generateRefinedQueries(gaps, strategy.originalQuery, strategy.filters);
+
+    logger.info(`Generated ${refinedQueries.length} refined queries for gaps`);
+
+    // 3. BUSCAR: Executar novas buscas
+    let articlesAdded = 0;
+    for (const refinedQuery of refinedQueries) {
+      const newResults = await buscaAcademicaUniversal(refinedQuery.query, {
+        maxResults: refinedQuery.expectedResults,
+        ...strategy.filters,
+        sources: ['openalex', 'arxiv', 'europepmc']
+      });
+
+      logger.info(`Refined search found ${newResults.length} new results for gap: ${refinedQuery.targetGap}`);
+
+      // Processar e adicionar novos artigos
+      for (const result of newResults) {
+        const scoreData = calculateArticleScore(result, refinedQuery.query);
+
+        if (scoreData.score < 30) continue;
+
+        // Verificar se não é duplicata
+        const isDuplicate = currentArticles.some(
+          a => (a.doi && a.doi === result.doi) || (a.url && a.url === result.url)
+        );
+
+        if (isDuplicate) continue;
+
+        const enrichedArticle: FlowEnrichedArticle = {
+          id: result.doi || result.url || `article_${Date.now()}_${Math.random()}`,
+          title: result.title,
+          authors: result.authors,
+          year: result.year,
+          abstract: result.abstract || '',
+          source: result.source,
+          url: result.url,
+          doi: result.doi,
+          pdfUrl: result.pdfUrl,
+          citationCount: result.citationCount || 0,
+          score: scoreData,
+          format: 'pdf',
+          hasFulltext: !!result.pdfUrl,
+          fullContent: undefined,
+          sections: {}
+        };
+
+        currentArticles.push(enrichedArticle);
+        articlesAdded++;
+      }
+    }
+
+    logger.info(`Iteration ${iteration} complete: added ${articlesAdded} new articles`);
+
+    if (onProgress) {
+      onProgress({ iteration, gaps, articlesAdded });
+    }
+
+    // Se não conseguiu adicionar artigos, parar
+    if (articlesAdded === 0) {
+      logger.warn('Could not find new articles for gaps, stopping refinement');
+      break;
+    }
+  }
+
+  logger.info('🎯 ETAPA 4: Validation and refinement complete', {
+    finalArticles: currentArticles.length,
+    articlesAdded: currentArticles.length - articles.length
+  });
+
+  return currentArticles;
+}
+
+/**
+ * Identifica gaps: tópicos do outline sem artigos adequados
+ */
+async function identifyContentGaps(
+  articles: FlowEnrichedArticle[],
+  contentOutline: any,
+  validationCriteria?: any
+): Promise<string[]> {
+  const gaps: string[] = [];
+
+  // Verificar cada tópico do outline
+  const topicsToCheck = [
+    ...(contentOutline.topicsToAddress || []),
+    ...(contentOutline.keyConceptsNeeded || [])
+  ];
+
+  logger.info('Checking coverage for topics', { topicsCount: topicsToCheck.length });
+
+  for (const topic of topicsToCheck) {
+    // Verificar se há artigos que abordam este tópico
+    const coveringArticles = articles.filter(article => {
+      const titleLower = article.title.toLowerCase();
+      const abstractLower = (article.abstract || '').toLowerCase();
+      const topicLower = topic.toLowerCase();
+      const topicTerms = topicLower.split(/\s+/).filter(t => t.length > 3);
+
+      // Considerar coberto se pelo menos 60% dos termos aparecem
+      const matchCount = topicTerms.filter(term =>
+        titleLower.includes(term) || abstractLower.includes(term)
+      ).length;
+
+      const coverage = topicTerms.length > 0 ? matchCount / topicTerms.length : 0;
+      return coverage >= 0.6;
+    });
+
+    // Se tem menos de 2 artigos cobrindo, é um gap
+    if (coveringArticles.length < 2) {
+      gaps.push(topic);
+      logger.debug(`Gap identified: "${topic}" (${coveringArticles.length} articles)`);
+    }
+  }
+
+  return gaps;
+}
+
+/**
+ * Gera queries refinadas para preencher gaps específicos
+ */
+async function generateRefinedQueries(
+  gaps: string[],
+  originalQuery: string,
+  filters: any
+): Promise<Array<{ query: string; targetGap: string; expectedResults: number }>> {
+  const refinedQueries = [];
+
+  for (const gap of gaps) {
+    // Query mais específica combinando query original + gap
+    const refinedQuery = {
+      query: `${originalQuery} ${gap}`,
+      targetGap: gap,
+      expectedResults: 5 // Buscar poucos artigos por gap
+    };
+
+    refinedQueries.push(refinedQuery);
+  }
+
+  return refinedQueries;
+}
+
+// ============================================
 // FASE 5: ARTICLE ANALYSIS & SYNTHESIS
 // ============================================
 

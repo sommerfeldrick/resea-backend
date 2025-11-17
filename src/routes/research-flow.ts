@@ -9,6 +9,7 @@ import {
   processClarificationAnswers,
   generateSearchStrategy,
   executeExhaustiveSearch,
+  validateAndRefineArticles,
   analyzeArticles,
   generateAcademicContent,
   generateCompleteDocument,
@@ -219,10 +220,35 @@ router.post('/search/execute', async (req: Request, res: Response) => {
       // Executa a busca
       const articles = await executeExhaustiveSearch(strategy, onProgress);
 
-      // Envia artigos em lotes - COM FULLTEXT TRUNCADO
+      // 🎯 ETAPA 4: Valida e refina artigos
+      logger.info('Starting article validation and refinement');
+      const validatedArticles = await validateAndRefineArticles(
+        articles,
+        strategy,
+        (status) => {
+          // Envia progresso da validação via SSE
+          res.write(`data: ${JSON.stringify({
+            type: 'validation',
+            data: {
+              iteration: status.iteration,
+              gapsFound: status.gaps.length,
+              gaps: status.gaps,
+              articlesAdded: status.articlesAdded
+            }
+          })}\n\n`);
+        }
+      );
+
+      logger.info('Validation complete', {
+        initialArticles: articles.length,
+        finalArticles: validatedArticles.length,
+        articlesAdded: validatedArticles.length - articles.length
+      });
+
+      // Envia artigos validados em lotes - COM FULLTEXT TRUNCADO
       const batchSize = 5;
-      for (let i = 0; i < articles.length; i += batchSize) {
-        const batch = articles.slice(i, i + batchSize);
+      for (let i = 0; i < validatedArticles.length; i += batchSize) {
+        const batch = validatedArticles.slice(i, i + batchSize);
 
         // SSE: Enviar fullContent truncado para frontend usar nas fases seguintes
         const safeBatch = batch.map(article => {
@@ -263,16 +289,16 @@ router.post('/search/execute', async (req: Request, res: Response) => {
           type: 'articles_batch',
           data: safeBatch,
           batchIndex: Math.floor(i / batchSize),
-          totalBatches: Math.ceil(articles.length / batchSize),
-          totalArticles: articles.length
+          totalBatches: Math.ceil(validatedArticles.length / batchSize),
+          totalArticles: validatedArticles.length
         })}\n\n`);
       }
 
       // Envia evento de conclusão
-      res.write(`data: ${JSON.stringify({ type: 'complete', totalArticles: articles.length })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'complete', totalArticles: validatedArticles.length })}\n\n`);
       res.end();
 
-      logger.info('API: Exhaustive search completed', { articlesFound: articles.length });
+      logger.info('API: Exhaustive search completed', { articlesFound: validatedArticles.length });
     } finally {
       // Limpar heartbeat
       clearInterval(heartbeatInterval);
