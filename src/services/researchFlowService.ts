@@ -1066,48 +1066,31 @@ ${structuredData?.detailLevel === 'basico' ? `
 - ("computational modeling" OR "numerical simulation") AND oral AND ("bone remodeling" OR osseointegration)
 
 ═══════════════════════════════════════════════════════════════
-📝 COMPLETE EXAMPLE: TOPIC IN PORTUGUESE → QUERIES IN ENGLISH
+📝 EXAMPLES: HOW TO TRANSLATE ANY TOPIC TO ENGLISH QUERIES
 ═══════════════════════════════════════════════════════════════
 
-USER QUERY (in Portuguese): "elementos finitos na odontologia"
+⚠️ IMPORTANT: These are EXAMPLES ONLY to show the PATTERN.
+Apply the SAME pattern to WHATEVER topic the user provides!
 
-YOUR RESPONSE MUST BE:
-{
-  "topic": "finite element analysis in dentistry",
-  "originalQuery": "elementos finitos na odontologia",
-  "queries": {
-    "P1": [
-      { "query": "(\\"finite element analysis\\" OR \\"FEA\\" OR \\"finite element method\\") AND (dentistry OR dental OR orthodontics) AND (biomechanics OR \\"stress analysis\\")", "priority": "P1", "expectedResults": 12 },
-      { "query": "(\\"finite element\\" OR \\"FEM\\") AND dental AND (\\"implant design\\" OR prosthesis OR \\"crown design\\")", "priority": "P1", "expectedResults": 12 },
-      { "query": "\\"computational modeling\\" AND dentistry AND (\\"stress distribution\\" OR \\"strain analysis\\" OR biomechanics)", "priority": "P1", "expectedResults": 12 }
-    ],
-    "P2": [
-      { "query": "(\\"finite element\\" OR \\"computational simulation\\") AND (dental OR oral) AND (implant OR restoration)", "priority": "P2", "expectedResults": 15 },
-      { "query": "\\"numerical analysis\\" AND dentistry AND (biomechanics OR \\"mechanical properties\\")", "priority": "P2", "expectedResults": 15 }
-    ],
-    "P3": [
-      { "query": "\\"finite element\\" AND dentistry", "priority": "P3", "expectedResults": 10 }
-    ]
-  },
-  "keyTerms": {
-    "primary": ["finite element analysis", "dentistry", "dental"],
-    "specific": ["biomechanics", "stress analysis", "implant design", "prosthesis"],
-    "methodological": ["computational modeling", "numerical simulation", "FEA"]
-  },
-  "filters": {
-    "dateRange": {"start": 2020, "end": 2025},
-    "languages": ["en"],
-    "documentTypes": ["article", "review", "conference_paper"]
-  },
-  "targetArticles": 70,
-  "estimatedTime": "3-5 minutes"
-}
+--- EXAMPLE 1: Portuguese topic ---
+Input: "elementos finitos na odontologia"
+Output queries: ("finite element analysis" OR "FEA") AND dentistry AND biomechanics
 
-NOTICE:
-- "topic" is TRANSLATED to English
-- ALL queries are in ENGLISH
-- NO forbidden terms ("introduction", "background", etc.)
-- Boolean operators used correctly
+--- EXAMPLE 2: Portuguese request ---
+Input: "preciso de uma introdução sobre machine learning"
+Output queries: ("machine learning" OR "ML") AND ("deep learning" OR "neural networks") AND applications
+
+--- EXAMPLE 3: Spanish topic ---
+Input: "inteligencia artificial en educación"
+Output queries: ("artificial intelligence" OR "AI") AND education AND ("e-learning" OR "personalized learning")
+
+⚠️ KEY RULES TO FOLLOW (for ANY topic):
+1. ALWAYS translate to English (Portuguese/Spanish → English)
+2. Use Boolean operators: AND, OR, parentheses
+3. NEVER use: "introduction", "background", "overview", "motivation"
+4. Focus on: technical terms, methods, applications, contexts
+5. Use quotes for exact phrases: "machine learning"
+6. Use OR for synonyms: ("AI" OR "artificial intelligence")
 
 ═══════════════════════════════════════════════════════════════
 ✅ RETURN ONLY VALID JSON (NO MARKDOWN)
