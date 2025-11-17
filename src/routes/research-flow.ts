@@ -6,6 +6,7 @@ import { Router, Request, Response } from 'express';
 import { logger } from '../config/logger.js';
 import {
   generateClarificationQuestions,
+  generateBranchedQuestions,
   processClarificationAnswers,
   generateSearchStrategy,
   executeExhaustiveSearch,
@@ -101,6 +102,38 @@ router.post('/clarification/generate', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: error.message || 'Falha ao gerar perguntas de clarificação'
+    });
+  }
+});
+
+/**
+ * POST /api/research-flow/clarification/branch
+ * Gera perguntas ramificadas baseadas no tipo de trabalho escolhido
+ */
+router.post('/clarification/branch', async (req: Request, res: Response) => {
+  try {
+    const { workType, query } = req.body;
+
+    if (!workType || typeof workType !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'workType é obrigatório'
+      });
+    }
+
+    logger.info('API: Generate branched questions', { workType, query });
+
+    const questions = generateBranchedQuestions(query || '', workType);
+
+    res.json({
+      success: true,
+      data: { questions }
+    });
+  } catch (error: any) {
+    logger.error('API: Generate branched questions failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Falha ao gerar perguntas ramificadas'
     });
   }
 });

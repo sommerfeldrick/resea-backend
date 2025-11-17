@@ -172,92 +172,184 @@ export function generateBranchedQuestions(
   const fiveYearsAgo = currentYear - 5;
   const tenYearsAgo = currentYear - 10;
 
-  // Q1: Sempre pergunta sobre período temporal
-  const q1 = {
-    id: 'q1_periodo',
+  // Perguntas base (comuns a todos)
+  const periodQuestion = {
+    id: 'q_periodo',
     questionNumber: 1,
-    totalQuestions: 4,
     type: 'multiple_choice' as const,
-    question: '📅 Qual período de publicação você prefere para os artigos?',
-    description: 'Artigos recentes trazem as descobertas mais atuais, mas tópicos clássicos podem precisar de um período maior.',
+    question: 'Qual período de publicação você prefere para os artigos?',
+    description: 'Artigos mais recentes trazem descobertas atuais, mas tópicos clássicos podem precisar de um período maior.',
     options: [
-      { value: 'ultimos_3_anos', label: `🔥 Últimos 3 anos (${threeYearsAgo}-${currentYear})`, description: 'Muito atual • Descobertas recentes', estimatedArticles: 40 },
-      { value: 'ultimos_5_anos', label: `⚡ Últimos 5 anos (${fiveYearsAgo}-${currentYear})`, description: 'Equilíbrio ideal • Recomendado', estimatedArticles: 70 },
-      { value: 'ultimos_10_anos', label: `📚 Últimos 10 anos (${tenYearsAgo}-${currentYear})`, description: 'Base consolidada • Maior volume', estimatedArticles: 120 },
-      { value: 'sem_restricao', label: '🌐 Sem restrição de período', description: 'Inclui trabalhos clássicos', estimatedArticles: 200 }
+      { value: 'ultimos_3_anos', label: `Últimos 3 anos (${threeYearsAgo}-${currentYear})`, description: 'Muito atual - Descobertas recentes', estimatedArticles: 40 },
+      { value: 'ultimos_5_anos', label: `Últimos 5 anos (${fiveYearsAgo}-${currentYear})`, description: 'Equilíbrio ideal - Recomendado', estimatedArticles: 70 },
+      { value: 'ultimos_10_anos', label: `Últimos 10 anos (${tenYearsAgo}-${currentYear})`, description: 'Base consolidada - Maior volume', estimatedArticles: 120 },
+      { value: 'sem_restricao', label: 'Sem restrição de período', description: 'Inclui trabalhos clássicos', estimatedArticles: 200 }
     ],
     required: true
   };
 
-  // Q2: Sempre pergunta sobre profundidade
-  const q2 = {
-    id: 'q2_profundidade',
+  const profundidadeQuestion = {
+    id: 'q_profundidade',
     questionNumber: 2,
-    totalQuestions: 4,
     type: 'multiple_choice' as const,
-    question: '🎓 Que tipo de conteúdo você precisa no seu trabalho?',
-    description: 'Isso define o nível de aprofundamento teórico e a densidade técnica do texto gerado.',
+    question: 'Que tipo de conteúdo você precisa no seu trabalho?',
+    description: 'Define o nível de aprofundamento teórico e densidade técnica do texto.',
     options: [
-      { value: 'basico', label: '📘 Conceitos Básicos e Definições', description: 'Para entender o tema • Contextualizar', estimatedArticles: 50 },
-      { value: 'intermediario', label: '🔬 Análise Técnica e Metodológica', description: 'Para discutir métodos • Comparar estudos', estimatedArticles: 80 },
-      { value: 'avancado', label: '🎓 Teoria Avançada e Aspectos Complexos', description: 'Para aprofundar discussões • Alta densidade', estimatedArticles: 100 }
+      { value: 'basico', label: 'Conceitos Básicos e Definições', description: 'Para entender o tema - Contextualizar - Linguagem acessível', estimatedArticles: 50 },
+      { value: 'intermediario', label: 'Análise Técnica e Metodológica', description: 'Para discutir métodos - Comparar estudos - Nível acadêmico padrão', estimatedArticles: 80 },
+      { value: 'avancado', label: 'Teoria Avançada e Aspectos Complexos', description: 'Para aprofundar discussões - Debates teóricos - Alta densidade', estimatedArticles: 100 }
     ],
     required: true
   };
 
-  // Q3: Pergunta específica baseada no tipo de trabalho
-  let q3: any;
-
-  if (workType === 'tcc' || workType === 'dissertacao' || workType === 'tese') {
-    // Para trabalhos acadêmicos longos: perguntar qual seção
-    const workTypeLabel = workType === 'tcc' ? 'TCC' : workType === 'dissertacao' ? 'Dissertação' : 'Tese';
-    q3 = {
-      id: 'q3_secao',
-      questionNumber: 3,
-      totalQuestions: 4,
-      type: 'multiple_choice' as const,
-      question: `📝 Qual seção do seu ${workTypeLabel} você quer escrever agora?`,
-      description: `Para ${workTypeLabel}, recomendamos escrever uma seção por vez para garantir qualidade e profundidade adequadas.`,
-      options: [
-        { value: 'introducao', label: '🎯 Introdução', description: 'Contextualização • Justificativa • Objetivos', estimatedArticles: workType === 'tcc' ? 15 : workType === 'dissertacao' ? 30 : 50 },
-        { value: 'revisao', label: '📖 Revisão de Literatura', description: 'Estado da arte • Teorias principais', estimatedArticles: workType === 'tcc' ? 35 : workType === 'dissertacao' ? 90 : 150 },
-        { value: 'metodologia', label: '🔬 Metodologia', description: 'Métodos • Procedimentos • Instrumentos', estimatedArticles: workType === 'tcc' ? 12 : workType === 'dissertacao' ? 25 : 40 },
-        { value: 'resultados', label: '📊 Resultados', description: 'Dados • Achados principais • Evidências', estimatedArticles: workType === 'tcc' ? 15 : workType === 'dissertacao' ? 40 : 80 },
-        { value: 'discussao', label: '💬 Discussão', description: 'Interpretação • Comparação • Implicações', estimatedArticles: workType === 'tcc' ? 30 : workType === 'dissertacao' ? 70 : 120 },
-        { value: 'conclusao', label: '✅ Conclusão', description: 'Síntese • Limitações • Recomendações', estimatedArticles: workType === 'tcc' ? 8 : workType === 'dissertacao' ? 20 : 30 }
-      ],
-      required: true
-    };
-  } else {
-    // Para documentos completos: perguntar formato
-    q3 = {
-      id: 'q3_formato',
-      questionNumber: 3,
-      totalQuestions: 4,
-      type: 'multiple_choice' as const,
-      question: '📄 Que nível de detalhamento você precisa no documento?',
-      description: 'Define a profundidade e extensão do conteúdo gerado.',
-      options: [
-        { value: 'completo_padrao', label: '📝 Documento Padrão', description: 'Estrutura completa • Conteúdo essencial', estimatedArticles: 25 },
-        { value: 'completo_detalhado', label: '📚 Documento Detalhado', description: 'Análise aprofundada • Maior volume', estimatedArticles: 40 }
-      ],
-      required: true
-    };
-  }
-
-  // Q4: Contexto adicional (sempre)
-  const q4 = {
-    id: 'q4_contexto',
-    questionNumber: 4,
-    totalQuestions: 4,
+  const contextoQuestion = {
+    id: 'q_contexto',
     type: 'text' as const,
-    question: '🎯 Você tem algum contexto ou aplicação específica? (Opcional)',
+    question: 'Você tem algum contexto ou aplicação específica? (Opcional)',
     description: 'Exemplos: "contexto brasileiro", "pequenas empresas", "ensino fundamental", "zona rural", "saúde pública"',
     placeholder: 'Digite aqui qualquer especificidade do seu tema...',
     required: false
   };
 
-  return [q1, q2, q3, q4];
+  let specificQuestions: any[] = [];
+
+  // ========================================
+  // TCC, DISSERTAÇÃO, TESE
+  // ========================================
+  if (workType === 'tcc' || workType === 'dissertacao' || workType === 'tese') {
+    const workTypeLabel = workType === 'tcc' ? 'TCC' : workType === 'dissertacao' ? 'Dissertação' : 'Tese';
+
+    specificQuestions = [{
+      id: 'q_secao',
+      questionNumber: 3,
+      type: 'multiple_choice' as const,
+      question: `Qual seção do seu ${workTypeLabel} você quer escrever agora?`,
+      description: `Recomendamos escrever uma seção por vez para garantir qualidade e profundidade adequadas.`,
+      options: [
+        { value: 'introducao', label: 'Introdução', description: 'Contextualização do tema - Justificativa - Objetivos', estimatedArticles: workType === 'tcc' ? 15 : workType === 'dissertacao' ? 30 : 50 },
+        { value: 'revisao', label: 'Revisão de Literatura', description: 'Estado da arte - Teorias principais - Conceitos fundamentais', estimatedArticles: workType === 'tcc' ? 35 : workType === 'dissertacao' ? 90 : 150 },
+        { value: 'metodologia', label: 'Metodologia', description: 'Métodos de pesquisa - Procedimentos - Instrumentos', estimatedArticles: workType === 'tcc' ? 12 : workType === 'dissertacao' ? 25 : 40 },
+        { value: 'resultados', label: 'Resultados', description: 'Apresentação de dados - Achados principais - Evidências', estimatedArticles: workType === 'tcc' ? 15 : workType === 'dissertacao' ? 40 : 80 },
+        { value: 'discussao', label: 'Discussão', description: 'Interpretação dos resultados - Comparação com literatura', estimatedArticles: workType === 'tcc' ? 30 : workType === 'dissertacao' ? 70 : 120 },
+        { value: 'conclusao', label: 'Conclusão', description: 'Síntese dos achados - Limitações - Recomendações futuras', estimatedArticles: workType === 'tcc' ? 8 : workType === 'dissertacao' ? 20 : 30 }
+      ],
+      required: true
+    }];
+  }
+
+  // ========================================
+  // REVISÃO SISTEMÁTICA
+  // ========================================
+  else if (workType === 'revisao_sistematica') {
+    specificQuestions = [
+      {
+        id: 'q_componente_revisao',
+        questionNumber: 3,
+        type: 'multiple_choice' as const,
+        question: 'Qual componente da Revisão Sistemática você quer escrever?',
+        description: 'Revisões sistemáticas seguem um protocolo estruturado com componentes específicos.',
+        options: [
+          { value: 'introducao', label: 'Introdução e Justificativa', description: 'Contexto do problema - Lacuna na literatura - Objetivos da revisão', estimatedArticles: 25 },
+          { value: 'protocolo', label: 'Protocolo e Método de Busca', description: 'Estratégia de busca - Bases de dados - String de busca - Fluxo PRISMA', estimatedArticles: 30 },
+          { value: 'criterios', label: 'Critérios de Seleção', description: 'Critérios de inclusão e exclusão - Seleção de estudos - Qualidade metodológica', estimatedArticles: 20 },
+          { value: 'resultados', label: 'Resultados e Síntese', description: 'Características dos estudos incluídos - Tabelas de extração - Síntese narrativa', estimatedArticles: 40 },
+          { value: 'discussao', label: 'Discussão e Conclusões', description: 'Síntese das evidências - Implicações práticas - Limitações - Recomendações', estimatedArticles: 35 },
+          { value: 'completo', label: 'Documento Completo', description: 'Todos os componentes integrados seguindo protocolo PRISMA', estimatedArticles: 60 }
+        ],
+        required: true
+      },
+      {
+        id: 'q_tipo_sintese',
+        questionNumber: 4,
+        type: 'multiple_choice' as const,
+        question: 'Que tipo de síntese você planeja fazer?',
+        description: 'Define como os resultados serão analisados e apresentados.',
+        options: [
+          { value: 'narrativa', label: 'Síntese Narrativa', description: 'Análise qualitativa descritiva dos estudos', estimatedArticles: 40 },
+          { value: 'meta_analise', label: 'Meta-análise Quantitativa', description: 'Análise estatística combinada de dados', estimatedArticles: 50 },
+          { value: 'mista', label: 'Síntese Mista', description: 'Combinação de síntese narrativa e meta-análise', estimatedArticles: 60 }
+        ],
+        required: true
+      }
+    ];
+  }
+
+  // ========================================
+  // ARTIGO CIENTÍFICO
+  // ========================================
+  else if (workType === 'artigo_cientifico') {
+    specificQuestions = [{
+      id: 'q_tipo_artigo',
+      questionNumber: 3,
+      type: 'multiple_choice' as const,
+      question: 'Que tipo de artigo científico você está escrevendo?',
+      description: 'Cada tipo de artigo tem estrutura e requisitos específicos.',
+      options: [
+        { value: 'empirico', label: 'Artigo Empírico Original', description: 'Pesquisa original com coleta de dados - Métodos - Resultados - Discussão', estimatedArticles: 35 },
+        { value: 'revisao_literatura', label: 'Artigo de Revisão de Literatura', description: 'Síntese crítica da literatura existente sobre um tema', estimatedArticles: 45 },
+        { value: 'estudo_caso', label: 'Estudo de Caso', description: 'Análise aprofundada de um caso específico - Contexto - Análise', estimatedArticles: 25 },
+        { value: 'teorico', label: 'Artigo Teórico/Ensaio', description: 'Discussão teórica - Proposição de modelos ou frameworks', estimatedArticles: 30 },
+        { value: 'metodologico', label: 'Artigo Metodológico', description: 'Proposição ou validação de métodos e instrumentos', estimatedArticles: 35 }
+      ],
+      required: true
+    }];
+  }
+
+  // ========================================
+  // PROJETO DE PESQUISA
+  // ========================================
+  else if (workType === 'projeto_pesquisa') {
+    specificQuestions = [{
+      id: 'q_componente_projeto',
+      questionNumber: 3,
+      type: 'multiple_choice' as const,
+      question: 'Qual componente do Projeto de Pesquisa você quer desenvolver?',
+      description: 'Projetos de pesquisa requerem componentes específicos para aprovação.',
+      options: [
+        { value: 'introducao', label: 'Introdução e Problematização', description: 'Tema - Problema de pesquisa - Justificativa - Relevância', estimatedArticles: 20 },
+        { value: 'objetivos', label: 'Objetivos e Hipóteses', description: 'Objetivos gerais e específicos - Hipóteses ou questões de pesquisa', estimatedArticles: 15 },
+        { value: 'referencial', label: 'Referencial Teórico', description: 'Fundamentação teórica - Conceitos-chave - Estado da arte', estimatedArticles: 35 },
+        { value: 'metodologia', label: 'Metodologia', description: 'Tipo de pesquisa - Métodos - Instrumentos - Procedimentos - Análise de dados', estimatedArticles: 25 },
+        { value: 'cronograma', label: 'Cronograma e Viabilidade', description: 'Etapas da pesquisa - Cronograma - Recursos necessários', estimatedArticles: 10 },
+        { value: 'completo', label: 'Projeto Completo', description: 'Todos os componentes integrados', estimatedArticles: 30 }
+      ],
+      required: true
+    }];
+  }
+
+  // ========================================
+  // RELATÓRIO TÉCNICO
+  // ========================================
+  else if (workType === 'relatorio_tecnico') {
+    specificQuestions = [{
+      id: 'q_componente_relatorio',
+      questionNumber: 3,
+      type: 'multiple_choice' as const,
+      question: 'Qual componente do Relatório Técnico você precisa?',
+      description: 'Relatórios técnicos podem ter estruturas variadas conforme o objetivo.',
+      options: [
+        { value: 'executivo', label: 'Sumário Executivo', description: 'Resumo gerencial - Principais achados - Recomendações', estimatedArticles: 15 },
+        { value: 'diagnostico', label: 'Diagnóstico/Análise Situacional', description: 'Levantamento da situação atual - Análise de dados - Identificação de problemas', estimatedArticles: 25 },
+        { value: 'metodologia', label: 'Metodologia e Procedimentos', description: 'Métodos utilizados - Coleta de dados - Análises realizadas', estimatedArticles: 15 },
+        { value: 'resultados', label: 'Resultados e Discussão', description: 'Apresentação de resultados - Análises - Interpretações', estimatedArticles: 30 },
+        { value: 'recomendacoes', label: 'Conclusões e Recomendações', description: 'Síntese dos achados - Propostas de ação - Plano de implementação', estimatedArticles: 20 },
+        { value: 'completo', label: 'Relatório Completo', description: 'Documento técnico completo', estimatedArticles: 35 }
+      ],
+      required: true
+    }];
+  }
+
+  // Montar array final de perguntas
+  const questions = [periodQuestion, profundidadeQuestion, ...specificQuestions, contextoQuestion];
+
+  // Atualizar questionNumber e totalQuestions
+  const totalQuestions = questions.length;
+  questions.forEach((q, index) => {
+    q.questionNumber = index + 1;
+    q.totalQuestions = totalQuestions;
+  });
+
+  return questions;
 }
 
 // ============================================
@@ -316,274 +408,59 @@ export async function generateClarificationQuestions(
     sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     query,
     questions: [
-      // Q0: TIPO DE TRABALHO (NOVA - PRIMEIRA PERGUNTA)
+      // Q0: TIPO DE TRABALHO (ÚNICA PERGUNTA INICIAL)
       {
         id: 'q0_work_type',
         questionNumber: 1,
-        totalQuestions: 7,
+        totalQuestions: 1,
         type: 'multiple_choice',
-        question: '📚 Que tipo de trabalho acadêmico você está escrevendo?',
-        description: 'Escolha o formato que melhor descreve seu projeto. Isso define os padrões ABNT e a estrutura do documento.',
+        question: 'Que tipo de trabalho acadêmico você está escrevendo?',
+        description: 'Escolha o formato que melhor descreve seu projeto. As próximas perguntas serão personalizadas baseadas na sua escolha.',
         options: [
           {
             value: 'tcc',
             label: 'TCC - Trabalho de Conclusão de Curso',
-            description: 'Graduação • 40-60 páginas • Padrão ABNT simplificado',
+            description: 'Graduação - 40-60 páginas - Padrão ABNT simplificado',
             estimatedArticles: 30
           },
           {
             value: 'dissertacao',
             label: 'Dissertação de Mestrado',
-            description: 'Mestrado • 80-120 páginas • Pesquisa aprofundada',
+            description: 'Mestrado - 80-120 páginas - Pesquisa aprofundada',
             estimatedArticles: 80
           },
           {
             value: 'tese',
             label: 'Tese de Doutorado',
-            description: 'Doutorado • 150-250 páginas • Contribuição original obrigatória',
+            description: 'Doutorado - 150-250 páginas - Contribuição original obrigatória',
             estimatedArticles: 150
           },
           {
             value: 'projeto_pesquisa',
             label: 'Projeto de Pesquisa',
-            description: 'Proposta de pesquisa • 10-20 páginas • Fundamentação teórica',
+            description: 'Proposta de pesquisa - 10-20 páginas - Fundamentação teórica',
             estimatedArticles: 25
           },
           {
             value: 'artigo_cientifico',
             label: 'Artigo Científico',
-            description: 'Publicação em revista • 15-25 páginas • Formatação específica',
+            description: 'Publicação em revista - 15-25 páginas - Formatação específica',
             estimatedArticles: 30
           },
           {
             value: 'revisao_sistematica',
             label: 'Revisão Sistemática',
-            description: 'Síntese de evidências • 20-40 páginas • Protocolo rigoroso',
+            description: 'Síntese de evidências - 20-40 páginas - Protocolo rigoroso',
             estimatedArticles: 60
           },
           {
             value: 'relatorio_tecnico',
             label: 'Relatório Técnico',
-            description: 'Documentação profissional • Formato variável',
+            description: 'Documentação profissional - Formato variável',
             estimatedArticles: 20
           }
         ],
         required: true
-      },
-      // Q1: SEÇÃO/FORMATO
-      {
-        id: 'q1',
-        questionNumber: 2,
-        totalQuestions: 7,
-        type: 'multiple_choice',
-        question: '📝 Qual seção do seu trabalho você quer escrever agora?',
-        description: 'Cada seção tem características e necessidades diferentes de fundamentação.',
-        options: [
-          {
-            value: 'introducao',
-            label: '🎯 Introdução',
-            description: 'Contextualização do tema • Justificativa • Objetivos',
-            estimatedArticles: 20
-          },
-          {
-            value: 'revisao',
-            label: '📖 Revisão de Literatura',
-            description: 'Estado da arte • Teorias principais • Conceitos fundamentais',
-            estimatedArticles: 60
-          },
-          {
-            value: 'metodologia',
-            label: '🔬 Metodologia',
-            description: 'Métodos de pesquisa • Procedimentos • Instrumentos',
-            estimatedArticles: 15
-          },
-          {
-            value: 'resultados',
-            label: '📊 Resultados',
-            description: 'Apresentação de dados • Achados principais • Evidências',
-            estimatedArticles: 25
-          },
-          {
-            value: 'discussao',
-            label: '💬 Discussão',
-            description: 'Interpretação dos resultados • Comparação com literatura • Implicações',
-            estimatedArticles: 30
-          },
-          {
-            value: 'conclusao',
-            label: '✅ Conclusão',
-            description: 'Síntese dos achados • Limitações • Recomendações futuras',
-            estimatedArticles: 15
-          },
-          {
-            value: 'todas',
-            label: '📑 Documento Completo',
-            description: 'Todas as seções integradas do início ao fim',
-            estimatedArticles: 100
-          }
-        ],
-        required: true
-      },
-      // Q2: PERÍODO
-      {
-        id: 'q2',
-        questionNumber: 3,
-        totalQuestions: 7,
-        type: 'multiple_choice',
-        question: '📅 Qual período de publicação você prefere para os artigos?',
-        description: 'Artigos recentes trazem as descobertas mais atuais, mas tópicos clássicos podem precisar de um período maior.',
-        options: [
-          {
-            value: 'ultimos_3_anos',
-            label: `🔥 Últimos 3 anos (${threeYearsAgo}-${currentYear})`,
-            description: 'Muito atual • Descobertas recentes • Estado da arte',
-            estimatedArticles: 40
-          },
-          {
-            value: 'ultimos_5_anos',
-            label: `⚡ Últimos 5 anos (${fiveYearsAgo}-${currentYear})`,
-            description: 'Equilíbrio ideal • Atualidade + Volume • Recomendado',
-            estimatedArticles: 70
-          },
-          {
-            value: 'ultimos_10_anos',
-            label: `📚 Últimos 10 anos (${tenYearsAgo}-${currentYear})`,
-            description: 'Base consolidada • Teorias estabelecidas • Maior volume',
-            estimatedArticles: 120
-          },
-          {
-            value: 'sem_restricao',
-            label: '🌐 Sem restrição de período',
-            description: 'Todos os artigos disponíveis • Inclui trabalhos clássicos',
-            estimatedArticles: 200
-          }
-        ],
-        required: true
-      },
-      // Q3: PROFUNDIDADE
-      {
-        id: 'q3',
-        questionNumber: 4,
-        totalQuestions: 7,
-        type: 'multiple_choice',
-        question: '🎓 Que tipo de conteúdo você precisa no seu trabalho?',
-        description: 'Isso define o nível de aprofundamento teórico e a densidade técnica do texto gerado.',
-        options: [
-          {
-            value: 'basico',
-            label: '📘 Conceitos Básicos e Definições',
-            description: 'Para entender o tema • Contextualizar • Linguagem acessível',
-            estimatedArticles: 50
-          },
-          {
-            value: 'intermediario',
-            label: '🔬 Análise Técnica e Metodológica',
-            description: 'Para discutir métodos • Comparar estudos • Nível acadêmico padrão',
-            estimatedArticles: 80
-          },
-          {
-            value: 'avancado',
-            label: '🎓 Teoria Avançada e Aspectos Complexos',
-            description: 'Para aprofundar discussões • Debates teóricos • Alta densidade',
-            estimatedArticles: 60
-          }
-        ],
-        required: true
-      },
-      // Q4: PREFERÊNCIA METODOLÓGICA (NOVA)
-      {
-        id: 'q4_metodologia',
-        questionNumber: 5,
-        totalQuestions: 7,
-        type: 'multiple_choice',
-        question: '🧪 Você tem preferência por algum tipo de estudo? (Opcional)',
-        description: 'Ajuda a priorizar artigos com metodologias específicas que você precisa citar ou discutir.',
-        options: [
-          {
-            value: 'quantitativos',
-            label: '📊 Estudos Quantitativos',
-            description: 'Estatísticas • Experimentos • Dados numéricos • Análise quantitativa',
-            estimatedArticles: 60
-          },
-          {
-            value: 'qualitativos',
-            label: '💬 Estudos Qualitativos',
-            description: 'Entrevistas • Observações • Análise de conteúdo • Etnografia',
-            estimatedArticles: 50
-          },
-          {
-            value: 'mistos',
-            label: '🔄 Estudos Mistos (Quanti + Quali)',
-            description: 'Combinação de métodos quantitativos e qualitativos',
-            estimatedArticles: 40
-          },
-          {
-            value: 'revisoes',
-            label: '📚 Revisões e Meta-análises',
-            description: 'Revisões sistemáticas • Meta-análises • Sínteses de evidências',
-            estimatedArticles: 45
-          },
-          {
-            value: 'sem_preferencia',
-            label: '🌐 Sem Preferência',
-            description: 'Incluir todos os tipos de metodologia',
-            estimatedArticles: 100
-          }
-        ],
-        required: false
-      },
-      // Q5: REGIÃO/CONTEXTO GEOGRÁFICO (NOVA)
-      {
-        id: 'q5_regiao',
-        questionNumber: 6,
-        totalQuestions: 7,
-        type: 'multiple_choice',
-        question: '🌍 Há algum país ou região de interesse específico? (Opcional)',
-        description: 'Prioriza estudos realizados em contextos geográficos ou culturais específicos.',
-        options: [
-          {
-            value: 'brasil',
-            label: '🇧🇷 Brasil / América Latina',
-            description: 'Estudos brasileiros e latino-americanos • Contexto regional',
-            estimatedArticles: 35
-          },
-          {
-            value: 'eua_canada',
-            label: '🇺🇸 Estados Unidos / Canadá',
-            description: 'América do Norte • Contexto norte-americano',
-            estimatedArticles: 70
-          },
-          {
-            value: 'europa',
-            label: '🇪🇺 Europa',
-            description: 'União Europeia e países europeus',
-            estimatedArticles: 60
-          },
-          {
-            value: 'asia',
-            label: '🌏 Ásia / Oceania',
-            description: 'China, Japão, Índia, Austrália e região asiática',
-            estimatedArticles: 50
-          },
-          {
-            value: 'global',
-            label: '🌐 Global (Todos os países)',
-            description: 'Sem restrição geográfica • Estudos internacionais',
-            estimatedArticles: 150
-          }
-        ],
-        required: false
-      },
-      // Q6: CONTEXTO ADICIONAL (RENOMEADO DE Q4)
-      {
-        id: 'q6_contexto',
-        questionNumber: 7,
-        totalQuestions: 7,
-        type: 'text',
-        question: '🎯 Você tem algum contexto ou aplicação específica adicional? (Opcional)',
-        description: 'Exemplos: "pequenas empresas", "ensino fundamental", "zona rural", "saúde pública", "terceiro setor"',
-        placeholder: 'Digite aqui qualquer outra especificidade do seu tema...',
-        required: false
       }
     ],
     answers: [],
