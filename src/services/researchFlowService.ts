@@ -1057,12 +1057,57 @@ ${structuredData?.detailLevel === 'basico' ? `
 - "finite element dentistry introduction" → "introduction" is useless!
 - "dental FEA background" → "background" is useless!
 - "FEM overview" → "overview" finds nothing useful!
+- "preciso de uma introducao" → Portuguese! Translation needed!
 
 ✅ CORRECT (will return GOOD results):
 - ("finite element analysis" OR "FEA") AND dentistry AND (biomechanics OR "stress distribution")
 - ("finite element method" OR "FEM") AND (dental OR orthodontics) AND (simulation OR modeling)
 - "finite element" AND dentistry AND ("implant design" OR prosthesis OR restoration)
 - ("computational modeling" OR "numerical simulation") AND oral AND ("bone remodeling" OR osseointegration)
+
+═══════════════════════════════════════════════════════════════
+📝 COMPLETE EXAMPLE: TOPIC IN PORTUGUESE → QUERIES IN ENGLISH
+═══════════════════════════════════════════════════════════════
+
+USER QUERY (in Portuguese): "elementos finitos na odontologia"
+
+YOUR RESPONSE MUST BE:
+{
+  "topic": "finite element analysis in dentistry",
+  "originalQuery": "elementos finitos na odontologia",
+  "queries": {
+    "P1": [
+      { "query": "(\\"finite element analysis\\" OR \\"FEA\\" OR \\"finite element method\\") AND (dentistry OR dental OR orthodontics) AND (biomechanics OR \\"stress analysis\\")", "priority": "P1", "expectedResults": 12 },
+      { "query": "(\\"finite element\\" OR \\"FEM\\") AND dental AND (\\"implant design\\" OR prosthesis OR \\"crown design\\")", "priority": "P1", "expectedResults": 12 },
+      { "query": "\\"computational modeling\\" AND dentistry AND (\\"stress distribution\\" OR \\"strain analysis\\" OR biomechanics)", "priority": "P1", "expectedResults": 12 }
+    ],
+    "P2": [
+      { "query": "(\\"finite element\\" OR \\"computational simulation\\") AND (dental OR oral) AND (implant OR restoration)", "priority": "P2", "expectedResults": 15 },
+      { "query": "\\"numerical analysis\\" AND dentistry AND (biomechanics OR \\"mechanical properties\\")", "priority": "P2", "expectedResults": 15 }
+    ],
+    "P3": [
+      { "query": "\\"finite element\\" AND dentistry", "priority": "P3", "expectedResults": 10 }
+    ]
+  },
+  "keyTerms": {
+    "primary": ["finite element analysis", "dentistry", "dental"],
+    "specific": ["biomechanics", "stress analysis", "implant design", "prosthesis"],
+    "methodological": ["computational modeling", "numerical simulation", "FEA"]
+  },
+  "filters": {
+    "dateRange": {"start": 2020, "end": 2025},
+    "languages": ["en"],
+    "documentTypes": ["article", "review", "conference_paper"]
+  },
+  "targetArticles": 70,
+  "estimatedTime": "3-5 minutes"
+}
+
+NOTICE:
+- "topic" is TRANSLATED to English
+- ALL queries are in ENGLISH
+- NO forbidden terms ("introduction", "background", etc.)
+- Boolean operators used correctly
 
 ═══════════════════════════════════════════════════════════════
 ✅ RETURN ONLY VALID JSON (NO MARKDOWN)
@@ -1100,8 +1145,8 @@ ${structuredData?.detailLevel === 'basico' ? `
 }`;
 
     const response = await generateText(prompt, {
-      systemPrompt: 'You are an expert in academic search strategy with Boolean operators. Return ONLY valid JSON, no markdown.',
-      temperature: 0.6,
+      systemPrompt: 'You are an expert in academic search strategy with Boolean operators. CRITICAL: ALL queries MUST be in ENGLISH. Translate Portuguese/Spanish topics to English. NEVER use forbidden terms (introduction, background, overview, motivation). Return ONLY valid JSON, no markdown.',
+      temperature: 0.3,  // Lower temperature to enforce strict instruction following
       maxTokens: 8000  // Limite do DeepSeek-chat: 8192 tokens
     });
 
