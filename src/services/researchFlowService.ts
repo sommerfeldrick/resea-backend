@@ -2016,6 +2016,12 @@ export async function executeExhaustiveSearch(
           citationCount: a.citationCount
         }));
 
+        logger.info('📊 SSE Progress callback - P1', {
+          articlesFound: allArticles.length,
+          newArticlesCount: newArticles.length,
+          lastReported: lastReportedCount
+        });
+
         const progress: FlowSearchProgress = {
           currentPriority: 'P1',
           currentQuery: i + 1,
@@ -2128,6 +2134,12 @@ export async function executeExhaustiveSearch(
             year: a.year,
             citationCount: a.citationCount
           }));
+
+          logger.info('📊 SSE Progress callback - P2', {
+            articlesFound: allArticles.length,
+            newArticlesCount: newArticles.length,
+            lastReported: lastReportedCount
+          });
 
           const progress: FlowSearchProgress = {
             currentPriority: 'P2',
