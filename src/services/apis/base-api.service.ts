@@ -59,7 +59,8 @@ export abstract class BaseAPIService {
     apiName: string,
     baseURL: string,
     rateLimiter: RateLimiterConfig = { tokensPerSecond: 10, maxTokens: 20 },
-    circuitBreaker: CircuitBreakerConfig = { failureThreshold: 5, resetTimeoutMs: 60000 }
+    circuitBreaker: CircuitBreakerConfig = { failureThreshold: 5, resetTimeoutMs: 60000 },
+    customHeaders?: Record<string, string>
   ) {
     this.apiName = apiName;
     this.logger = new Logger(apiName);
@@ -71,6 +72,7 @@ export abstract class BaseAPIService {
       headers: {
         'User-Agent': 'RESEA-Academic-Search/1.0',
         'Accept': 'application/json',
+        ...customHeaders,
       },
     });
 

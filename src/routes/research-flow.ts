@@ -363,7 +363,7 @@ router.post('/search/execute', async (req: Request, res: Response) => {
  */
 router.post('/analysis/analyze', async (req: Request, res: Response) => {
   try {
-    const { articles, query } = req.body;
+    const { articles, query, workType, section } = req.body;
 
     if (!articles || !Array.isArray(articles) || !query) {
       return res.status(400).json({
@@ -372,9 +372,20 @@ router.post('/analysis/analyze', async (req: Request, res: Response) => {
       });
     }
 
-    logger.info('API: Analyze articles', { articleCount: articles.length, query });
+    logger.info('API: Analyze articles', {
+      articleCount: articles.length,
+      query,
+      workType: workType || 'not provided',
+      section: section || 'not provided'
+    });
 
-    const knowledgeGraph = await analyzeArticles(articles, query);
+    // Pass workType and section to analyzeArticles (defaults to 'completo_padrao' if not provided)
+    const knowledgeGraph = await analyzeArticles(
+      articles,
+      query,
+      workType || 'completo_padrao',
+      section || 'completo_padrao'
+    );
 
     res.json({
       success: true,

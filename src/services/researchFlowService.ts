@@ -2248,10 +2248,16 @@ export async function validateAndRefineArticles(
   onProgress?: (status: { iteration: number; gaps: string[]; articlesAdded: number }) => void
 ): Promise<FlowEnrichedArticle[]> {
   const MAX_ITERATIONS = 3;
+  const MAX_OVERSHOOT = 1.2; // Allow 20% above target
   let currentArticles = [...articles];
+
+  const targetArticles = strategy.targetArticles || 50;
+  const maxArticles = Math.ceil(targetArticles * MAX_OVERSHOOT);
 
   logger.info('🎯 ETAPA 4: Starting article validation and refinement', {
     initialArticles: articles.length,
+    targetArticles,
+    maxArticles,
     outlineTopics: strategy.contentOutline?.topicsToAddress?.length || 0,
     outlineConcepts: strategy.contentOutline?.keyConceptsNeeded?.length || 0
   });
@@ -2264,6 +2270,16 @@ export async function validateAndRefineArticles(
 
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     logger.info(`Validation iteration ${iteration}/${MAX_ITERATIONS}`);
+
+    // Check if we've exceeded target significantly
+    if (currentArticles.length >= maxArticles) {
+      logger.info('✅ Target significantly exceeded, stopping refinement', {
+        current: currentArticles.length,
+        target: targetArticles,
+        max: maxArticles
+      });
+      break;
+    }
 
     // 1. VALIDAR: Verificar cobertura dos tópicos
     const gaps = await identifyContentGaps(currentArticles, strategy.contentOutline, strategy.validationCriteria);
@@ -2310,6 +2326,15 @@ export async function validateAndRefineArticles(
 
       // Processar e adicionar novos artigos
       for (const result of newResults) {
+        // Stop adding if we've reached max articles
+        if (currentArticles.length + newArticlesThisIteration.length >= maxArticles) {
+          logger.info('Reached max articles limit, stopping refinement for this query', {
+            current: currentArticles.length + newArticlesThisIteration.length,
+            max: maxArticles
+          });
+          break;
+        }
+
         const scoreData = calculateArticleScore(result, refinedQuery.query);
 
         if (scoreData.score < 30) continue;
@@ -2341,6 +2366,11 @@ export async function validateAndRefineArticles(
 
         newArticlesThisIteration.push(enrichedArticle);
         articlesAdded++;
+      }
+
+      // Stop outer loop if max reached
+      if (currentArticles.length + newArticlesThisIteration.length >= maxArticles) {
+        break;
       }
     }
 

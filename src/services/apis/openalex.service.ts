@@ -42,12 +42,19 @@ interface OpenAlexWork {
 
 export class OpenAlexService extends BaseAPIService {
   constructor() {
+    // OpenAlex requires User-Agent with email for polite pool access
+    const email = process.env.OPENALEX_EMAIL || process.env.UNPAYWALL_EMAIL || 'contato@smileai.com.br';
+    const userAgent = `RESEA-Academic-Search/1.0 (mailto:${email})`;
+
     super(
       'OpenAlex',
       'https://api.openalex.org',
       { tokensPerSecond: 10, maxTokens: 20 }, // 10 req/s
-      { failureThreshold: 5, resetTimeoutMs: 60000 }
+      { failureThreshold: 5, resetTimeoutMs: 60000 },
+      { 'User-Agent': userAgent }
     );
+
+    this.logger.info(`✓ OpenAlex configured with email: ${email}`);
   }
 
   /**

@@ -90,6 +90,10 @@ const DEFAULT_LIMITS: WorkTypeLimits = {
     recomendacoes: { maxForGeneration: 18, maxForGraph: 18, targetArticles: 22 },
     completo: { maxForGeneration: 20, maxForGraph: 20, targetArticles: 25 },
     completo_padrao: { maxForGeneration: 20, maxForGraph: 20, targetArticles: 25 }
+  },
+  // WorkType genérico (quando não especificado)
+  completo_padrao: {
+    completo_padrao: { maxForGeneration: 40, maxForGraph: 40, targetArticles: 50 }
   }
 };
 
