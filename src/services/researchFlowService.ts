@@ -2757,6 +2757,36 @@ export async function appendReferencesToDocument(
   }
 }
 
+/**
+ * Verifica plágio no conteúdo gerado comparando com artigos fonte
+ */
+export async function checkPlagiarism(
+  generatedContent: string,
+  sourceArticles: FlowEnrichedArticle[]
+): Promise<{ result: any; report: string }> {
+  try {
+    const { plagiarismCheckService } = await import('./plagiarismCheck.service.js');
+
+    const result = await plagiarismCheckService.checkPlagiarism(
+      generatedContent,
+      sourceArticles
+    );
+
+    const report = plagiarismCheckService.generateReport(result);
+
+    logger.info('Plagiarism check completed', {
+      isPlagiarized: result.isPlagiarized,
+      overallSimilarity: result.overallSimilarity,
+      flaggedCount: result.flaggedParagraphs.length
+    });
+
+    return { result, report };
+  } catch (error: any) {
+    logger.error('Failed to check plagiarism', { error: error.message });
+    throw error;
+  }
+}
+
 export async function* generateCompleteDocument(
   baseConfig: ContentGenerationConfig,
   articles: FlowEnrichedArticle[],
