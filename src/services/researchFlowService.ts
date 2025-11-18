@@ -3,7 +3,7 @@
  */
 
 import { logger } from '../config/logger.js';
-import { generateText } from './aiProvider.js';
+import { generateText, getActiveProvider } from './aiProvider.js';
 import { generateTextStream } from './ai/index.js';
 import { buscaAcademicaUniversal } from './academicSearchService.js';
 import { ContentAcquisitionService } from './content/content-acquisition.service.js';
@@ -14,6 +14,8 @@ import { OpenAlexService } from './apis/openalex.service.js';
 import { ArXivService } from './apis/arxiv.service.js';
 import { EuropePMCService } from './apis/europepmc.service.js';
 import { SemanticScholarService } from './apis/semantic-scholar.service.js';
+import { articleLimitsConfig } from '../config/articleLimits.config.js';
+import { scoringConfig } from '../config/scoringConfig.js';
 import type {
   ClarificationQuestion,
   ClarificationSession,
@@ -30,6 +32,46 @@ import type {
   ExportOptions,
   QualityVerification
 } from '../types/index.js';
+
+// ============================================
+// HELPER: AI TOKEN LIMITS
+// ============================================
+
+/**
+ * Retorna o limite de tokens de output baseado no provider ativo
+ * Gemini: 32K tokens | DeepSeek: 8K tokens | OpenAI: 16K tokens | Claude: 8K tokens
+ */
+function getMaxTokensForProvider(taskType: 'graph' | 'strategy' | 'outline' | 'content' | 'edit' | 'validate' = 'graph'): number {
+  const provider = getActiveProvider();
+
+  // Limites por provider (output tokens)
+  const providerLimits: Record<string, number> = {
+    'gemini': 32000,      // Gemini 2.0 Flash: até 32K output tokens
+    'deepseek': 8000,     // DeepSeek Chat: até 8K output tokens
+    'openai': 16000,      // GPT-4o-mini: até 16K output tokens
+    'claude': 8000        // Claude 3.5 Haiku: até 8K output tokens
+  };
+
+  // Ajustes por tipo de tarefa (todos usam limite máximo do provider)
+  const taskLimits: Record<string, number> = {
+    'graph': providerLimits[provider] || 8000,        // Grafo: usa limite máximo do provider
+    'strategy': providerLimits[provider] || 8000,     // Estratégia: usa limite máximo do provider
+    'outline': providerLimits[provider] || 8000,      // Roteiro: usa limite máximo do provider (roteiros complexos)
+    'content': providerLimits[provider] || 8000,      // Conteúdo: usa limite máximo do provider
+    'edit': providerLimits[provider] || 8000,         // Edição: usa limite máximo do provider
+    'validate': providerLimits[provider] || 8000      // Validação: usa limite máximo do provider (análises detalhadas)
+  };
+
+  const maxTokens = taskLimits[taskType];
+
+  logger.debug('Max tokens calculated', {
+    provider,
+    taskType,
+    maxTokens
+  });
+
+  return maxTokens;
+}
 
 // ============================================
 // HELPER: JSON COMPLETION
@@ -101,62 +143,77 @@ export function calculateTargets(
   workType: string,
   section?: string
 ): { words: number; articles: number } {
-  type Standards = {
+  // 🆕 USAR CONFIGURAÇÃO DINÂMICA PARA ARTIGOS (via articleLimitsConfig)
+  const limits = articleLimitsConfig.getLimits(workType, section);
+  const targetArticles = limits.targetArticles;
+
+  // Mapeamento de word count por tipo/seção (mantido hardcoded pois não afeta custo)
+  type WordStandards = {
     [key: string]: {
-      [section: string]: { words: number; articles: number };
+      [section: string]: number;
     };
   };
 
-  const standards: Standards = {
+  const wordStandards: WordStandards = {
     tcc: {
-      introducao: { words: 1350, articles: 15 },
-      revisao: { words: 4050, articles: 35 },
-      metodologia: { words: 1050, articles: 12 },
-      resultados: { words: 2700, articles: 15 },
-      discussao: { words: 3300, articles: 30 },
-      conclusao: { words: 1200, articles: 8 }
+      introducao: 1350,
+      revisao: 4050,
+      metodologia: 1050,
+      resultados: 2700,
+      discussao: 3300,
+      conclusao: 1200,
+      completo_padrao: 4050
     },
     dissertacao: {
-      introducao: { words: 2700, articles: 30 },
-      revisao: { words: 9000, articles: 90 },
-      metodologia: { words: 2400, articles: 25 },
-      resultados: { words: 6000, articles: 40 },
-      discussao: { words: 7500, articles: 70 },
-      conclusao: { words: 2400, articles: 20 }
+      introducao: 2700,
+      revisao: 9000,
+      metodologia: 2400,
+      resultados: 6000,
+      discussao: 7500,
+      conclusao: 2400,
+      completo_padrao: 9000
     },
     tese: {
-      introducao: { words: 4500, articles: 50 },
-      revisao: { words: 15000, articles: 150 },
-      metodologia: { words: 4500, articles: 40 },
-      resultados: { words: 12000, articles: 80 },
-      discussao: { words: 13500, articles: 120 },
-      conclusao: { words: 4500, articles: 30 }
+      introducao: 4500,
+      revisao: 15000,
+      metodologia: 4500,
+      resultados: 12000,
+      discussao: 13500,
+      conclusao: 4500,
+      completo_padrao: 15000
     },
     projeto_pesquisa: {
-      completo_padrao: { words: 4500, articles: 25 },
-      completo_detalhado: { words: 6750, articles: 35 }
+      completo_padrao: 4500,
+      completo_detalhado: 6750
     },
     artigo_cientifico: {
-      completo_padrao: { words: 6000, articles: 30 },
-      completo_detalhado: { words: 9000, articles: 45 }
+      completo_padrao: 6000,
+      completo_detalhado: 9000
     },
     revisao_sistematica: {
-      completo_padrao: { words: 9000, articles: 60 },
-      completo_detalhado: { words: 13500, articles: 90 }
+      completo_padrao: 9000,
+      completo_detalhado: 13500
     },
     relatorio_tecnico: {
-      completo_padrao: { words: 4500, articles: 20 },
-      completo_detalhado: { words: 7500, articles: 30 }
+      completo_padrao: 4500,
+      completo_detalhado: 7500
     }
   };
 
-  const workTypeData = standards[workType];
-  if (!workTypeData) {
-    return { words: 3000, articles: 30 }; // Default fallback
-  }
+  const workTypeData = wordStandards[workType];
+  const targetWords = workTypeData
+    ? (workTypeData[section || 'completo_padrao'] || 3000)
+    : 3000;
 
-  const sectionData = workTypeData[section || 'completo_padrao'];
-  return sectionData || { words: 3000, articles: 30 };
+  logger.debug('Calculated targets', {
+    workType,
+    section,
+    targetWords,
+    targetArticles,
+    source: 'articleLimitsConfig'
+  });
+
+  return { words: targetWords, articles: targetArticles };
 }
 
 /**
@@ -771,7 +828,7 @@ IMPORTANTE:
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um especialista em estruturação de textos acadêmicos. Retorne APENAS JSON válido.',
       temperature: 0.6,
-      maxTokens: 3000
+      maxTokens: getMaxTokensForProvider('outline')
     });
 
     let cleanedText = response.text.trim()
@@ -845,6 +902,7 @@ export async function generateSearchStrategy(
     workType?: string;  // NOVO: tipo de trabalho acadêmico
     section?: string;   // NOVO: seção específica
     additionalContext?: string;  // NOVO: contexto adicional do usuário
+    targetArticles?: number;  // NOVO: meta de artigos calculada
   }
 ): Promise<FlowSearchStrategy> {
   logger.info('Generating search strategy with content outline', { query, structuredData });
@@ -1027,25 +1085,25 @@ ${structuredData?.detailLevel === 'basico' ? `
 ` : ''}
 
 ═══════════════════════════════════════════════════════════════
-📊 PRIORITY STRUCTURE (UPDATED THRESHOLDS)
+📊 PRIORITY STRUCTURE (CONFIGURABLE THRESHOLDS)
 ═══════════════════════════════════════════════════════════════
 
-**P1 (Score ≥70)**: EXCELLENT articles - HIGHLY SPECIFIC
+**P1 (Score ≥${scoringConfig.getThresholds().P1})**: EXCELLENT articles - HIGHLY SPECIFIC
 - Combine CORE concept + SPECIFIC methods/applications/contexts
 - Use AND between required terms, OR for synonyms
-- Target: 30-40 articles | ${yearRange}
+- Target: ${scoringConfig.getExpectedResults().P1} articles | ${yearRange}
 - Example: ("finite element" OR "FEM") AND dentistry AND ("stress analysis" OR biomechanics OR "implant design")
 
-**P2 (Score ≥45)**: GOOD articles - MODERATE SPECIFICITY
+**P2 (Score ≥${scoringConfig.getThresholds().P2})**: GOOD articles - MODERATE SPECIFICITY
 - Broader combinations with domain variations
 - Include related techniques and contexts
-- Target: 20-25 articles | ${yearRange}
+- Target: ${scoringConfig.getExpectedResults().P2} articles | ${yearRange}
 - Example: ("finite element" OR "computational modeling") AND (dental OR orthodontics)
 
-**P3 (Score 30-44)**: ACCEPTABLE articles - GENERAL
+**P3 (Score ${scoringConfig.getThresholds().P3}-${scoringConfig.getThresholds().P2 - 1})**: ACCEPTABLE articles - GENERAL
 - Core concepts for background
 - Simpler Boolean combinations
-- Target: 10-15 articles | ${yearRange}
+- Target: ${scoringConfig.getExpectedResults().P3} articles | ${yearRange}
 - Example: "finite element" AND dentistry
 
 ═══════════════════════════════════════════════════════════════
@@ -1130,7 +1188,7 @@ Output queries: ("artificial intelligence" OR "AI") AND education AND ("e-learni
     const response = await generateText(prompt, {
       systemPrompt: 'You are an expert in academic search strategy with Boolean operators. CRITICAL: ALL queries MUST be in ENGLISH. Translate Portuguese/Spanish topics to English. NEVER use forbidden terms (introduction, background, overview, motivation). Return ONLY valid JSON, no markdown.',
       temperature: 0.3,  // Lower temperature to enforce strict instruction following
-      maxTokens: 8000  // Limite do DeepSeek-chat: 8192 tokens
+      maxTokens: getMaxTokensForProvider('strategy')
     });
 
     let cleanedText = response.text.trim()
@@ -1257,21 +1315,46 @@ Output queries: ("artificial intelligence" OR "AI") AND education AND ("e-learni
         });
       }
 
+      // 5. APLICAR TARGET DE ARTIGOS (do structuredData calculado via articleLimitsConfig)
+      if (structuredData.targetArticles) {
+        strategy.targetArticles = structuredData.targetArticles;
+        logger.info('Applied dynamic targetArticles from configuration', {
+          targetArticles: strategy.targetArticles,
+          workType: structuredData.workType,
+          section: structuredData.section
+        });
+      }
+
       logger.info('Strategy updated with user preferences', {
         dateRange: strategy.filters.dateRange,
         documentTypes: strategy.filters.documentTypes,
         additionalQueriesP1: structuredData.specificTerms.length,
-        focusSection: structuredData.focusSection
+        focusSection: structuredData.focusSection,
+        targetArticles: strategy.targetArticles
       });
     }
 
     // TODO: Add proper values from ClarificationSession when function is refactored
     // For now, add default values to satisfy type requirements
     if (!strategy.workType) {
-      strategy.workType = 'tcc';
+      strategy.workType = (structuredData?.workType as any) || 'tcc';
     }
     if (!strategy.section) {
-      strategy.section = structuredData?.focusSection || 'revisao';
+      strategy.section = structuredData?.section || structuredData?.focusSection || 'revisao';
+    }
+    // Garantir targetArticles sempre está definido
+    if (!strategy.targetArticles && structuredData?.workType) {
+      const limits = articleLimitsConfig.getLimits(
+        structuredData.workType,
+        structuredData.section || structuredData.focusSection
+      );
+      strategy.targetArticles = limits.targetArticles;
+      logger.info('Set targetArticles from articleLimitsConfig fallback', {
+        targetArticles: strategy.targetArticles
+      });
+    }
+    if (!strategy.targetArticles) {
+      strategy.targetArticles = 50; // Ultimate fallback
     }
     if (!strategy.contentOutline) {
       strategy.contentOutline = {
@@ -1458,18 +1541,22 @@ function calculateArticleScore(article: any, query: string): { score: number; pr
     reasons.push('Abstract completo');
   }
 
-  // Determine priority com thresholds otimizados E threshold mínimo
+  // Determine priority com thresholds configuráveis (via .env)
+  const thresholds = scoringConfig.getThresholds();
   let priority: PriorityLevel;
-  if (score >= 70) {
+  if (score >= thresholds.P1) {
     priority = 'P1';      // Artigos excelentes
-  } else if (score >= 45) {
+  } else if (score >= thresholds.P2) {
     priority = 'P2';      // Artigos bons
-  } else if (score >= 30) {
-    priority = 'P3';      // Artigos aceitáveis (mínimo de 30 pts)
+  } else if (score >= thresholds.P3) {
+    priority = 'P3';      // Artigos aceitáveis
+  } else if (score >= thresholds.minAcceptable) {
+    priority = 'P3';      // Ainda aceitável, mas próximo do limite
+    reasons.push(`⚠️ Score próximo do mínimo (${thresholds.minAcceptable})`);
   } else {
-    // Artigos com score < 30 são de baixíssima qualidade e devem ser descartados
+    // Artigos abaixo do threshold mínimo devem ser descartados
     priority = 'P3';      // Marca como P3 mas com flag para filtrar
-    reasons.push('⚠️ Score muito baixo - considerar descartar');
+    reasons.push(`⚠️ Score muito baixo (<${thresholds.minAcceptable}) - considerar descartar`);
   }
 
   return { score, priority, reasons };
@@ -2383,9 +2470,11 @@ async function generateRefinedQueries(
  */
 export async function analyzeArticles(
   articles: FlowEnrichedArticle[],
-  query: string
+  query: string,
+  workType: string = 'completo_padrao',
+  section: string = 'completo_padrao'
 ): Promise<KnowledgeGraph> {
-  logger.info('Analyzing articles', { articleCount: articles.length, query });
+  logger.info('Analyzing articles', { articleCount: articles.length, query, workType, section });
 
   try {
     // 🚀 PRIORIZAR ARTIGOS COM FULLTEXT
@@ -2393,17 +2482,24 @@ export async function analyzeArticles(
     const withFulltext = articles.filter(a => a.hasFulltext);
     const withoutFulltext = articles.filter(a => !a.hasFulltext);
 
+    // Get dynamic article limits based on work type and section
+    const limits = articleLimitsConfig.getLimits(workType, section);
+    const maxArticles = limits.maxForGraph;
+
     logger.info('Article selection for analysis', {
       total: articles.length,
       withFulltext: withFulltext.length,
-      withoutFulltext: withoutFulltext.length
+      withoutFulltext: withoutFulltext.length,
+      maxArticles,
+      workType,
+      section
     });
 
-    // Selecionar top 30: priorizar fulltext
+    // Selecionar top N (configurável): priorizar fulltext
     const selectedArticles = [
-      ...withFulltext.slice(0, Math.min(withFulltext.length, 30)),
-      ...withoutFulltext.slice(0, Math.max(0, 30 - withFulltext.length))
-    ].slice(0, 30);
+      ...withFulltext.slice(0, Math.min(withFulltext.length, maxArticles)),
+      ...withoutFulltext.slice(0, Math.max(0, maxArticles - withFulltext.length))
+    ].slice(0, maxArticles);
 
     logger.info('Selected articles for analysis', {
       total: selectedArticles.length,
@@ -2499,7 +2595,7 @@ ${articlesContext}`;
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um especialista em análise bibliométrica. Retorne APENAS JSON válido.',
       temperature: 0.7,
-      maxTokens: 8000  // Limite do DeepSeek-chat: 8192 tokens
+      maxTokens: getMaxTokensForProvider('graph')  // Gemini: 32K | DeepSeek: 8K | OpenAI: 16K
     });
 
     let cleanedText = response.text.trim()
@@ -2632,17 +2728,24 @@ export async function* generateAcademicContent(
     const withFulltext = articles.filter(a => a.hasFulltext);
     const withoutFulltext = articles.filter(a => !a.hasFulltext);
 
+    // Get dynamic article limits based on work type and section
+    const limits = articleLimitsConfig.getLimits(config.workType, config.section);
+    const maxArticles = limits.maxForGeneration;
+
     logger.info('Article selection for generation', {
       total: articles.length,
       withFulltext: withFulltext.length,
-      withoutFulltext: withoutFulltext.length
+      withoutFulltext: withoutFulltext.length,
+      maxArticles,
+      workType: config.workType,
+      section: config.section
     });
 
-    // Selecionar top 30: priorizar fulltext
+    // Selecionar top N (configurável): priorizar fulltext
     const selectedArticles = [
-      ...withFulltext.slice(0, Math.min(withFulltext.length, 30)),
-      ...withoutFulltext.slice(0, Math.max(0, 30 - withFulltext.length))
-    ].slice(0, 30);
+      ...withFulltext.slice(0, Math.min(withFulltext.length, maxArticles)),
+      ...withoutFulltext.slice(0, Math.max(0, maxArticles - withFulltext.length))
+    ].slice(0, maxArticles);
 
     logger.info('Selected articles for generation', {
       total: selectedArticles.length,
@@ -2722,7 +2825,7 @@ COMECE A ESCREVER AGORA:`;
     const stream = generateTextStream(prompt, {
       systemPrompt: 'Você é um escritor acadêmico especialista em formatação ABNT. Escreva textos LONGOS, DETALHADOS e COMPLETOS até o final.',
       temperature: 0.7,
-      maxTokens: 32000  // Gemini suporta até 32K output tokens - textos completos sem corte
+      maxTokens: getMaxTokensForProvider('content')  // Gemini: 32K | OpenAI: 16K | DeepSeek: 8K
     });
 
     // Stream chunks as they arrive from the AI provider
@@ -3185,7 +3288,7 @@ Responda APENAS em formato JSON válido:
     const response = await generateText(prompt, {
       systemPrompt: 'Você é um validador de citações acadêmicas. Responda apenas com JSON válido.',
       temperature: 0.3, // Baixa temperatura para resposta mais determinística
-      maxTokens: 500
+      maxTokens: getMaxTokensForProvider('validate')
     });
 
     // Limpar e parsear resposta
