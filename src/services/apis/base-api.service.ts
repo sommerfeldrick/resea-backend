@@ -42,9 +42,9 @@ export abstract class BaseAPIService {
 
   // Retry Configuration
   private retryConfig: RetryConfig = {
-    maxRetries: 3,
+    maxRetries: 5,              // Increased from 3 to 5
     initialDelayMs: 1000,
-    maxDelayMs: 10000,
+    maxDelayMs: 15000,          // Increased from 10s to 15s
     backoffMultiplier: 2,
   };
 

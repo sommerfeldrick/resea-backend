@@ -49,12 +49,12 @@ export class OpenAlexService extends BaseAPIService {
     super(
       'OpenAlex',
       'https://api.openalex.org',
-      { tokensPerSecond: 10, maxTokens: 20 }, // 10 req/s
-      { failureThreshold: 5, resetTimeoutMs: 60000 },
+      { tokensPerSecond: 10, maxTokens: 20 }, // 10 req/s (polite pool)
+      { failureThreshold: 8, resetTimeoutMs: 120000 }, // More tolerant: 8 failures, 2min timeout
       { 'User-Agent': userAgent }
     );
 
-    this.logger.info(`✓ OpenAlex configured with email: ${email}`);
+    this.logger.info(`✓ OpenAlex configured with email: ${email} (polite pool: 10 req/s)`);
   }
 
   /**

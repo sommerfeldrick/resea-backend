@@ -177,6 +177,18 @@ export interface FlowSearchProgress {
   };
   formatsDetected: Record<string, number>;
   elapsedTime: number;
+
+  // Real-time visualization data (for mind map construction)
+  newArticles?: Array<{
+    id: string;
+    title: string;
+    priority: PriorityLevel;
+    source: string;
+    score: number;
+    hasFulltext: boolean;
+    year?: number;
+    citationCount?: number;
+  }>;
 }
 
 export interface ArticleScore {

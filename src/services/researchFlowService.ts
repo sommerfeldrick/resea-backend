@@ -1921,14 +1921,33 @@ export async function executeExhaustiveSearch(
   onProgress?: (progress: FlowSearchProgress) => void,
   researchId?: number
 ): Promise<FlowEnrichedArticle[]> {
-  logger.info('Starting exhaustive search', { topic: strategy.topic, researchId });
+  const MAX_OVERSHOOT = 1.2; // Allow 20% above target
+  const targetArticles = strategy.targetArticles || 50;
+  const maxArticles = Math.ceil(targetArticles * MAX_OVERSHOOT);
+
+  logger.info('Starting exhaustive search', {
+    topic: strategy.topic,
+    researchId,
+    targetArticles,
+    maxArticles
+  });
 
   const allArticles: FlowEnrichedArticle[] = [];
   const startTime = Date.now();
+  let lastReportedCount = 0; // Track articles reported in last progress callback
 
   try {
     // Buscar P1 primeiro
     for (let i = 0; i < strategy.queries.P1.length; i++) {
+      // Stop if max articles reached
+      if (allArticles.length >= maxArticles) {
+        logger.info('🛑 Max articles reached during P1 search', {
+          current: allArticles.length,
+          max: maxArticles
+        });
+        break;
+      }
+
       const searchQuery = strategy.queries.P1[i];
       logger.info(`Searching P1 query ${i + 1}/${strategy.queries.P1.length}`, {
         query: searchQuery.query
@@ -1942,6 +1961,15 @@ export async function executeExhaustiveSearch(
 
       // Enriquecer artigos com scores
       for (const result of results) {
+        // Stop if max articles reached
+        if (allArticles.length >= maxArticles) {
+          logger.info('🛑 Max articles reached, stopping article addition', {
+            current: allArticles.length,
+            max: maxArticles
+          });
+          break;
+        }
+
         const scoreData = calculateArticleScore(result, strategy.originalQuery);
 
         // Filtrar artigos com score muito baixo (< 30)
@@ -1976,6 +2004,18 @@ export async function executeExhaustiveSearch(
 
       // Callback de progresso
       if (onProgress) {
+        // Extract new articles since last report (for real-time visualization)
+        const newArticles = allArticles.slice(lastReportedCount).map(a => ({
+          id: a.id,
+          title: a.title,
+          priority: a.score.priority,
+          source: a.source,
+          score: a.score.score,
+          hasFulltext: a.hasFulltext,
+          year: a.year,
+          citationCount: a.citationCount
+        }));
+
         const progress: FlowSearchProgress = {
           currentPriority: 'P1',
           currentQuery: i + 1,
@@ -1989,9 +2029,11 @@ export async function executeExhaustiveSearch(
             P3: allArticles.filter(a => a.score.priority === 'P3').length
           },
           formatsDetected: {},
-          elapsedTime: Date.now() - startTime
+          elapsedTime: Date.now() - startTime,
+          newArticles // Include new articles for real-time mind map
         };
         onProgress(progress);
+        lastReportedCount = allArticles.length; // Update counter
       }
     }
 
@@ -2000,16 +2042,27 @@ export async function executeExhaustiveSearch(
     logger.info(`P1 search completed`, {
       found: p1Articles.length,
       totalArticles: allArticles.length,
-      target: strategy.targetArticles
+      target: targetArticles,
+      max: maxArticles
     });
 
-    // Se não atingiu a meta, buscar P2
-    if (allArticles.length < strategy.targetArticles && strategy.queries.P2.length > 0) {
+    // Se não atingiu a meta E não excedeu max, buscar P2
+    if (allArticles.length < maxArticles && allArticles.length < targetArticles && strategy.queries.P2.length > 0) {
       logger.info('Continuing to P2 search (target not reached)', {
         current: allArticles.length,
-        target: strategy.targetArticles
+        target: targetArticles,
+        max: maxArticles
       });
       for (let i = 0; i < strategy.queries.P2.length; i++) {
+        // Stop if max articles reached
+        if (allArticles.length >= maxArticles) {
+          logger.info('🛑 Max articles reached during P2 search', {
+            current: allArticles.length,
+            max: maxArticles
+          });
+          break;
+        }
+
         const searchQuery = strategy.queries.P2[i];
         logger.info(`Searching P2 query ${i + 1}/${strategy.queries.P2.length}`, {
           query: searchQuery.query
@@ -2022,6 +2075,15 @@ export async function executeExhaustiveSearch(
         });
 
         for (const result of results) {
+          // Stop if max articles reached
+          if (allArticles.length >= maxArticles) {
+            logger.info('🛑 Max articles reached, stopping article addition', {
+              current: allArticles.length,
+              max: maxArticles
+            });
+            break;
+          }
+
           const scoreData = calculateArticleScore(result, strategy.originalQuery);
 
           // Filtrar artigos com score muito baixo (< 30)
@@ -2055,6 +2117,18 @@ export async function executeExhaustiveSearch(
         }
 
         if (onProgress) {
+          // Extract new articles since last report (for real-time visualization)
+          const newArticles = allArticles.slice(lastReportedCount).map(a => ({
+            id: a.id,
+            title: a.title,
+            priority: a.score.priority,
+            source: a.source,
+            score: a.score.score,
+            hasFulltext: a.hasFulltext,
+            year: a.year,
+            citationCount: a.citationCount
+          }));
+
           const progress: FlowSearchProgress = {
             currentPriority: 'P2',
             currentQuery: i + 1,
@@ -2068,25 +2142,38 @@ export async function executeExhaustiveSearch(
               P3: allArticles.filter(a => a.score.priority === 'P3').length
             },
             formatsDetected: {},
-            elapsedTime: Date.now() - startTime
+            elapsedTime: Date.now() - startTime,
+            newArticles // Include new articles for real-time mind map
           };
           onProgress(progress);
+          lastReportedCount = allArticles.length; // Update counter
         }
       }
     } else {
-      logger.info('Skipping P2 search - target reached', {
+      logger.info('Skipping P2 search - target or max reached', {
         current: allArticles.length,
-        target: strategy.targetArticles
+        target: targetArticles,
+        max: maxArticles
       });
     }
 
-    // Se ainda não atingiu a meta, buscar P3
-    if (allArticles.length < strategy.targetArticles && strategy.queries.P3.length > 0) {
+    // Se ainda não atingiu a meta E não excedeu max, buscar P3
+    if (allArticles.length < maxArticles && allArticles.length < targetArticles && strategy.queries.P3.length > 0) {
       logger.info('Continuing to P3 search (target not reached)', {
         current: allArticles.length,
-        target: strategy.targetArticles
+        target: targetArticles,
+        max: maxArticles
       });
       for (let i = 0; i < strategy.queries.P3.length; i++) {
+        // Stop if max articles reached
+        if (allArticles.length >= maxArticles) {
+          logger.info('🛑 Max articles reached during P3 search', {
+            current: allArticles.length,
+            max: maxArticles
+          });
+          break;
+        }
+
         const searchQuery = strategy.queries.P3[i];
         logger.info(`Searching P3 query ${i + 1}/${strategy.queries.P3.length}`, {
           query: searchQuery.query
@@ -2099,6 +2186,15 @@ export async function executeExhaustiveSearch(
         });
 
         for (const result of results) {
+          // Stop if max articles reached
+          if (allArticles.length >= maxArticles) {
+            logger.info('🛑 Max articles reached, stopping article addition', {
+              current: allArticles.length,
+              max: maxArticles
+            });
+            break;
+          }
+
           const scoreData = calculateArticleScore(result, strategy.originalQuery);
 
           // Filtrar artigos com score muito baixo (< 30)
@@ -2132,6 +2228,18 @@ export async function executeExhaustiveSearch(
         }
 
         if (onProgress) {
+          // Extract new articles since last report (for real-time visualization)
+          const newArticles = allArticles.slice(lastReportedCount).map(a => ({
+            id: a.id,
+            title: a.title,
+            priority: a.score.priority,
+            source: a.source,
+            score: a.score.score,
+            hasFulltext: a.hasFulltext,
+            year: a.year,
+            citationCount: a.citationCount
+          }));
+
           const progress: FlowSearchProgress = {
             currentPriority: 'P3',
             currentQuery: i + 1,
@@ -2145,15 +2253,18 @@ export async function executeExhaustiveSearch(
               P3: allArticles.filter(a => a.score.priority === 'P3').length
             },
             formatsDetected: {},
-            elapsedTime: Date.now() - startTime
+            elapsedTime: Date.now() - startTime,
+            newArticles // Include new articles for real-time mind map
           };
           onProgress(progress);
+          lastReportedCount = allArticles.length; // Update counter
         }
       }
     } else {
-      logger.info('Skipping P3 search - target reached', {
+      logger.info('Skipping P3 search - target or max reached', {
         current: allArticles.length,
-        target: strategy.targetArticles
+        target: targetArticles,
+        max: maxArticles
       });
     }
 
