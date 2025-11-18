@@ -2787,6 +2787,147 @@ export async function checkPlagiarism(
   }
 }
 
+/**
+ * Agrupa artigos por similaridade semântica usando embeddings
+ * Utiliza K-means ou DBSCAN para clustering automático
+ */
+export async function clusterArticlesBySimilarity(
+  articles: FlowEnrichedArticle[],
+  options?: {
+    algorithm?: 'kmeans' | 'dbscan';
+    numClusters?: number;
+    similarityThreshold?: number;
+  }
+): Promise<{
+  clusters: any[];
+  semanticEdges: any[];
+  statistics: any;
+}> {
+  try {
+    const { semanticClusteringService } = await import('./semanticClustering.service.js');
+
+    logger.info('Starting semantic clustering', {
+      articleCount: articles.length,
+      algorithm: options?.algorithm || 'kmeans'
+    });
+
+    const result = await semanticClusteringService.clusterArticles(articles, options);
+
+    logger.info('Semantic clustering completed', {
+      clusterCount: result.clusters.length,
+      edgeCount: result.semanticEdges.length,
+      orphanCount: result.orphanArticles.length
+    });
+
+    return {
+      clusters: result.clusters,
+      semanticEdges: result.semanticEdges,
+      statistics: result.statistics
+    };
+  } catch (error: any) {
+    logger.error('Failed to cluster articles', { error: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Valida arestas do grafo de conhecimento usando similaridade semântica
+ * Identifica arestas fracas e sugere novas conexões semânticas
+ */
+export async function validateKnowledgeGraphWithSemantics(
+  graphEdges: Array<{ source: string; target: string; type: string }>,
+  articles: FlowEnrichedArticle[]
+): Promise<{
+  validEdges: Array<{ source: string; target: string; type: string; semanticScore: number }>;
+  invalidEdges: Array<{ source: string; target: string; type: string; reason: string }>;
+  suggestedEdges: any[];
+}> {
+  try {
+    const { semanticClusteringService } = await import('./semanticClustering.service.js');
+
+    logger.info('Validating knowledge graph with semantic similarity', {
+      edgeCount: graphEdges.length,
+      articleCount: articles.length
+    });
+
+    const validation = await semanticClusteringService.validateGraphEdges(
+      graphEdges,
+      articles
+    );
+
+    logger.info('Graph validation completed', {
+      validEdges: validation.validEdges.length,
+      invalidEdges: validation.invalidEdges.length,
+      suggestedEdges: validation.enhancedEdges.length
+    });
+
+    return {
+      validEdges: validation.validEdges,
+      invalidEdges: validation.invalidEdges,
+      suggestedEdges: validation.enhancedEdges
+    };
+  } catch (error: any) {
+    logger.error('Failed to validate knowledge graph', { error: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Armazena embeddings de artigos no Qdrant para busca eficiente
+ * Permite recuperação rápida de artigos similares
+ */
+export async function storeArticleEmbeddingsInQdrant(
+  articles: FlowEnrichedArticle[]
+): Promise<{ success: boolean; stored: number }> {
+  try {
+    const { qdrantService } = await import('./qdrant.service.js');
+    const { semanticClusteringService } = await import('./semanticClustering.service.js');
+
+    // Initialize Qdrant if not already done
+    if (!qdrantService.isAvailable()) {
+      await qdrantService.initialize();
+    }
+
+    if (!qdrantService.isAvailable()) {
+      logger.warn('Qdrant not available, skipping vector storage');
+      return { success: false, stored: 0 };
+    }
+
+    // Generate embeddings (will be done internally by clustering service)
+    const embeddings = new Map<string, number[]>();
+    const { embeddingsService } = await import('./embeddings.service.js');
+
+    for (let i = 0; i < articles.length; i += 10) {
+      const batch = articles.slice(i, i + 10);
+      const texts = batch.map(a => {
+        const title = a.title || '';
+        const abstract = a.abstract || '';
+        const intro = a.sections?.introduction || '';
+        return `${title} ${title} ${title} ${abstract} ${abstract} ${intro}`.substring(0, 8000);
+      });
+
+      const batchEmbeddings = await embeddingsService.generateBatchEmbeddings(texts);
+      batch.forEach((article, idx) => {
+        embeddings.set(article.id, batchEmbeddings[idx]);
+      });
+    }
+
+    // Store in Qdrant
+    await qdrantService.storeArticleEmbeddings(articles, embeddings);
+
+    logger.info('Article embeddings stored in Qdrant', {
+      count: articles.length
+    });
+
+    return { success: true, stored: articles.length };
+  } catch (error: any) {
+    logger.error('Failed to store embeddings in Qdrant', {
+      error: error.message
+    });
+    return { success: false, stored: 0 };
+  }
+}
+
 export async function* generateCompleteDocument(
   baseConfig: ContentGenerationConfig,
   articles: FlowEnrichedArticle[],
