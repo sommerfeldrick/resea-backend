@@ -12,6 +12,7 @@ import {
   executeExhaustiveSearch,
   validateAndRefineArticles,
   analyzeArticles,
+  findSimilarArticles,
   generateAcademicContent,
   generateCompleteDocument,
   processEditRequest,
@@ -396,6 +397,47 @@ router.post('/analysis/analyze', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: error.message || 'Falha ao analisar artigos'
+    });
+  }
+});
+
+/**
+ * POST /api/research-flow/analysis/find-similar
+ * Busca artigos similares NA INTERNET (novos artigos, não da lista atual)
+ */
+router.post('/analysis/find-similar', async (req: Request, res: Response) => {
+  try {
+    const { referenceArticle, existingArticles, originalQuery } = req.body;
+
+    if (!referenceArticle || !existingArticles || !Array.isArray(existingArticles) || !originalQuery) {
+      return res.status(400).json({
+        success: false,
+        error: 'referenceArticle, existingArticles (array) e originalQuery são obrigatórios'
+      });
+    }
+
+    logger.info('API: Find similar articles', {
+      referenceTitle: referenceArticle.title?.substring(0, 100),
+      existingCount: existingArticles.length,
+      originalQuery
+    });
+
+    const similarArticles = await findSimilarArticles(
+      referenceArticle,
+      existingArticles,
+      originalQuery
+    );
+
+    res.json({
+      success: true,
+      data: similarArticles,
+      count: similarArticles.length
+    });
+  } catch (error: any) {
+    logger.error('API: Find similar articles failed', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Falha ao buscar artigos similares'
     });
   }
 });

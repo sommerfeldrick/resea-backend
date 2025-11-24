@@ -3699,3 +3699,128 @@ export async function verifyDocumentQuality(
 
   return verification;
 }
+
+// ============================================
+// FASE 5: FIND SIMILAR ARTICLES (NEW SEARCH)
+// ============================================
+
+/**
+ * Busca artigos similares NA INTERNET (novos artigos, não da lista atual)
+ * @param referenceArticle - Artigo de referência para buscar similares
+ * @param existingArticles - Lista de artigos já encontrados (para filtrar duplicatas)
+ * @param originalQuery - Query original da pesquisa
+ * @returns Lista de novos artigos similares
+ */
+export async function findSimilarArticles(
+  referenceArticle: FlowEnrichedArticle,
+  existingArticles: FlowEnrichedArticle[],
+  originalQuery: string
+): Promise<FlowEnrichedArticle[]> {
+  logger.info('Finding similar articles on the internet', {
+    referenceTitle: referenceArticle.title.substring(0, 100),
+    existingCount: existingArticles.length
+  });
+
+  try {
+    // 1. Extrair palavras-chave do artigo de referência
+    const extractKeywords = (text: string): string[] => {
+      const commonWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those', 'using', 'based', 'study', 'research', 'analysis', 'effect', 'effects', 'results', 'methods']);
+      const words = text.toLowerCase().match(/\b[a-z]{4,}\b/g) || [];
+      const wordFreq: Record<string, number> = {};
+
+      words.forEach(word => {
+        if (!commonWords.has(word)) {
+          wordFreq[word] = (wordFreq[word] || 0) + 1;
+        }
+      });
+
+      return Object.entries(wordFreq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10) // Top 10 palavras mais frequentes
+        .map(([word]) => word);
+    };
+
+    const keywords = extractKeywords(referenceArticle.title + ' ' + referenceArticle.abstract);
+    const searchQuery = keywords.slice(0, 5).join(' '); // Top 5 keywords
+
+    logger.info('Extracted keywords for similar search', {
+      keywords: keywords.slice(0, 5),
+      searchQuery
+    });
+
+    // 2. Buscar artigos usando a query construída
+    const results = await buscaAcademicaUniversal(searchQuery, {
+      maxResults: 15, // Buscar 15 para ter margem após filtrar
+      sources: ['openalex', 'arxiv', 'europepmc']
+    });
+
+    logger.info('Similar articles search completed', {
+      found: results.length
+    });
+
+    // 3. Criar Set de IDs existentes (DOIs e URLs) para filtrar duplicatas
+    const existingIds = new Set<string>();
+    existingArticles.forEach(article => {
+      if (article.doi) existingIds.add(article.doi.toLowerCase());
+      if (article.url) existingIds.add(article.url.toLowerCase());
+      if (article.id) existingIds.add(article.id.toLowerCase());
+    });
+
+    // 4. Filtrar e processar novos artigos
+    const newArticles: FlowEnrichedArticle[] = [];
+
+    for (const result of results) {
+      // Verificar se é duplicata
+      const isDuplicate =
+        (result.doi && existingIds.has(result.doi.toLowerCase())) ||
+        (result.url && existingIds.has(result.url.toLowerCase()));
+
+      if (isDuplicate) {
+        continue; // Pular artigos duplicados
+      }
+
+      // Aplicar filtros de qualidade (mesmos da busca exaustiva)
+      const scoreData = calculateArticleScore(result, originalQuery);
+
+      if (scoreData.score < 30) continue; // Score muito baixo
+      if (!result.doi && !result.pdfUrl) continue; // Sem acesso
+      if (!result.abstract || result.abstract.trim().length === 0) continue; // Sem abstract
+      if (!result.authors || result.authors.length === 0) continue; // Sem autores
+
+      const enrichedArticle: FlowEnrichedArticle = {
+        id: result.doi || result.url || `article_${Date.now()}_${Math.random()}`,
+        title: result.title,
+        authors: result.authors,
+        year: result.year,
+        abstract: result.abstract || '',
+        source: result.source,
+        url: result.url,
+        doi: result.doi,
+        pdfUrl: result.pdfUrl,
+        citationCount: result.citationCount || 0,
+        journalInfo: result.journalInfo,
+        score: scoreData,
+        format: 'pdf',
+        hasFulltext: !!result.pdfUrl,
+        fullContent: undefined,
+        sections: {}
+      };
+
+      newArticles.push(enrichedArticle);
+
+      // Limitar a 10 novos artigos
+      if (newArticles.length >= 10) break;
+    }
+
+    logger.info('Similar articles search result', {
+      totalFound: results.length,
+      newArticles: newArticles.length,
+      filtered: results.length - newArticles.length
+    });
+
+    return newArticles;
+  } catch (error: any) {
+    logger.error('Find similar articles failed', { error: error.message });
+    return []; // Retornar lista vazia em caso de erro
+  }
+}
