@@ -1972,13 +1972,41 @@ export async function executeExhaustiveSearch(
 
         const scoreData = calculateArticleScore(result, strategy.originalQuery);
 
-        // Filtrar artigos com score muito baixo (< 30)
+        // FILTROS CRÍTICOS: Verificar qualidade mínima do artigo ANTES de adicionar
+        // 1. Filtrar artigos com score muito baixo (< 30)
         if (scoreData.score < 30) {
           logger.debug('Article discarded due to low score', {
             title: result.title?.substring(0, 50),
             score: scoreData.score
           });
-          continue; // Pula artigos de baixíssima qualidade
+          continue;
+        }
+
+        // 2. Filtrar artigos sem acesso (precisa ter DOI OU PDF)
+        if (!result.doi && !result.pdfUrl) {
+          logger.debug('Article discarded: no DOI or PDF available', {
+            title: result.title?.substring(0, 50),
+            source: result.source
+          });
+          continue;
+        }
+
+        // 3. Filtrar artigos sem abstract
+        if (!result.abstract || result.abstract.trim().length === 0) {
+          logger.debug('Article discarded: no abstract', {
+            title: result.title?.substring(0, 50),
+            source: result.source
+          });
+          continue;
+        }
+
+        // 4. Filtrar artigos sem autores
+        if (!result.authors || result.authors.length === 0) {
+          logger.debug('Article discarded: no authors', {
+            title: result.title?.substring(0, 50),
+            source: result.source
+          });
+          continue;
         }
 
         const enrichedArticle: FlowEnrichedArticle = {
@@ -2092,11 +2120,39 @@ export async function executeExhaustiveSearch(
 
           const scoreData = calculateArticleScore(result, strategy.originalQuery);
 
-          // Filtrar artigos com score muito baixo (< 30)
+          // FILTROS CRÍTICOS: Verificar qualidade mínima do artigo ANTES de adicionar
+          // 1. Filtrar artigos com score muito baixo (< 30)
           if (scoreData.score < 30) {
             logger.debug('Article discarded due to low score', {
               title: result.title?.substring(0, 50),
               score: scoreData.score
+            });
+            continue;
+          }
+
+          // 2. Filtrar artigos sem acesso (precisa ter DOI OU PDF)
+          if (!result.doi && !result.pdfUrl) {
+            logger.debug('Article discarded: no DOI or PDF available', {
+              title: result.title?.substring(0, 50),
+              source: result.source
+            });
+            continue;
+          }
+
+          // 3. Filtrar artigos sem abstract
+          if (!result.abstract || result.abstract.trim().length === 0) {
+            logger.debug('Article discarded: no abstract', {
+              title: result.title?.substring(0, 50),
+              source: result.source
+            });
+            continue;
+          }
+
+          // 4. Filtrar artigos sem autores
+          if (!result.authors || result.authors.length === 0) {
+            logger.debug('Article discarded: no authors', {
+              title: result.title?.substring(0, 50),
+              source: result.source
             });
             continue;
           }
@@ -2209,11 +2265,39 @@ export async function executeExhaustiveSearch(
 
           const scoreData = calculateArticleScore(result, strategy.originalQuery);
 
-          // Filtrar artigos com score muito baixo (< 30)
+          // FILTROS CRÍTICOS: Verificar qualidade mínima do artigo ANTES de adicionar
+          // 1. Filtrar artigos com score muito baixo (< 30)
           if (scoreData.score < 30) {
             logger.debug('Article discarded due to low score', {
               title: result.title?.substring(0, 50),
               score: scoreData.score
+            });
+            continue;
+          }
+
+          // 2. Filtrar artigos sem acesso (precisa ter DOI OU PDF)
+          if (!result.doi && !result.pdfUrl) {
+            logger.debug('Article discarded: no DOI or PDF available', {
+              title: result.title?.substring(0, 50),
+              source: result.source
+            });
+            continue;
+          }
+
+          // 3. Filtrar artigos sem abstract
+          if (!result.abstract || result.abstract.trim().length === 0) {
+            logger.debug('Article discarded: no abstract', {
+              title: result.title?.substring(0, 50),
+              source: result.source
+            });
+            continue;
+          }
+
+          // 4. Filtrar artigos sem autores
+          if (!result.authors || result.authors.length === 0) {
+            logger.debug('Article discarded: no authors', {
+              title: result.title?.substring(0, 50),
+              source: result.source
             });
             continue;
           }
