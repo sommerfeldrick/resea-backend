@@ -16,6 +16,7 @@ export interface AcademicPaper {
   source: string; // Qual API retornou isso
   isOpenAccess?: boolean;
   pdfUrl?: string;
+  journalInfo?: string;
   sections?: {
     introduction?: string;
     methodology?: string;
