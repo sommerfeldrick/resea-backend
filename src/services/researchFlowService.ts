@@ -1921,15 +1921,17 @@ export async function executeExhaustiveSearch(
   onProgress?: (progress: FlowSearchProgress) => void,
   researchId?: number
 ): Promise<FlowEnrichedArticle[]> {
-  const MAX_OVERSHOOT = 1.2; // Allow 20% above target
+  // Buscar 3x o target para compensar artigos sem full-text
+  // Após enrichment, filtraremos apenas os que têm fullContent ou sections
+  const SEARCH_MULTIPLIER = 3;
   const targetArticles = strategy.targetArticles || 50;
-  const maxArticles = Math.ceil(targetArticles * MAX_OVERSHOOT);
+  const maxArticles = targetArticles * SEARCH_MULTIPLIER;
 
-  logger.info('Starting exhaustive search', {
+  logger.info('Starting exhaustive search (with full-text filter)', {
     topic: strategy.topic,
     researchId,
     targetArticles,
-    maxArticles
+    maxArticles: `${maxArticles} (${SEARCH_MULTIPLIER}x target to ensure full-text availability)`
   });
 
   const allArticles: FlowEnrichedArticle[] = [];
@@ -2401,24 +2403,54 @@ export async function executeExhaustiveSearch(
       withAbstract: enrichedArticles.filter(a => !a.hasFulltext).length
     });
 
+    // 🔍 FILTRAR APENAS ARTIGOS COM FULL-TEXT (fullContent ou sections)
+    const articlesWithFulltext = enrichedArticles.filter(a =>
+      (a.fullContent && a.fullContent.length > 100) ||
+      (a.sections && Object.keys(a.sections).length > 0)
+    );
+
+    logger.info('📊 Full-text filtering applied', {
+      beforeFilter: enrichedArticles.length,
+      afterFilter: articlesWithFulltext.length,
+      filtered: enrichedArticles.length - articlesWithFulltext.length,
+      target: targetArticles
+    });
+
+    // Retornar apenas os primeiros targetArticles artigos com full-text
+    const finalArticles = articlesWithFulltext.slice(0, targetArticles);
+
+    if (finalArticles.length < targetArticles) {
+      logger.warn('⚠️ Could not reach target articles with full-text', {
+        target: targetArticles,
+        found: finalArticles.length,
+        shortfall: targetArticles - finalArticles.length
+      });
+    } else {
+      logger.info('✅ Target reached with full-text articles', {
+        target: targetArticles,
+        found: finalArticles.length
+      });
+    }
+
     // 💾 PERSISTÊNCIA: Salvar artigos no banco de dados (se researchId fornecido)
     if (researchId) {
       try {
         const { articlePersistenceService } = await import('./articlePersistence.service.js');
         const { researchPersistenceService } = await import('./researchPersistence.service.js');
 
-        await articlePersistenceService.saveArticles(researchId, enrichedArticles);
+        await articlePersistenceService.saveArticles(researchId, finalArticles);
 
         // Atualizar estatísticas da pesquisa
         await researchPersistenceService.updateResearchStats(researchId, {
-          totalArticlesFound: enrichedArticles.length,
-          articlesWithFulltext: enrichedArticles.filter(a => a.hasFulltext).length,
+          totalArticlesFound: finalArticles.length,
+          articlesWithFulltext: finalArticles.length, // Todos têm full-text agora
           currentPhase: 'analysis'
         });
 
         logger.info('Articles persisted to database', {
           researchId,
-          count: enrichedArticles.length
+          count: finalArticles.length,
+          allHaveFulltext: true
         });
       } catch (error: any) {
         logger.error('Failed to persist articles (non-critical)', {
@@ -2429,7 +2461,7 @@ export async function executeExhaustiveSearch(
       }
     }
 
-    return enrichedArticles;
+    return finalArticles;
   } catch (error: any) {
     logger.error('Exhaustive search failed', {
       error: error.message
