@@ -59,6 +59,7 @@ export interface AcademicArticle {
   year?: number;
   publicationDate?: string;
   journal?: string;
+  journalInfo?: string;
   source: string;  // API de origem (openalex, pubmed, etc)
 
   // URLs e acesso
