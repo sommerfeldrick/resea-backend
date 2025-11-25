@@ -210,6 +210,7 @@ export interface FlowEnrichedArticle {
   url: string;
   doi?: string;
   pdfUrl?: string;
+  journalInfo?: string;
 
   // Quality metrics
   citationCount: number;
