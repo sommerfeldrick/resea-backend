@@ -1646,20 +1646,14 @@ Output queries: ("artificial intelligence" OR "AI") AND education AND ("e-learni
         minimumQuality: 60
       },
 
-      queries: {
-        P1: [
-          { query: `${query.trim()} systematic review`, priority: 'P1', expectedResults: 12 },
-          { query: `${query.trim()} empirical study`, priority: 'P1', expectedResults: 12 },
-          { query: `${query.trim()} meta-analysis`, priority: 'P1', expectedResults: 12 }
-        ],
-        P2: [
-          { query: `${query.trim()} research`, priority: 'P2', expectedResults: 15 },
-          { query: query.trim(), priority: 'P2', expectedResults: 15 }
-        ],
-        P3: [
-          { query: `${query.trim()} overview`, priority: 'P3', expectedResults: 10 }
-        ]
-      },
+      queries: [
+        // Flat array - no P1/P2/P3 classification
+        { query: `${query.trim()} systematic review`, expectedResults: 15 },
+        { query: `${query.trim()} empirical study`, expectedResults: 15 },
+        { query: `${query.trim()} meta-analysis`, expectedResults: 15 },
+        { query: `${query.trim()} research`, expectedResults: 15 },
+        { query: query.trim(), expectedResults: 15 }
+      ],
       keyTerms: {
         primary: [query.trim(), `${query.trim()} research`],
         specific: ['systematic review', 'empirical study', 'meta-analysis'],
