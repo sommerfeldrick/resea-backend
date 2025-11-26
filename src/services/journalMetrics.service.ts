@@ -65,9 +65,9 @@ export class JournalMetricsService {
 
     this.cache = new Map();
     this.cacheExpiry = new Map();
-    this.rateLimiter = pLimit(3);  // REDUCED: 3 concurrent (was 8) - more conservative for OpenAlex
+    this.rateLimiter = pLimit(1);  // VERY SAFE: 1 concurrent (sequential) - prevents all rate limit errors
 
-    logger.info('✅ Journal Metrics Service initialized with rate limiting (3 concurrent requests)');
+    logger.info('✅ Journal Metrics Service initialized with rate limiting (1 concurrent - sequential mode)');
   }
 
   /**
@@ -94,8 +94,8 @@ export class JournalMetricsService {
       try {
         logger.debug(`Looking up journal: ${journalName}`);
 
-        // Add minimum delay between requests to prevent burst (100ms = max 10 req/s even with concurrency)
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Add minimum delay between requests to prevent burst (150ms = ~6 req/s max, very safe)
+        await new Promise(resolve => setTimeout(resolve, 150));
 
         // Search for venue by name
         const response = await this.client.get('/venues', {
@@ -145,8 +145,8 @@ export class JournalMetricsService {
       try {
         logger.debug(`Looking up journal by ISSN: ${issn}`);
 
-        // Add minimum delay between requests to prevent burst (100ms = max 10 req/s)
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Add minimum delay between requests to prevent burst (150ms = ~6 req/s max, very safe)
+        await new Promise(resolve => setTimeout(resolve, 150));
 
         // Search by ISSN
         const response = await this.client.get('/venues', {
@@ -181,7 +181,7 @@ export class JournalMetricsService {
     const results = new Map<string, JournalMetrics>();
     const startTime = Date.now();
 
-    logger.info(`🔍 Starting batch lookup for ${journalNames.length} journals (rate limited to 8 concurrent)`);
+    logger.info(`🔍 Starting batch lookup for ${journalNames.length} journals (sequential mode - 1 req every 150ms)`);
 
     // Use rate limiter to control concurrency
     const promises = journalNames.map((name) =>
