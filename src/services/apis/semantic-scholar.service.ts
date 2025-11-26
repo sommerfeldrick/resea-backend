@@ -39,7 +39,7 @@ export class SemanticScholarService extends BaseAPIService {
   private apiKey?: string;
 
   constructor() {
-    const apiKey = process.env.SEMANTIC_SCHOLAR_API_KEY;
+    const apiKey = process.env.SEMANTIC_SCHOLAR_KEY || process.env.SEMANTIC_SCHOLAR_API_KEY;
 
     super(
       'SemanticScholar',

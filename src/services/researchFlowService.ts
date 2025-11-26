@@ -1816,15 +1816,15 @@ async function enrichArticlesWithFulltext(
   articles: FlowEnrichedArticle[],
   onProgress?: (progress: { current: number; total: number; successful: number }) => void
 ): Promise<FlowEnrichedArticle[]> {
-  logger.info('🚀 Starting hybrid fulltext enrichment (PDF priority: Unpaywall → Direct PDF → OpenAlex → arXiv → Europe PMC)', { articleCount: articles.length });
+  logger.info('🚀 Starting hybrid fulltext enrichment (6 sources: Unpaywall → Direct PDF → OpenAlex → CORE → Semantic Scholar → arXiv → Europe PMC)', { articleCount: articles.length });
 
   // Inicializar services (com circuit breaker embutido)
   const openalex = new OpenAlexService();
   const unpaywall = new UnpaywallService();
-  // const core = new COREService();  // DISABLED - 100% error 500
+  const core = new COREService();
   const arxiv = new ArXivService();
   const europepmc = new EuropePMCService();
-  // const semanticScholar = new SemanticScholarService();  // DISABLED - rate limit 429
+  const semanticScholar = new SemanticScholarService();
 
   const enrichedArticles: FlowEnrichedArticle[] = [];
   const batchSize = 10; // Processar 10 artigos por vez
@@ -1840,7 +1840,7 @@ async function enrichArticlesWithFulltext(
           // Tentar enriquecer com fulltext de múltiplas fontes em paralelo
           const fulltextResult = await tryMultipleFulltextSources(
             article,
-            { openalex, unpaywall, arxiv, europepmc }
+            { openalex, unpaywall, core, arxiv, europepmc, semanticScholar }
           );
 
           if (fulltextResult.success && fulltextResult.fullContent) {
@@ -1926,10 +1926,10 @@ async function tryMultipleFulltextSources(
   services: {
     openalex: OpenAlexService;
     unpaywall: UnpaywallService;
-    // core: COREService;  // DISABLED
+    core: COREService;
     arxiv: ArXivService;
     europepmc: EuropePMCService;
-    // semanticScholar: SemanticScholarService;  // DISABLED
+    semanticScholar: SemanticScholarService;
   }
 ): Promise<{ success: boolean; fullContent?: string; source?: string; format?: string }> {
   const attempts: Promise<{ success: boolean; fullContent?: string; source?: string; format?: string }>[] = [];
@@ -2061,10 +2061,53 @@ async function tryMultipleFulltextSources(
     );
   }
 
-  // [4] CORE API - DISABLED (100% error 500 in production, need valid API key)
-  // if (article.doi) {
-  //   attempts.push(...);
-  // }
+  // [4] CORE (se tem DOI ou título) - 280M OA articles
+  if (article.doi || article.title) {
+    attempts.push(
+      (async () => {
+        try {
+          const result = article.doi
+            ? await services.core.searchByDOI(article.doi)
+            : await services.core.searchByTitle(article.title);
+
+          if (result) {
+            // Se CORE retornar PDF URL, tentar extrair
+            if (result.pdfUrl) {
+              const { pdfExtractionService } = await import('./pdfExtraction.service.js');
+              const extraction = await pdfExtractionService.extractPdfText(result.pdfUrl);
+
+              if (extraction.success && extraction.text) {
+                logger.debug('PDF extracted from CORE', {
+                  title: article.title.substring(0, 50),
+                  textLength: extraction.text.length
+                });
+
+                return {
+                  success: true,
+                  fullContent: extraction.text,
+                  source: 'CORE (PDF)',
+                  format: 'pdf'
+                };
+              }
+            }
+
+            // Fallback para abstract
+            if (result.abstract) {
+              return {
+                success: true,
+                fullContent: result.abstract,
+                source: 'CORE',
+                format: 'abstract'
+              };
+            }
+          }
+        } catch (error) {
+          logger.debug(`CORE failed for ${article.doi || article.title.substring(0, 30)}`);
+        }
+        return { success: false };
+      })()
+    );
+  }
 
   // [5] arXiv (se tem arxivId ou é da área certa)
   if (article.source === 'arXiv' || article.id?.includes('arxiv')) {
@@ -2121,10 +2164,54 @@ async function tryMultipleFulltextSources(
     );
   }
 
-  // [7] Semantic Scholar - DISABLED (rate limit 429 errors without API key)
-  // if (article.doi || article.title) {
-  //   attempts.push(...);
-  // }
+  // [7] Semantic Scholar (se tem DOI ou título) - 200M papers with openAccessPdf
+  if (article.doi || article.title) {
+    attempts.push(
+      (async () => {
+        try {
+          const query = article.doi || article.title;
+          const results = await services.semanticScholar.search(query, 1, { requireFullText: true });
+
+          if (results.length > 0) {
+            const result = results[0];
+
+            // Se Semantic Scholar retornar PDF URL, tentar extrair
+            if (result.pdfUrl) {
+              const { pdfExtractionService } = await import('./pdfExtraction.service.js');
+              const extraction = await pdfExtractionService.extractPdfText(result.pdfUrl);
+
+              if (extraction.success && extraction.text) {
+                logger.debug('PDF extracted from Semantic Scholar', {
+                  title: article.title.substring(0, 50),
+                  textLength: extraction.text.length
+                });
+
+                return {
+                  success: true,
+                  fullContent: extraction.text,
+                  source: 'Semantic Scholar (PDF)',
+                  format: 'pdf'
+                };
+              }
+            }
+
+            // Fallback para abstract
+            if (result.abstract) {
+              return {
+                success: true,
+                fullContent: result.abstract,
+                source: 'Semantic Scholar',
+                format: 'abstract'
+              };
+            }
+          }
+        } catch (error) {
+          logger.debug(`Semantic Scholar failed for ${article.doi || article.title.substring(0, 30)}`);
+        }
+        return { success: false };
+      })()
+    );
+  }
 
   // Executar todas as tentativas em paralelo, retornar a primeira que funcionar
   if (attempts.length === 0) {
