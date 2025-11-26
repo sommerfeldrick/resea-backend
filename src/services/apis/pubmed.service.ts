@@ -42,9 +42,9 @@ export class PubMedService extends BaseAPIService {
     this.apiKey = apiKey;
 
     if (this.apiKey) {
-      this.logger.info('Using API key for higher rate limits');
+      this.logger.info('✅ PubMed API key configured (10 req/s vs 3 req/s without key)');
     } else {
-      this.logger.warn('No API key - using rate limit 3 req/s');
+      this.logger.warn('⚠️ No PubMed API key - LIMITED to 3 req/s. Get free key at: https://ncbiinsights.ncbi.nlm.nih.gov/2017/11/02/new-api-keys-for-the-e-utilities/');
     }
   }
 
