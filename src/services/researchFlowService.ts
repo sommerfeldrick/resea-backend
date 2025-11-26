@@ -1816,7 +1816,7 @@ async function enrichArticlesWithFulltext(
   articles: FlowEnrichedArticle[],
   onProgress?: (progress: { current: number; total: number; successful: number }) => void
 ): Promise<FlowEnrichedArticle[]> {
-  logger.info('🚀 Starting hybrid fulltext enrichment (4 sources: OpenAlex, Unpaywall, arXiv, Europe PMC)', { articleCount: articles.length });
+  logger.info('🚀 Starting hybrid fulltext enrichment (PDF priority: Unpaywall → Direct PDF → OpenAlex → arXiv → Europe PMC)', { articleCount: articles.length });
 
   // Inicializar services (com circuit breaker embutido)
   const openalex = new OpenAlexService();
@@ -1934,29 +1934,11 @@ async function tryMultipleFulltextSources(
 ): Promise<{ success: boolean; fullContent?: string; source?: string; format?: string }> {
   const attempts: Promise<{ success: boolean; fullContent?: string; source?: string; format?: string }>[] = [];
 
-  // [1] OpenAlex (se tem DOI) - MAIOR COBERTURA (250M artigos)
-  if (article.doi) {
-    attempts.push(
-      (async () => {
-        try {
-          const result = await services.openalex.getByDOI(article.doi!);
-          if (result && (result.pdfUrl || result.abstract)) {
-            return {
-              success: true,
-              fullContent: result.abstract || '',
-              source: 'OpenAlex',
-              format: result.pdfUrl ? 'pdf' : 'json'
-            };
-          }
-        } catch (error) {
-          logger.debug(`OpenAlex failed for ${article.doi}`);
-        }
-        return { success: false };
-      })()
-    );
-  }
+  // ============================================================
+  // PRIORIDADE 1: PDFs OPEN ACCESS (Unpaywall + Direct PDF)
+  // ============================================================
 
-  // [2] Unpaywall (se tem DOI) + PDF Extraction
+  // [1] Unpaywall (se tem DOI) + PDF Extraction - PRIORIDADE MÁXIMA!
   if (article.doi) {
     attempts.push(
       (async () => {
@@ -1997,12 +1979,94 @@ async function tryMultipleFulltextSources(
     );
   }
 
-  // [3] CORE API - DISABLED (100% error 500 in production, need valid API key)
+  // ============================================================
+  // PRIORIDADE 2: PDFs DIRETOS (se artigo já tem pdfUrl)
+  // ============================================================
+
+  // [2] Direct PDF extraction (se artigo tem pdfUrl)
+  if (article.pdfUrl) {
+    attempts.push(
+      (async () => {
+        try {
+          const { pdfExtractionService } = await import('./pdfExtraction.service.js');
+          const extraction = await pdfExtractionService.extractPdfText(article.pdfUrl!);
+
+          if (extraction.success && extraction.text) {
+            logger.debug('PDF extracted from direct URL', {
+              title: article.title.substring(0, 50),
+              textLength: extraction.text.length
+            });
+
+            return {
+              success: true,
+              fullContent: extraction.text,
+              source: `Direct PDF (${article.source})`,
+              format: 'pdf'
+            };
+          }
+        } catch (error) {
+          logger.debug(`Direct PDF extraction failed`);
+        }
+        return { success: false };
+      })()
+    );
+  }
+
+  // ============================================================
+  // PRIORIDADE 3: FALLBACK - ABSTRACT APIs
+  // ============================================================
+
+  // [3] OpenAlex (se tem DOI) - Pode retornar abstract OU PDF URL
+  if (article.doi) {
+    attempts.push(
+      (async () => {
+        try {
+          const result = await services.openalex.getByDOI(article.doi!);
+          if (result) {
+            // Se OpenAlex retornar PDF URL, tentar extrair
+            if (result.pdfUrl) {
+              const { pdfExtractionService } = await import('./pdfExtraction.service.js');
+              const extraction = await pdfExtractionService.extractPdfText(result.pdfUrl);
+
+              if (extraction.success && extraction.text) {
+                logger.debug('PDF extracted from OpenAlex', {
+                  doi: article.doi,
+                  textLength: extraction.text.length
+                });
+
+                return {
+                  success: true,
+                  fullContent: extraction.text,
+                  source: 'OpenAlex (PDF)',
+                  format: 'pdf'
+                };
+              }
+            }
+
+            // Fallback para abstract
+            if (result.abstract) {
+              return {
+                success: true,
+                fullContent: result.abstract,
+                source: 'OpenAlex',
+                format: 'abstract'
+              };
+            }
+          }
+        } catch (error) {
+          logger.debug(`OpenAlex failed for ${article.doi}`);
+        }
+        return { success: false };
+      })()
+    );
+  }
+
+  // [4] CORE API - DISABLED (100% error 500 in production, need valid API key)
   // if (article.doi) {
   //   attempts.push(...);
   // }
 
-  // [4] arXiv (se tem arxivId ou é da área certa)
+  // [5] arXiv (se tem arxivId ou é da área certa)
   if (article.source === 'arXiv' || article.id?.includes('arxiv')) {
     attempts.push(
       (async () => {
@@ -2032,7 +2096,7 @@ async function tryMultipleFulltextSources(
     );
   }
 
-  // [5] Europe PMC (se biomedicina)
+  // [6] Europe PMC (se biomedicina)
   if (article.source?.toLowerCase().includes('pubmed') ||
       article.source?.toLowerCase().includes('pmc') ||
       article.doi?.includes('PMC')) {
@@ -2057,39 +2121,10 @@ async function tryMultipleFulltextSources(
     );
   }
 
-  // [6] Semantic Scholar - DISABLED (rate limit 429 errors without API key)
+  // [7] Semantic Scholar - DISABLED (rate limit 429 errors without API key)
   // if (article.doi || article.title) {
   //   attempts.push(...);
   // }
-
-  // [7] ✨ FALLBACK FINAL: Direct PDF extraction (se artigo tem pdfUrl)
-  if (article.pdfUrl) {
-    attempts.push(
-      (async () => {
-        try {
-          const { pdfExtractionService } = await import('./pdfExtraction.service.js');
-          const extraction = await pdfExtractionService.extractPdfText(article.pdfUrl!);
-
-          if (extraction.success && extraction.text) {
-            logger.debug('PDF extracted from direct URL', {
-              title: article.title.substring(0, 50),
-              textLength: extraction.text.length
-            });
-
-            return {
-              success: true,
-              fullContent: extraction.text,
-              source: `Direct PDF (${article.source})`,
-              format: 'pdf'
-            };
-          }
-        } catch (error) {
-          logger.debug(`Direct PDF extraction failed`);
-        }
-        return { success: false };
-      })()
-    );
-  }
 
   // Executar todas as tentativas em paralelo, retornar a primeira que funcionar
   if (attempts.length === 0) {
