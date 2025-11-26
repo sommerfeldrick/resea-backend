@@ -37,7 +37,7 @@ export class DOAJService extends BaseAPIService {
   constructor() {
     super(
       'DOAJ',
-      'https://doaj.org/api',  // API v3 was discontinued, using v2 (default)
+      'https://doaj.org',  // Using DOAJ API v4 (current version as of 2025)
       { tokensPerSecond: 2, maxTokens: 4 },
       { failureThreshold: 5, resetTimeoutMs: 60000 }
     );
@@ -51,14 +51,15 @@ export class DOAJService extends BaseAPIService {
     try {
       this.logger.info(`Searching: "${query}" (limit: ${limit})`);
 
+      // DOAJ API v4 uses path parameter for search query
+      const encodedQuery = encodeURIComponent(query);
       const params = {
-        q: query,
         pageSize: Math.min(limit, 100),
       };
 
       const response = await this.makeRequest<{ results: DOAJArticle[] }>({
         method: 'GET',
-        url: '/search/articles',
+        url: `/api/search/articles/${encodedQuery}`,
         params,
       });
 

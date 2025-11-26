@@ -109,10 +109,39 @@ async function calculateNewArticleScore(article: any, query: string): Promise<Sc
           subjectAreas: metrics.subjectAreas,
         };
       } else {
-        reasons.push(`Journal "${article.journal}": not found in OpenAlex`);
+        // FALLBACK: Estimate journal quality from article citations when OpenAlex lookup fails
+        // This prevents losing all 30 pts and allows highly-cited articles to still rank well
+        const citations = article.citationCount || 0;
+        if (citations >= 100) {
+          journalScore = 20;  // Assume Q1/Q2 journal for highly cited articles
+          reasons.push(`Journal "${article.journal}": estimated 20 pts (article has ${citations} citations, OpenAlex unavailable)`);
+        } else if (citations >= 50) {
+          journalScore = 15;  // Assume Q2/Q3 journal
+          reasons.push(`Journal "${article.journal}": estimated 15 pts (article has ${citations} citations, OpenAlex unavailable)`);
+        } else if (citations >= 20) {
+          journalScore = 10;  // Assume Q3/Q4 journal
+          reasons.push(`Journal "${article.journal}": estimated 10 pts (article has ${citations} citations, OpenAlex unavailable)`);
+        } else {
+          journalScore = 5;   // Minimal credit for having a journal name
+          reasons.push(`Journal "${article.journal}": estimated 5 pts (OpenAlex unavailable)`);
+        }
       }
     } catch (err) {
-      // Silently fail journal lookup
+      // FALLBACK on error: Use citation-based estimation
+      const citations = article.citationCount || 0;
+      if (citations >= 100) {
+        journalScore = 20;
+        reasons.push(`Journal "${article.journal}": estimated 20 pts (${citations} citations, OpenAlex error)`);
+      } else if (citations >= 50) {
+        journalScore = 15;
+        reasons.push(`Journal "${article.journal}": estimated 15 pts (${citations} citations, OpenAlex error)`);
+      } else if (citations >= 20) {
+        journalScore = 10;
+        reasons.push(`Journal "${article.journal}": estimated 10 pts (${citations} citations, OpenAlex error)`);
+      } else {
+        journalScore = 5;
+        reasons.push(`Journal "${article.journal}": estimated 5 pts (OpenAlex error)`);
+      }
     }
   }
   score += journalScore;

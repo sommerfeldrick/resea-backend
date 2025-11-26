@@ -57,7 +57,7 @@ export class JournalMetricsService {
 
     this.client = axios.create({
       baseURL: 'https://api.openalex.org',
-      timeout: 10000,
+      timeout: 30000,  // Increased from 10s to 30s to handle high load
       headers: {
         'User-Agent': `RESEA-JournalMetrics/1.0 (mailto:${email})`,
       },
@@ -78,8 +78,11 @@ export class JournalMetricsService {
       return null;
     }
 
+    // Normalize journal name (lowercase, trim) to improve cache hits
+    const normalizedName = journalName.trim().toLowerCase();
+
     // Check cache
-    const cached = this.getFromCache(journalName);
+    const cached = this.getFromCache(normalizedName);
     if (cached) {
       logger.debug(`Cache HIT: ${journalName}`);
       return cached;
@@ -106,8 +109,8 @@ export class JournalMetricsService {
       const venue = venues[0];
       const metrics = this.parseVenue(venue);
 
-      // Cache result
-      this.saveToCache(journalName, metrics);
+      // Cache result (using normalized name)
+      this.saveToCache(normalizedName, metrics);
 
       return metrics;
     } catch (error: any) {
