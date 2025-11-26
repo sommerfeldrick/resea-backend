@@ -41,7 +41,7 @@ export class COREService extends BaseAPIService {
 
     if (this.apiKey) {
       this.client.defaults.headers.common['Authorization'] = `Bearer ${this.apiKey}`;
-      this.logger.info('CORE API key configured');
+      this.logger.info('✅ CORE API key configured (APIv3, trial expires 2025-12-03)');
     } else {
       this.logger.error('❌ CORE API key missing! Set CORE_API_KEY env variable. Get key at: https://core.ac.uk/services/api');
     }

@@ -44,8 +44,9 @@ export class SemanticScholarService extends BaseAPIService {
     super(
       'SemanticScholar',
       'https://api.semanticscholar.org/graph/v1',
-      // Rate limit: 100 req/s with API key, 1 req/s without
-      { tokensPerSecond: apiKey ? 80 : 0.8, maxTokens: apiKey ? 100 : 2 },
+      // Rate limit: 1 req/s (Free tier - as per API key email)
+      // Enterprise plans get 100 req/s, but free tier is limited to 1 req/s
+      { tokensPerSecond: 0.9, maxTokens: 1 }, // 0.9 req/s for safety margin
       { failureThreshold: 5, resetTimeoutMs: 60000 }
     );
 
@@ -54,9 +55,9 @@ export class SemanticScholarService extends BaseAPIService {
     // Add API key to headers if available
     if (this.apiKey) {
       this.client.defaults.headers.common['x-api-key'] = this.apiKey;
-      this.logger.info('✅ Semantic Scholar API key configured (80 req/s)');
+      this.logger.info('✅ Semantic Scholar API key configured (1 req/s - Free tier)');
     } else {
-      this.logger.warn('⚠️ No Semantic Scholar API key - LIMITED to 0.8 req/s. Get free key at: https://www.semanticscholar.org/product/api');
+      this.logger.warn('⚠️ No Semantic Scholar API key - rate limit will be enforced. Get free key at: https://www.semanticscholar.org/product/api');
     }
   }
 
