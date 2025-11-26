@@ -221,6 +221,17 @@ export interface FlowEnrichedArticle {
   format: string;
   hasFulltext: boolean;
 
+  // ✨ NEW: Enrichment details
+  fulltextSource?: string;  // Where fulltext came from (e.g., "Unpaywall (PDF)", "OpenAlex", "CORE (PDF)")
+  fulltextFormat?: string;  // Format of fulltext (e.g., "pdf", "abstract", "jats", "latex")
+  journalMetrics?: {
+    qualityScore: number;    // 0-100 based on h-index and citations
+    hIndex: number;          // Journal h-index
+    quartile: 'Q1' | 'Q2' | 'Q3' | 'Q4' | null;  // Journal quartile
+    twoYearCitedness: number;  // Average citations per paper (2yr window)
+    subjectAreas: string[];   // Primary research areas
+  };
+
   // Content
   fullContent?: string;
   sections?: Record<string, string>;

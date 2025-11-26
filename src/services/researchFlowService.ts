@@ -60,6 +60,13 @@ interface ScoringResult {
   score: number;
   priority: PriorityLevel;
   reasons: string[];
+  journalMetrics?: {
+    qualityScore: number;
+    hIndex: number;
+    quartile: 'Q1' | 'Q2' | 'Q3' | 'Q4' | null;
+    twoYearCitedness: number;
+    subjectAreas: string[];
+  };
 }
 
 /**
@@ -85,12 +92,22 @@ async function calculateNewArticleScore(article: any, query: string): Promise<Sc
   // ===== 1. JOURNAL QUALITY (0-30 pts) =====
   // Lookup journal metrics via OpenAlex (uses cache, fast)
   let journalScore = 0;
+  let journalMetrics: ScoringResult['journalMetrics'];
   if (article.journal) {
     try {
       const metrics = await journalMetricsService.getMetricsByJournalName(article.journal);
       if (metrics) {
         journalScore = Math.round((metrics.qualityScore / 100) * 30);
         reasons.push(`Journal "${article.journal}": ${journalScore} pts (h-index: ${metrics.hIndex}, Q${metrics.quartile || '?'})`);
+
+        // Store journal metrics for frontend display
+        journalMetrics = {
+          qualityScore: metrics.qualityScore,
+          hIndex: metrics.hIndex,
+          quartile: metrics.quartile,
+          twoYearCitedness: metrics.twoYearCitedness,
+          subjectAreas: metrics.subjectAreas,
+        };
       } else {
         reasons.push(`Journal "${article.journal}": not found in OpenAlex`);
       }
@@ -179,7 +196,13 @@ async function calculateNewArticleScore(article: any, query: string): Promise<Sc
     priority = 'P3'; // Minimum accepted
   }
 
-  return { article, score: Math.round(score), priority, reasons };
+  return {
+    article,
+    score: Math.round(score),
+    priority,
+    reasons,
+    journalMetrics,  // Include journal metrics for frontend display
+  };
 }
 
 /**
@@ -1856,7 +1879,10 @@ async function enrichArticlesWithFulltext(
               fullContent: fulltextResult.fullContent,
               hasFulltext: true,
               format: fulltextResult.format || 'pdf',
-              source: fulltextResult.source || article.source
+              source: fulltextResult.source || article.source,
+              // ✨ NEW: Enrichment metadata
+              fulltextSource: fulltextResult.source,  // "Unpaywall (PDF)", "OpenAlex", etc.
+              fulltextFormat: fulltextResult.format,  // "pdf", "abstract", "jats", etc.
             };
           } else {
             // ⚠️ NÃO conseguiu fulltext → FALLBACK para abstract
@@ -1867,7 +1893,9 @@ async function enrichArticlesWithFulltext(
             return {
               ...article,
               fullContent: undefined,
-              hasFulltext: false
+              hasFulltext: false,
+              fulltextSource: 'Abstract only',
+              fulltextFormat: 'abstract',
             };
           }
         } catch (error: any) {
@@ -2385,7 +2413,9 @@ export async function executeExhaustiveSearch(
           hasDoi: !!result.article.doi,
           hasCompleteAbstract: !!(result.article.abstract && result.article.abstract.length > 100)
         }
-      }
+      },
+      // ✨ NEW: Include journal metrics for frontend display
+      journalMetrics: result.journalMetrics,
     }));
 
     const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
