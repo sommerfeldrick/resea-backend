@@ -221,11 +221,21 @@ function deduplicateArticles(articles: any[]): any[] {
 async function searchQueryAcrossAPIs(
   query: string,
   limit: number,
-  filters: { requireFullText?: boolean }
+  filters: {
+    requireFullText?: boolean;
+    dateRange?: { start: number; end: number };
+    documentTypes?: string[];
+    languages?: string[];
+  }
 ): Promise<any[]> {
-  logger.debug(`Searching query across all APIs: "${query.substring(0, 50)}..."`);
+  logger.debug(`Searching query across all APIs: "${query.substring(0, 50)}..." with filters`, {
+    requireFullText: filters.requireFullText,
+    dateRange: filters.dateRange ? `${filters.dateRange.start}-${filters.dateRange.end}` : 'any',
+    documentTypes: filters.documentTypes?.join(', ') || 'any'
+  });
 
   // Search all APIs in parallel
+  // NOTE: Not all APIs support all filters - they will ignore unsupported ones
   const searchPromises = [
     openAlexServiceInstance.search(query, limit, filters),
     arxivServiceInstance.search(query, limit, filters),
@@ -2131,9 +2141,19 @@ export async function executeExhaustiveSearch(
     // ================================================================
     logger.info('📡 STEP 1: Searching all queries in parallel...');
 
+    // Apply filters from strategy (from Phases 1, 2, 3)
     const searchFilters = {
       requireFullText: true,  // Only articles with full-text available
+      dateRange: strategy.filters.dateRange,  // From Phase 2: User's time period
+      documentTypes: strategy.filters.documentTypes,  // From Phase 2: Article types
+      languages: strategy.filters.languages  // From Phase 3: Language preference
     };
+
+    logger.info('Applying user filters from clarification phase', {
+      dateRange: `${searchFilters.dateRange.start}-${searchFilters.dateRange.end}`,
+      documentTypes: searchFilters.documentTypes,
+      languages: searchFilters.languages
+    });
 
     // Execute all query searches in parallel
     const querySearchPromises = strategy.queries.map(queryObj =>
