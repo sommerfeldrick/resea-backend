@@ -20,7 +20,6 @@ interface PLOSDoc {
   publication_date?: string;
   journal?: string;
   article_type?: string;
-  counter_total_all?: number;
 }
 
 export class PLOSService extends BaseAPIService {
@@ -45,7 +44,7 @@ export class PLOSService extends BaseAPIService {
         q: query,
         rows: Math.min(limit, 100),
         wt: 'json',
-        fl: 'id,title_display,abstract,author_display,publication_date,journal,article_type,counter_total_all',
+        fl: 'id,title_display,abstract,author_display,publication_date,journal,article_type',
       };
 
       const response = await this.makeRequest<{
@@ -101,7 +100,7 @@ export class PLOSService extends BaseAPIService {
         year,
         journal: doc.journal || 'PLOS',
         source: 'PLOS',
-        citationCount: doc.counter_total_all || 0,
+        citationCount: 0, // PLOS API doesn't provide citation counts (counter_total_all is views, not citations)
         isOpenAccess: true, // All PLOS content is open access
         pdfUrl,
         url,
