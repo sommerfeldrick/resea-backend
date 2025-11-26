@@ -1921,9 +1921,9 @@ export async function executeExhaustiveSearch(
   onProgress?: (progress: FlowSearchProgress) => void,
   researchId?: number
 ): Promise<FlowEnrichedArticle[]> {
-  // Buscar 3x o target para compensar artigos sem full-text
+  // Buscar 5x o target para compensar filtros mais rigorosos (Open Access + indicadores de full-text)
   // Após enrichment, filtraremos apenas os que têm fullContent ou sections
-  const SEARCH_MULTIPLIER = 3;
+  const SEARCH_MULTIPLIER = 5;
   const targetArticles = strategy.targetArticles || 50;
   const maxArticles = targetArticles * SEARCH_MULTIPLIER;
 
@@ -1957,6 +1957,7 @@ export async function executeExhaustiveSearch(
 
       const results = await buscaAcademicaUniversal(searchQuery.query, {
         maxResults: searchQuery.expectedResults,
+        openAccessOnly: true,  // 🔓 Apenas Open Access (evita paywall)
         ...strategy.filters,
         sources: ['openalex', 'arxiv', 'europepmc'] // Apenas APIs priorizadas (sem CORE, Semantic Scholar, etc)
       });
@@ -2007,6 +2008,28 @@ export async function executeExhaustiveSearch(
           logger.debug('Article discarded: no authors', {
             title: result.title?.substring(0, 50),
             source: result.source
+          });
+          continue;
+        }
+
+        // 5. 🔍 FILTRO CRÍTICO: Apenas artigos com indicadores de FULL-TEXT disponível
+        // pmcid → JATS XML estruturado via PubMed Central
+        // arxivId → LaTeX/PDF fonte via arXiv
+        // isOpenAccess + pdfUrl → PDF confirmado e acessível
+        const hasFulltextIndicator = !!(
+          (result as any).pmcid ||
+          (result as any).arxivId ||
+          (result.isOpenAccess && result.pdfUrl)
+        );
+
+        if (!hasFulltextIndicator) {
+          logger.debug('Article discarded: no full-text indicator (pmcid/arxivId/OA+PDF)', {
+            title: result.title?.substring(0, 50),
+            source: result.source,
+            isOpenAccess: result.isOpenAccess,
+            hasPdfUrl: !!result.pdfUrl,
+            hasPmcid: !!(result as any).pmcid,
+            hasArxivId: !!(result as any).arxivId
           });
           continue;
         }
@@ -2106,6 +2129,7 @@ export async function executeExhaustiveSearch(
 
         const results = await buscaAcademicaUniversal(searchQuery.query, {
           maxResults: searchQuery.expectedResults,
+          openAccessOnly: true,  // 🔓 Apenas Open Access (evita paywall)
           ...strategy.filters,
           sources: ['openalex', 'arxiv', 'europepmc'] // Apenas APIs priorizadas
         });
@@ -2159,6 +2183,23 @@ export async function executeExhaustiveSearch(
             continue;
           }
 
+          // 5. 🔍 FILTRO CRÍTICO: Apenas artigos com indicadores de FULL-TEXT disponível
+          const hasFulltextIndicator = !!(
+            (result as any).pmcid ||
+            (result as any).arxivId ||
+            (result.isOpenAccess && result.pdfUrl)
+          );
+
+          if (!hasFulltextIndicator) {
+            logger.debug('Article discarded: no full-text indicator (pmcid/arxivId/OA+PDF)', {
+              title: result.title?.substring(0, 50),
+              source: result.source,
+              isOpenAccess: result.isOpenAccess,
+              hasPdfUrl: !!result.pdfUrl
+            });
+            continue;
+          }
+
           const enrichedArticle: FlowEnrichedArticle = {
             id: result.doi || result.url || `article_${Date.now()}_${Math.random()}`,
             title: result.title,
@@ -2193,7 +2234,7 @@ export async function executeExhaustiveSearch(
             citationCount: a.citationCount
           }));
 
-          logger.info('📊 SSE Progress callback - P2', {
+          logger.info('📊 SSE Progress callback - P2 (with full-text filters)', {
             articlesFound: allArticles.length,
             newArticlesCount: newArticles.length,
             lastReported: lastReportedCount
@@ -2251,6 +2292,7 @@ export async function executeExhaustiveSearch(
 
         const results = await buscaAcademicaUniversal(searchQuery.query, {
           maxResults: searchQuery.expectedResults,
+          openAccessOnly: true,  // 🔓 Apenas Open Access (evita paywall)
           ...strategy.filters,
           sources: ['openalex', 'arxiv', 'europepmc'] // Apenas APIs priorizadas
         });
@@ -2300,6 +2342,23 @@ export async function executeExhaustiveSearch(
             logger.debug('Article discarded: no authors', {
               title: result.title?.substring(0, 50),
               source: result.source
+            });
+            continue;
+          }
+
+          // 5. 🔍 FILTRO CRÍTICO: Apenas artigos com indicadores de FULL-TEXT disponível
+          const hasFulltextIndicator = !!(
+            (result as any).pmcid ||
+            (result as any).arxivId ||
+            (result.isOpenAccess && result.pdfUrl)
+          );
+
+          if (!hasFulltextIndicator) {
+            logger.debug('Article discarded: no full-text indicator (pmcid/arxivId/OA+PDF)', {
+              title: result.title?.substring(0, 50),
+              source: result.source,
+              isOpenAccess: result.isOpenAccess,
+              hasPdfUrl: !!result.pdfUrl
             });
             continue;
           }
@@ -2557,6 +2616,7 @@ export async function validateAndRefineArticles(
     for (const refinedQuery of refinedQueries) {
       const newResults = await buscaAcademicaUniversal(refinedQuery.query, {
         maxResults: refinedQuery.expectedResults,
+        openAccessOnly: true,  // 🔓 Apenas Open Access (evita paywall)
         ...strategy.filters,
         sources: ['openalex', 'arxiv', 'europepmc']
       });
@@ -3783,6 +3843,7 @@ export async function findSimilarArticles(
     // 2. Buscar artigos usando a query construída
     const results = await buscaAcademicaUniversal(searchQuery, {
       maxResults: 15, // Buscar 15 para ter margem após filtrar
+      openAccessOnly: true,  // 🔓 Apenas Open Access (evita paywall)
       sources: ['openalex', 'arxiv', 'europepmc']
     });
 

@@ -484,11 +484,13 @@ export class AcademicSearchService {
     try {
       this.usageStats.europePmc++;
 
-      let url = `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(query)}&format=json&resultType=core&pageSize=${options.maxResults || 20}`;
-
+      // Adicionar filtro Open Access na query se necessário (Europe PMC usa sintaxe de query)
+      let searchQuery = query;
       if (options.openAccessOnly) {
-        url += '&OPEN_ACCESS:y';
+        searchQuery = `${query} AND OPEN_ACCESS:Y`;
       }
+
+      let url = `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(searchQuery)}&format=json&resultType=core&pageSize=${options.maxResults || 20}`;
 
       const response = await withRetry(
         () => axios.get(url, { timeout: 10000 }),
