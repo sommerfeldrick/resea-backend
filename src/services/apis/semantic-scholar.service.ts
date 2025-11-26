@@ -103,6 +103,12 @@ export class SemanticScholarService extends BaseAPIService {
         params,
       });
 
+      // Validate response before processing (fixes "Cannot read properties of undefined" on API errors)
+      if (!response || !response.data || !Array.isArray(response.data)) {
+        this.logger.warn('Invalid or empty response from Semantic Scholar API');
+        return [];
+      }
+
       // Parse results
       const articles = response.data
         .map(paper => this.parsePaper(paper))

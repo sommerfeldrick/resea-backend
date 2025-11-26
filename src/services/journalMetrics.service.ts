@@ -65,9 +65,9 @@ export class JournalMetricsService {
 
     this.cache = new Map();
     this.cacheExpiry = new Map();
-    this.rateLimiter = pLimit(8);  // Max 8 concurrent requests to stay under 10 req/s
+    this.rateLimiter = pLimit(3);  // REDUCED: 3 concurrent (was 8) - more conservative for OpenAlex
 
-    logger.info('✅ Journal Metrics Service initialized with rate limiting (8 concurrent requests)');
+    logger.info('✅ Journal Metrics Service initialized with rate limiting (3 concurrent requests)');
   }
 
   /**
@@ -93,6 +93,9 @@ export class JournalMetricsService {
     return this.rateLimiter(async () => {
       try {
         logger.debug(`Looking up journal: ${journalName}`);
+
+        // Add minimum delay between requests to prevent burst (100ms = max 10 req/s even with concurrency)
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         // Search for venue by name
         const response = await this.client.get('/venues', {
@@ -141,6 +144,9 @@ export class JournalMetricsService {
     return this.rateLimiter(async () => {
       try {
         logger.debug(`Looking up journal by ISSN: ${issn}`);
+
+        // Add minimum delay between requests to prevent burst (100ms = max 10 req/s)
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         // Search by ISSN
         const response = await this.client.get('/venues', {
