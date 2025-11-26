@@ -81,42 +81,46 @@ export class JournalMetricsService {
     // Normalize journal name (lowercase, trim) to improve cache hits
     const normalizedName = journalName.trim().toLowerCase();
 
-    // Check cache
+    // Check cache (immediate, no rate limiting needed)
     const cached = this.getFromCache(normalizedName);
     if (cached) {
       logger.debug(`Cache HIT: ${journalName}`);
       return cached;
     }
 
-    try {
-      logger.debug(`Looking up journal: ${journalName}`);
+    // 🔥 FIX: Wrap API call in rate limiter to prevent overwhelming OpenAlex
+    // When scoring thousands of articles in parallel, this prevents 100+ simultaneous requests
+    return this.rateLimiter(async () => {
+      try {
+        logger.debug(`Looking up journal: ${journalName}`);
 
-      // Search for venue by name
-      const response = await this.client.get('/venues', {
-        params: {
-          search: journalName,
-          per_page: 1,
-        },
-      });
+        // Search for venue by name
+        const response = await this.client.get('/venues', {
+          params: {
+            search: journalName,
+            per_page: 1,
+          },
+        });
 
-      const venues: OpenAlexVenue[] = response.data?.results || [];
+        const venues: OpenAlexVenue[] = response.data?.results || [];
 
-      if (venues.length === 0) {
-        logger.debug(`Journal not found: ${journalName}`);
+        if (venues.length === 0) {
+          logger.debug(`Journal not found: ${journalName}`);
+          return null;
+        }
+
+        const venue = venues[0];
+        const metrics = this.parseVenue(venue);
+
+        // Cache result (using normalized name)
+        this.saveToCache(normalizedName, metrics);
+
+        return metrics;
+      } catch (error: any) {
+        logger.warn(`Failed to fetch journal metrics for "${journalName}": ${error.message}`);
         return null;
       }
-
-      const venue = venues[0];
-      const metrics = this.parseVenue(venue);
-
-      // Cache result (using normalized name)
-      this.saveToCache(normalizedName, metrics);
-
-      return metrics;
-    } catch (error: any) {
-      logger.warn(`Failed to fetch journal metrics for "${journalName}": ${error.message}`);
-      return null;
-    }
+    });
   }
 
   /**
@@ -133,30 +137,33 @@ export class JournalMetricsService {
       return cached;
     }
 
-    try {
-      logger.debug(`Looking up journal by ISSN: ${issn}`);
+    // 🔥 FIX: Wrap API call in rate limiter (same as getMetricsByJournalName)
+    return this.rateLimiter(async () => {
+      try {
+        logger.debug(`Looking up journal by ISSN: ${issn}`);
 
-      // Search by ISSN
-      const response = await this.client.get('/venues', {
-        params: {
-          filter: `issn:${issn}`,
-        },
-      });
+        // Search by ISSN
+        const response = await this.client.get('/venues', {
+          params: {
+            filter: `issn:${issn}`,
+          },
+        });
 
-      const venues: OpenAlexVenue[] = response.data?.results || [];
+        const venues: OpenAlexVenue[] = response.data?.results || [];
 
-      if (venues.length === 0) {
+        if (venues.length === 0) {
+          return null;
+        }
+
+        const metrics = this.parseVenue(venues[0]);
+        this.saveToCache(cacheKey, metrics);
+
+        return metrics;
+      } catch (error: any) {
+        logger.warn(`Failed to fetch journal metrics by ISSN "${issn}": ${error.message}`);
         return null;
       }
-
-      const metrics = this.parseVenue(venues[0]);
-      this.saveToCache(cacheKey, metrics);
-
-      return metrics;
-    } catch (error: any) {
-      logger.warn(`Failed to fetch journal metrics by ISSN "${issn}": ${error.message}`);
-      return null;
-    }
+    });
   }
 
   /**
