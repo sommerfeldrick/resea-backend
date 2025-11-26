@@ -37,28 +37,43 @@ export interface ScoringConfig {
 }
 
 // ============================================================
-// DEFAULT SCORING CONFIGURATION
+// DEFAULT SCORING CONFIGURATION (NEW EVIDENCE-BASED SYSTEM)
+// ============================================================
+//
+// NEW SCORING FORMULA (2024):
+// 1. Journal Quality (0-30 pts) - Based on h-index and citation metrics
+// 2. Study Type (0-25 pts) - Meta-analysis > RCT > Cohort > Observational
+// 3. Citations (0-20 pts) - Absolute count (not age-normalized)
+// 4. Quartile (0-10 pts) - Included in journal quality score
+// 5. Full-text Structure (0-10 pts) - Has GROBID sections
+// 6. Relevance (0-5 pts) - Title match with query
+// Total: 100 points
 // ============================================================
 const DEFAULT_SCORING_CONFIG: ScoringConfig = {
   thresholds: {
-    P1: 70,              // Score >= 70 = Artigos EXCELENTES
-    P2: 45,              // Score >= 45 = Artigos BONS
-    P3: 30,              // Score >= 30 = Artigos ACEITÁVEIS
-    minAcceptable: 30    // Score < 30 = DESCARTADO
+    P1: 75,              // Score >= 75 = Artigos EXCELENTES (top journals, meta-analyses, high citations)
+    P2: 55,              // Score >= 55 = Artigos BONS (solid journals, good study type)
+    P3: 40,              // Score >= 40 = Artigos ACEITÁVEIS (acceptable quality)
+    minAcceptable: 40    // Score < 40 = DESCARTADO
   },
   expectedResults: {
     P1: 12,  // Buscar ~12 artigos P1 por query
     P2: 15,  // Buscar ~15 artigos P2 por query
     P3: 10   // Buscar ~10 artigos P3 por query
   },
+  // NOTE: Weights are now FIXED in the new scoring algorithm (calculateNewArticleScore)
+  // This field is kept for backward compatibility but is not actively used
   weights: {
-    titleRelevance: 30,      // Título é o critério mais importante
-    citations: 20,            // Citações indicam impacto
-    recency: 20,              // Artigos recentes são valorizados
-    hasFulltext: 15,          // Fulltext é essencial
-    sourceQuality: 15,        // Fontes confiáveis
-    hasDoi: 5,                // DOI indica peer-review
-    hasCompleteAbstract: 5    // Abstract completo
+    titleRelevance: 5,        // Relevance to query (NEW: 5 pts)
+    citations: 20,            // Absolute citations (NEW: 20 pts)
+    recency: 0,               // REMOVED: No longer age-normalized
+    hasFulltext: 10,          // Full-text structured (NEW: 10 pts)
+    sourceQuality: 30,        // Journal quality via h-index (NEW: 30 pts)
+    hasDoi: 0,                // REMOVED: Not directly scored
+    hasCompleteAbstract: 0    // REMOVED: Not directly scored
+    // NEW ADDITIONS (not in old interface):
+    // - studyType: 25 pts (meta-analysis, RCT, cohort, etc.)
+    // - quartile: 10 pts (included in journal quality)
   }
 };
 

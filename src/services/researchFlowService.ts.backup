@@ -63,110 +63,43 @@ interface ScoringResult {
 }
 
 /**
- * NEW: Calculate article score with evidence-based metrics
- *
- * Scoring Formula (0-100 points):
- * 1. Journal Quality (0-30 pts) - Based on h-index and citation metrics via OpenAlex
- * 2. Study Type (0-25 pts) - Meta-analysis > RCT > Cohort > Observational
- * 3. Citations (0-20 pts) - Absolute count (not normalized by age)
- * 4. Quartile (0-10 pts) - Q1=10, Q2=7, Q3=5, Q4=3
- * 5. Full-text Structure (0-10 pts) - Has GROBID sections
- * 6. Relevance (0-5 pts) - Title match with query
- *
- * Classification thresholds:
- * - P1: ≥75 pts (Excellent)
- * - P2: ≥55 pts (Good)
- * - P3: ≥40 pts (Acceptable)
+ * NEW: Calculate article score (simplified placeholder)
+ * Full implementation with Journal IF and Study Type will be in next task
  */
-async function calculateNewArticleScore(article: any, query: string): Promise<ScoringResult> {
+function calculateNewArticleScore(article: any, query: string): ScoringResult {
   let score = 0;
   const reasons: string[] = [];
 
-  // ===== 1. JOURNAL QUALITY (0-30 pts) =====
-  // Lookup journal metrics via OpenAlex (uses cache, fast)
-  let journalScore = 0;
-  if (article.journal) {
-    try {
-      const metrics = await journalMetricsService.getMetricsByJournalName(article.journal);
-      if (metrics) {
-        journalScore = Math.round((metrics.qualityScore / 100) * 30);
-        reasons.push(`Journal "${article.journal}": ${journalScore} pts (h-index: ${metrics.hIndex}, Q${metrics.quartile || '?'})`);
-      } else {
-        reasons.push(`Journal "${article.journal}": not found in OpenAlex`);
-      }
-    } catch (err) {
-      // Silently fail journal lookup
-    }
-  }
-  score += journalScore;
-
-  // ===== 2. STUDY TYPE (0-25 pts) =====
-  // Detect study type from title and abstract
-  const titleAndAbstract = `${article.title || ''} ${article.abstract || ''}`.toLowerCase();
-  let studyTypeScore = 0;
-  let studyType = 'Unknown';
-
-  if (titleAndAbstract.includes('meta-analysis') || titleAndAbstract.includes('meta analysis') || titleAndAbstract.includes('systematic review')) {
-    studyTypeScore = 25;
-    studyType = 'Meta-analysis/Systematic Review';
-  } else if (titleAndAbstract.includes('randomized') || titleAndAbstract.includes('randomised') || titleAndAbstract.includes('rct') || titleAndAbstract.includes('clinical trial')) {
-    studyTypeScore = 20;
-    studyType = 'RCT/Clinical Trial';
-  } else if (titleAndAbstract.includes('cohort') || titleAndAbstract.includes('longitudinal') || titleAndAbstract.includes('prospective study')) {
-    studyTypeScore = 15;
-    studyType = 'Cohort/Longitudinal';
-  } else if (titleAndAbstract.includes('observational') || titleAndAbstract.includes('cross-sectional') || titleAndAbstract.includes('survey')) {
-    studyTypeScore = 10;
-    studyType = 'Observational/Cross-sectional';
-  } else if (titleAndAbstract.includes('case report') || titleAndAbstract.includes('case study')) {
-    studyTypeScore = 5;
-    studyType = 'Case Report';
-  } else {
-    studyTypeScore = 5;  // Default for unclassified articles
-    studyType = 'Research Article';
-  }
-  score += studyTypeScore;
-  reasons.push(`Study Type: ${studyType} → ${studyTypeScore} pts`);
-
-  // ===== 3. CITATIONS ABSOLUTE (0-20 pts) =====
-  const citations = article.citationCount || 0;
-  let citationScore = 0;
-  if (citations >= 100) citationScore = 20;
-  else if (citations >= 50) citationScore = 17;
-  else if (citations >= 20) citationScore = 14;
-  else if (citations >= 10) citationScore = 10;
-  else if (citations >= 5) citationScore = 6;
-  else if (citations >= 1) citationScore = 3;
-  score += citationScore;
-  if (citations > 0) {
-    reasons.push(`Citations: ${citations} → ${citationScore} pts`);
-  }
-
-  // ===== 4. QUARTILE (0-10 pts) =====
-  // Already included in journal score above, but could be refined here
-  // For now, we rely on the journal quality score which includes quartile
-
-  // ===== 5. FULL-TEXT STRUCTURE (0-10 pts) =====
-  if (article.sections && Object.keys(article.sections).length > 0) {
-    score += 10;
-    reasons.push('Full-text structured (GROBID): +10 pts');
-  } else if (article.isOpenAccess && article.pdfUrl) {
-    score += 5;
-    reasons.push('Open Access PDF available: +5 pts');
-  }
-
-  // ===== 6. RELEVANCE (0-5 pts) =====
+  // Title relevance (5 pts)
   const titleLower = article.title?.toLowerCase() || '';
   const queryLower = query.toLowerCase();
   const queryTerms = queryLower.split(/\s+/).filter((t: string) => t.length > 3);
   const matchingTerms = queryTerms.filter((term: string) => titleLower.includes(term));
-  const relevanceScore = Math.min(5, (matchingTerms.length / Math.max(queryTerms.length, 1)) * 5);
-  score += relevanceScore;
-  if (relevanceScore > 0) {
-    reasons.push(`Title relevance: ${relevanceScore.toFixed(1)} pts`);
+  const titleScore = Math.min(5, (matchingTerms.length / Math.max(queryTerms.length, 1)) * 5);
+  score += titleScore;
+  if (titleScore > 0) {
+    reasons.push(`Title relevance: ${titleScore.toFixed(1)} pts`);
   }
 
-  // ===== CLASSIFY PRIORITY =====
+  // Has full-text structure (10 pts)
+  if (article.sections && Object.keys(article.sections).length > 0) {
+    score += 10;
+    reasons.push('Full-text structured: +10 pts');
+  }
+
+  // Citations (20 pts max, scaled)
+  const citations = article.citationCount || 0;
+  let citationScore = 0;
+  if (citations >= 100) citationScore = 20;
+  else if (citations >= 50) citationScore = 15;
+  else if (citations >= 20) citationScore = 10;
+  else if (citations >= 5) citationScore = 5;
+  score += citationScore;
+  if (citationScore > 0) {
+    reasons.push(`Citations: ${citations} → ${citationScore} pts`);
+  }
+
+  // Determine priority based on score
   let priority: PriorityLevel;
   const thresholds = scoringConfig.getThresholds();
   if (score >= thresholds.P1) {
@@ -2115,173 +2048,625 @@ export async function executeExhaustiveSearch(
   onProgress?: (progress: FlowSearchProgress) => void,
   researchId?: number
 ): Promise<FlowEnrichedArticle[]> {
-  const startTime = Date.now();
+  // Buscar 5x o target para compensar filtros mais rigorosos (Open Access + indicadores de full-text)
+  // Após enrichment, filtraremos apenas os que têm fullContent ou sections
+  const SEARCH_MULTIPLIER = 5;
   const targetArticles = strategy.targetArticles || 50;
+  const maxArticles = targetArticles * SEARCH_MULTIPLIER;
 
-  logger.info('🚀 Starting NEW parallel exhaustive search', {
+  logger.info('Starting exhaustive search (with full-text filter)', {
     topic: strategy.topic,
-    totalQueries: strategy.queries.length,
+    researchId,
     targetArticles,
-    dateRange: `${strategy.filters.dateRange.start}-${strategy.filters.dateRange.end}`
+    maxArticles: `${maxArticles} (${SEARCH_MULTIPLIER}x target to ensure full-text availability)`
   });
 
+  const allArticles: FlowEnrichedArticle[] = [];
+  const startTime = Date.now();
+  let lastReportedCount = 0; // Track articles reported in last progress callback
+
   try {
-    // ================================================================
-    // STEP 1: Search ALL queries in parallel across ALL APIs
-    // ================================================================
-    logger.info('📡 STEP 1: Searching all queries in parallel...');
-
-    const searchFilters = {
-      requireFullText: true,  // Only articles with full-text available
-    };
-
-    // Execute all query searches in parallel
-    const querySearchPromises = strategy.queries.map(queryObj =>
-      searchQueryAcrossAPIs(queryObj.query, queryObj.expectedResults || 15, searchFilters)
-    );
-
-    const queryResults = await Promise.allSettled(querySearchPromises);
-
-    // Collect all articles from all queries
-    const allRawArticles: any[] = [];
-    queryResults.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        allRawArticles.push(...result.value);
-        logger.info(`Query ${index + 1}/${strategy.queries.length}: ${result.value.length} articles`);
-      } else {
-        logger.warn(`Query ${index + 1} failed: ${result.reason}`);
+    // Buscar P1 primeiro
+    for (let i = 0; i < strategy.queries.P1.length; i++) {
+      // Stop if max articles reached
+      if (allArticles.length >= maxArticles) {
+        logger.info('🛑 Max articles reached during P1 search', {
+          current: allArticles.length,
+          max: maxArticles
+        });
+        break;
       }
+
+      const searchQuery = strategy.queries.P1[i];
+      logger.info(`Searching P1 query ${i + 1}/${strategy.queries.P1.length}`, {
+        query: searchQuery.query
+      });
+
+      const results = await buscaAcademicaUniversal(searchQuery.query, {
+        maxResults: searchQuery.expectedResults,
+        openAccessOnly: true,  // 🔓 Apenas Open Access (evita paywall)
+        ...strategy.filters,
+        sources: ['openalex', 'arxiv', 'europepmc'] // Apenas APIs priorizadas (sem CORE, Semantic Scholar, etc)
+      });
+
+      // Enriquecer artigos com scores
+      for (const result of results) {
+        // Stop if max articles reached
+        if (allArticles.length >= maxArticles) {
+          logger.info('🛑 Max articles reached, stopping article addition', {
+            current: allArticles.length,
+            max: maxArticles
+          });
+          break;
+        }
+
+        const scoreData = calculateArticleScore(result, strategy.originalQuery);
+
+        // FILTROS CRÍTICOS: Verificar qualidade mínima do artigo ANTES de adicionar
+        // 1. Filtrar artigos com score muito baixo (< 30)
+        if (scoreData.score < 30) {
+          logger.debug('Article discarded due to low score', {
+            title: result.title?.substring(0, 50),
+            score: scoreData.score
+          });
+          continue;
+        }
+
+        // 2. Filtrar artigos sem acesso (precisa ter DOI OU PDF)
+        if (!result.doi && !result.pdfUrl) {
+          logger.debug('Article discarded: no DOI or PDF available', {
+            title: result.title?.substring(0, 50),
+            source: result.source
+          });
+          continue;
+        }
+
+        // 3. Filtrar artigos sem abstract
+        if (!result.abstract || result.abstract.trim().length === 0) {
+          logger.debug('Article discarded: no abstract', {
+            title: result.title?.substring(0, 50),
+            source: result.source
+          });
+          continue;
+        }
+
+        // 4. Filtrar artigos sem autores
+        if (!result.authors || result.authors.length === 0) {
+          logger.debug('Article discarded: no authors', {
+            title: result.title?.substring(0, 50),
+            source: result.source
+          });
+          continue;
+        }
+
+        // 5. 🔍 FILTRO CRÍTICO: Apenas artigos com indicadores de FULL-TEXT disponível
+        // pmcid → JATS XML estruturado via PubMed Central
+        // arxivId → LaTeX/PDF fonte via arXiv
+        // isOpenAccess + pdfUrl → PDF confirmado e acessível
+        const hasFulltextIndicator = !!(
+          (result as any).pmcid ||
+          (result as any).arxivId ||
+          (result.isOpenAccess && result.pdfUrl)
+        );
+
+        if (!hasFulltextIndicator) {
+          logger.debug('Article discarded: no full-text indicator (pmcid/arxivId/OA+PDF)', {
+            title: result.title?.substring(0, 50),
+            source: result.source,
+            isOpenAccess: result.isOpenAccess,
+            hasPdfUrl: !!result.pdfUrl,
+            hasPmcid: !!(result as any).pmcid,
+            hasArxivId: !!(result as any).arxivId
+          });
+          continue;
+        }
+
+        const enrichedArticle: FlowEnrichedArticle = {
+          id: result.doi || result.url || `article_${Date.now()}_${Math.random()}`,
+          title: result.title,
+          authors: result.authors,
+          year: result.year,
+          abstract: result.abstract || '',
+          source: result.source,
+          url: result.url,
+          doi: result.doi,
+          pdfUrl: result.pdfUrl,
+          citationCount: result.citationCount || 0,
+          score: scoreData,
+          format: 'pdf',
+          hasFulltext: !!result.pdfUrl,
+          fullContent: undefined,
+          sections: {}
+        };
+
+        allArticles.push(enrichedArticle);
+      }
+
+      // Callback de progresso
+      if (onProgress) {
+        // Extract new articles since last report (for real-time visualization)
+        const newArticles = allArticles.slice(lastReportedCount).map(a => ({
+          id: a.id,
+          title: a.title,
+          priority: a.score.priority,
+          source: a.source,
+          score: a.score.score,
+          hasFulltext: a.hasFulltext,
+          year: a.year,
+          citationCount: a.citationCount
+        }));
+
+        logger.info('📊 SSE Progress callback - P1', {
+          articlesFound: allArticles.length,
+          newArticlesCount: newArticles.length,
+          lastReported: lastReportedCount
+        });
+
+        const progress: FlowSearchProgress = {
+          currentPriority: 'P1',
+          currentQuery: i + 1,
+          totalQueries: strategy.queries.P1.length,
+          sourceProgress: [],
+          articlesFound: allArticles.length,
+          articlesWithFulltext: allArticles.filter(a => a.hasFulltext).length,
+          articlesByPriority: {
+            P1: allArticles.filter(a => a.score.priority === 'P1').length,
+            P2: allArticles.filter(a => a.score.priority === 'P2').length,
+            P3: allArticles.filter(a => a.score.priority === 'P3').length
+          },
+          formatsDetected: {},
+          elapsedTime: Date.now() - startTime,
+          newArticles // Include new articles for real-time mind map
+        };
+        onProgress(progress);
+        lastReportedCount = allArticles.length; // Update counter
+      }
+    }
+
+    // Verificar se precisa continuar para P2
+    const p1Articles = allArticles.filter(a => a.score.priority === 'P1');
+    logger.info(`P1 search completed`, {
+      found: p1Articles.length,
+      totalArticles: allArticles.length,
+      target: targetArticles,
+      max: maxArticles
     });
 
-    logger.info(`Total raw articles collected: ${allRawArticles.length}`);
-
-    if (allRawArticles.length === 0) {
-      logger.warn('No articles found from any API');
-      return [];
-    }
-
-    // Report progress: 25% (search complete)
-    if (onProgress) {
-      onProgress({
-        currentPriority: 'P1',  // Not used anymore, but keep for compatibility
-        currentQuery: strategy.queries.length,
-        totalQueries: strategy.queries.length,
-        articlesFound: allRawArticles.length,
-        targetArticles,
-        estimatedTimeRemaining: 0,
-        phase: 'Deduplicating articles...'
+    // Se não atingiu a meta E não excedeu max, buscar P2
+    if (allArticles.length < maxArticles && allArticles.length < targetArticles && strategy.queries.P2.length > 0) {
+      logger.info('Continuing to P2 search (target not reached)', {
+        current: allArticles.length,
+        target: targetArticles,
+        max: maxArticles
       });
-    }
+      for (let i = 0; i < strategy.queries.P2.length; i++) {
+        // Stop if max articles reached
+        if (allArticles.length >= maxArticles) {
+          logger.info('🛑 Max articles reached during P2 search', {
+            current: allArticles.length,
+            max: maxArticles
+          });
+          break;
+        }
 
-    // ================================================================
-    // STEP 2: Deduplicate by DOI and title
-    // ================================================================
-    logger.info('🔍 STEP 2: Deduplicating articles...');
+        const searchQuery = strategy.queries.P2[i];
+        logger.info(`Searching P2 query ${i + 1}/${strategy.queries.P2.length}`, {
+          query: searchQuery.query
+        });
 
-    const uniqueArticles = deduplicateArticles(allRawArticles);
+        const results = await buscaAcademicaUniversal(searchQuery.query, {
+          maxResults: searchQuery.expectedResults,
+          openAccessOnly: true,  // 🔓 Apenas Open Access (evita paywall)
+          ...strategy.filters,
+          sources: ['openalex', 'arxiv', 'europepmc'] // Apenas APIs priorizadas
+        });
 
-    logger.info(`After deduplication: ${uniqueArticles.length} unique articles`);
+        for (const result of results) {
+          // Stop if max articles reached
+          if (allArticles.length >= maxArticles) {
+            logger.info('🛑 Max articles reached, stopping article addition', {
+              current: allArticles.length,
+              max: maxArticles
+            });
+            break;
+          }
 
-    // ================================================================
-    // STEP 3: Score ALL articles with unified scoring system
-    // ================================================================
-    logger.info('🎯 STEP 3: Scoring all articles...');
+          const scoreData = calculateArticleScore(result, strategy.originalQuery);
 
-    const scoringPromises = uniqueArticles.map(article =>
-      calculateNewArticleScore(article, strategy.originalQuery)
-    );
-    const scoredArticles: ScoringResult[] = await Promise.all(scoringPromises);
+          // FILTROS CRÍTICOS: Verificar qualidade mínima do artigo ANTES de adicionar
+          // 1. Filtrar artigos com score muito baixo (< 30)
+          if (scoreData.score < 30) {
+            logger.debug('Article discarded due to low score', {
+              title: result.title?.substring(0, 50),
+              score: scoreData.score
+            });
+            continue;
+          }
 
-    // Filter out very low scores (below minimum threshold)
-    const thresholds = scoringConfig.getThresholds();
-    const acceptableArticles = scoredArticles.filter(
-      result => result.score >= thresholds.minAcceptable
-    );
+          // 2. Filtrar artigos sem acesso (precisa ter DOI OU PDF)
+          if (!result.doi && !result.pdfUrl) {
+            logger.debug('Article discarded: no DOI or PDF available', {
+              title: result.title?.substring(0, 50),
+              source: result.source
+            });
+            continue;
+          }
 
-    logger.info(`After quality filter: ${acceptableArticles.length}/${uniqueArticles.length} articles`);
+          // 3. Filtrar artigos sem abstract
+          if (!result.abstract || result.abstract.trim().length === 0) {
+            logger.debug('Article discarded: no abstract', {
+              title: result.title?.substring(0, 50),
+              source: result.source
+            });
+            continue;
+          }
 
-    // Report progress: 50% (scoring complete)
-    if (onProgress) {
-      onProgress({
-        currentPriority: 'P1',
-        currentQuery: strategy.queries.length,
-        totalQueries: strategy.queries.length,
-        articlesFound: acceptableArticles.length,
-        targetArticles,
-        estimatedTimeRemaining: 0,
-        phase: 'Sorting and classifying...'
-      });
-    }
+          // 4. Filtrar artigos sem autores
+          if (!result.authors || result.authors.length === 0) {
+            logger.debug('Article discarded: no authors', {
+              title: result.title?.substring(0, 50),
+              source: result.source
+            });
+            continue;
+          }
 
-    // ================================================================
-    // STEP 4: Sort by score (descending) and take top N
-    // ================================================================
-    logger.info('📊 STEP 4: Sorting by score and selecting top articles...');
+          // 5. 🔍 FILTRO CRÍTICO: Apenas artigos com indicadores de FULL-TEXT disponível
+          const hasFulltextIndicator = !!(
+            (result as any).pmcid ||
+            (result as any).arxivId ||
+            (result.isOpenAccess && result.pdfUrl)
+          );
 
-    acceptableArticles.sort((a, b) => b.score - a.score);
+          if (!hasFulltextIndicator) {
+            logger.debug('Article discarded: no full-text indicator (pmcid/arxivId/OA+PDF)', {
+              title: result.title?.substring(0, 50),
+              source: result.source,
+              isOpenAccess: result.isOpenAccess,
+              hasPdfUrl: !!result.pdfUrl
+            });
+            continue;
+          }
 
-    // Take target number of articles (or all if less than target)
-    const topArticles = acceptableArticles.slice(0, targetArticles);
+          const enrichedArticle: FlowEnrichedArticle = {
+            id: result.doi || result.url || `article_${Date.now()}_${Math.random()}`,
+            title: result.title,
+            authors: result.authors,
+            year: result.year,
+            abstract: result.abstract || '',
+            source: result.source,
+            url: result.url,
+            doi: result.doi,
+            pdfUrl: result.pdfUrl,
+            citationCount: result.citationCount || 0,
+            score: scoreData,
+            format: 'pdf',
+            hasFulltext: !!result.pdfUrl,
+            fullContent: undefined,
+            sections: {}
+          };
 
-    logger.info(`Selected top ${topArticles.length} articles`, {
-      P1Count: topArticles.filter(a => a.priority === 'P1').length,
-      P2Count: topArticles.filter(a => a.priority === 'P2').length,
-      P3Count: topArticles.filter(a => a.priority === 'P3').length,
-      avgScore: topArticles.length > 0 ? (topArticles.reduce((sum, a) => sum + a.score, 0) / topArticles.length).toFixed(1) : '0'
-    });
+          allArticles.push(enrichedArticle);
+        }
 
-    // ================================================================
-    // STEP 5: Convert to FlowEnrichedArticle format
-    // ================================================================
-    const enrichedArticles: FlowEnrichedArticle[] = topArticles.map(result => ({
-      ...result.article,
-      score: {
-        score: result.score,
-        priority: result.priority,
-        reasons: result.reasons,
-        breakdown: {
-          titleRelevance: 0,  // Will be properly calculated in next task
-          citations: result.article.citationCount || 0,
-          recency: 0,
-          hasFulltext: !!result.article.sections,
-          sourceQuality: 0,
-          hasDoi: !!result.article.doi,
-          hasCompleteAbstract: !!(result.article.abstract && result.article.abstract.length > 100)
+        if (onProgress) {
+          // Extract new articles since last report (for real-time visualization)
+          const newArticles = allArticles.slice(lastReportedCount).map(a => ({
+            id: a.id,
+            title: a.title,
+            priority: a.score.priority,
+            source: a.source,
+            score: a.score.score,
+            hasFulltext: a.hasFulltext,
+            year: a.year,
+            citationCount: a.citationCount
+          }));
+
+          logger.info('📊 SSE Progress callback - P2 (with full-text filters)', {
+            articlesFound: allArticles.length,
+            newArticlesCount: newArticles.length,
+            lastReported: lastReportedCount
+          });
+
+          const progress: FlowSearchProgress = {
+            currentPriority: 'P2',
+            currentQuery: i + 1,
+            totalQueries: strategy.queries.P2.length,
+            sourceProgress: [],
+            articlesFound: allArticles.length,
+            articlesWithFulltext: allArticles.filter(a => a.hasFulltext).length,
+            articlesByPriority: {
+              P1: allArticles.filter(a => a.score.priority === 'P1').length,
+              P2: allArticles.filter(a => a.score.priority === 'P2').length,
+              P3: allArticles.filter(a => a.score.priority === 'P3').length
+            },
+            formatsDetected: {},
+            elapsedTime: Date.now() - startTime,
+            newArticles // Include new articles for real-time mind map
+          };
+          onProgress(progress);
+          lastReportedCount = allArticles.length; // Update counter
         }
       }
-    }));
-
-    const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
-
-    logger.info(`✅ Search complete in ${elapsedTime}s`, {
-      totalArticles: enrichedArticles.length,
-      targetArticles,
-      queriesSearched: strategy.queries.length,
-      APIsUsed: 7,  // OpenAlex, arXiv, EuropePMC, Crossref, PubMed, DOAJ, PLOS
-    });
-
-    // Final progress report
-    if (onProgress) {
-      onProgress({
-        currentPriority: 'P1',
-        currentQuery: strategy.queries.length,
-        totalQueries: strategy.queries.length,
-        articlesFound: enrichedArticles.length,
-        targetArticles,
-        estimatedTimeRemaining: 0,
-        phase: 'Search complete!'
+    } else {
+      logger.info('Skipping P2 search - target or max reached', {
+        current: allArticles.length,
+        target: targetArticles,
+        max: maxArticles
       });
     }
 
-    return enrichedArticles;
-  } catch (error: any) {
-    logger.error('Search failed', {
-      error: error.message,
-      stack: error.stack
+    // Se ainda não atingiu a meta E não excedeu max, buscar P3
+    if (allArticles.length < maxArticles && allArticles.length < targetArticles && strategy.queries.P3.length > 0) {
+      logger.info('Continuing to P3 search (target not reached)', {
+        current: allArticles.length,
+        target: targetArticles,
+        max: maxArticles
+      });
+      for (let i = 0; i < strategy.queries.P3.length; i++) {
+        // Stop if max articles reached
+        if (allArticles.length >= maxArticles) {
+          logger.info('🛑 Max articles reached during P3 search', {
+            current: allArticles.length,
+            max: maxArticles
+          });
+          break;
+        }
+
+        const searchQuery = strategy.queries.P3[i];
+        logger.info(`Searching P3 query ${i + 1}/${strategy.queries.P3.length}`, {
+          query: searchQuery.query
+        });
+
+        const results = await buscaAcademicaUniversal(searchQuery.query, {
+          maxResults: searchQuery.expectedResults,
+          openAccessOnly: true,  // 🔓 Apenas Open Access (evita paywall)
+          ...strategy.filters,
+          sources: ['openalex', 'arxiv', 'europepmc'] // Apenas APIs priorizadas
+        });
+
+        for (const result of results) {
+          // Stop if max articles reached
+          if (allArticles.length >= maxArticles) {
+            logger.info('🛑 Max articles reached, stopping article addition', {
+              current: allArticles.length,
+              max: maxArticles
+            });
+            break;
+          }
+
+          const scoreData = calculateArticleScore(result, strategy.originalQuery);
+
+          // FILTROS CRÍTICOS: Verificar qualidade mínima do artigo ANTES de adicionar
+          // 1. Filtrar artigos com score muito baixo (< 30)
+          if (scoreData.score < 30) {
+            logger.debug('Article discarded due to low score', {
+              title: result.title?.substring(0, 50),
+              score: scoreData.score
+            });
+            continue;
+          }
+
+          // 2. Filtrar artigos sem acesso (precisa ter DOI OU PDF)
+          if (!result.doi && !result.pdfUrl) {
+            logger.debug('Article discarded: no DOI or PDF available', {
+              title: result.title?.substring(0, 50),
+              source: result.source
+            });
+            continue;
+          }
+
+          // 3. Filtrar artigos sem abstract
+          if (!result.abstract || result.abstract.trim().length === 0) {
+            logger.debug('Article discarded: no abstract', {
+              title: result.title?.substring(0, 50),
+              source: result.source
+            });
+            continue;
+          }
+
+          // 4. Filtrar artigos sem autores
+          if (!result.authors || result.authors.length === 0) {
+            logger.debug('Article discarded: no authors', {
+              title: result.title?.substring(0, 50),
+              source: result.source
+            });
+            continue;
+          }
+
+          // 5. 🔍 FILTRO CRÍTICO: Apenas artigos com indicadores de FULL-TEXT disponível
+          const hasFulltextIndicator = !!(
+            (result as any).pmcid ||
+            (result as any).arxivId ||
+            (result.isOpenAccess && result.pdfUrl)
+          );
+
+          if (!hasFulltextIndicator) {
+            logger.debug('Article discarded: no full-text indicator (pmcid/arxivId/OA+PDF)', {
+              title: result.title?.substring(0, 50),
+              source: result.source,
+              isOpenAccess: result.isOpenAccess,
+              hasPdfUrl: !!result.pdfUrl
+            });
+            continue;
+          }
+
+          const enrichedArticle: FlowEnrichedArticle = {
+            id: result.doi || result.url || `article_${Date.now()}_${Math.random()}`,
+            title: result.title,
+            authors: result.authors,
+            year: result.year,
+            abstract: result.abstract || '',
+            source: result.source,
+            url: result.url,
+            doi: result.doi,
+            pdfUrl: result.pdfUrl,
+            citationCount: result.citationCount || 0,
+            score: scoreData,
+            format: 'pdf',
+            hasFulltext: !!result.pdfUrl,
+            fullContent: undefined,
+            sections: {}
+          };
+
+          allArticles.push(enrichedArticle);
+        }
+
+        if (onProgress) {
+          // Extract new articles since last report (for real-time visualization)
+          const newArticles = allArticles.slice(lastReportedCount).map(a => ({
+            id: a.id,
+            title: a.title,
+            priority: a.score.priority,
+            source: a.source,
+            score: a.score.score,
+            hasFulltext: a.hasFulltext,
+            year: a.year,
+            citationCount: a.citationCount
+          }));
+
+          const progress: FlowSearchProgress = {
+            currentPriority: 'P3',
+            currentQuery: i + 1,
+            totalQueries: strategy.queries.P3.length,
+            sourceProgress: [],
+            articlesFound: allArticles.length,
+            articlesWithFulltext: allArticles.filter(a => a.hasFulltext).length,
+            articlesByPriority: {
+              P1: allArticles.filter(a => a.score.priority === 'P1').length,
+              P2: allArticles.filter(a => a.score.priority === 'P2').length,
+              P3: allArticles.filter(a => a.score.priority === 'P3').length
+            },
+            formatsDetected: {},
+            elapsedTime: Date.now() - startTime,
+            newArticles // Include new articles for real-time mind map
+          };
+          onProgress(progress);
+          lastReportedCount = allArticles.length; // Update counter
+        }
+      }
+    } else {
+      logger.info('Skipping P3 search - target or max reached', {
+        current: allArticles.length,
+        target: targetArticles,
+        max: maxArticles
+      });
+    }
+
+    // Remover duplicatas por DOI/URL
+    const uniqueArticles = Array.from(
+      new Map(allArticles.map(a => [a.doi || a.url, a])).values()
+    );
+
+    // Ordenar por score (maior primeiro)
+    uniqueArticles.sort((a, b) => b.score.score - a.score.score);
+
+    logger.info('Exhaustive search completed', {
+      totalArticles: uniqueArticles.length,
+      P1: uniqueArticles.filter(a => a.score.priority === 'P1').length,
+      P2: uniqueArticles.filter(a => a.score.priority === 'P2').length,
+      P3: uniqueArticles.filter(a => a.score.priority === 'P3').length,
+      elapsedTime: `${((Date.now() - startTime) / 1000).toFixed(1)}s`
     });
-    throw error;
+
+    // 🚀 ENRIQUECIMENTO HÍBRIDO COM FULLTEXT
+    logger.info('Starting hybrid fulltext enrichment phase');
+    const enrichedArticles = await enrichArticlesWithFulltext(
+      uniqueArticles,
+      (progress) => {
+        logger.debug('Fulltext enrichment progress', progress);
+        if (onProgress) {
+          onProgress({
+            ...onProgress,
+            articlesWithFulltext: progress.successful
+          } as any);
+        }
+      }
+    );
+
+    logger.info('✅ Search + Enrichment completed', {
+      total: enrichedArticles.length,
+      withFulltext: enrichedArticles.filter(a => a.hasFulltext).length,
+      withAbstract: enrichedArticles.filter(a => !a.hasFulltext).length
+    });
+
+    // 🔍 FILTRAR APENAS ARTIGOS COM FULL-TEXT (fullContent ou sections)
+    const articlesWithFulltext = enrichedArticles.filter(a =>
+      (a.fullContent && a.fullContent.length > 100) ||
+      (a.sections && Object.keys(a.sections).length > 0)
+    );
+
+    logger.info('📊 Full-text filtering applied', {
+      beforeFilter: enrichedArticles.length,
+      afterFilter: articlesWithFulltext.length,
+      filtered: enrichedArticles.length - articlesWithFulltext.length,
+      target: targetArticles
+    });
+
+    // Retornar apenas os primeiros targetArticles artigos com full-text
+    const finalArticles = articlesWithFulltext.slice(0, targetArticles);
+
+    if (finalArticles.length < targetArticles) {
+      logger.warn('⚠️ Could not reach target articles with full-text', {
+        target: targetArticles,
+        found: finalArticles.length,
+        shortfall: targetArticles - finalArticles.length
+      });
+    } else {
+      logger.info('✅ Target reached with full-text articles', {
+        target: targetArticles,
+        found: finalArticles.length
+      });
+    }
+
+    // 💾 PERSISTÊNCIA: Salvar artigos no banco de dados (se researchId fornecido)
+    if (researchId) {
+      try {
+        const { articlePersistenceService } = await import('./articlePersistence.service.js');
+        const { researchPersistenceService } = await import('./researchPersistence.service.js');
+
+        await articlePersistenceService.saveArticles(researchId, finalArticles);
+
+        // Atualizar estatísticas da pesquisa
+        await researchPersistenceService.updateResearchStats(researchId, {
+          totalArticlesFound: finalArticles.length,
+          articlesWithFulltext: finalArticles.length, // Todos têm full-text agora
+          currentPhase: 'analysis'
+        });
+
+        logger.info('Articles persisted to database', {
+          researchId,
+          count: finalArticles.length,
+          allHaveFulltext: true
+        });
+      } catch (error: any) {
+        logger.error('Failed to persist articles (non-critical)', {
+          error: error.message,
+          researchId
+        });
+        // Não falhar a busca se a persistência falhar
+      }
+    }
+
+    return finalArticles;
+  } catch (error: any) {
+    logger.error('Exhaustive search failed', {
+      error: error.message
+    });
+    throw new Error('Falha na busca exaustiva');
   }
 }
+
+// ============================================
+// ETAPA 4: ARTICLE VALIDATION & REFINEMENT
+// ============================================
+
+/**
+ * ETAPA 4: Valida artigos contra content outline e refaz busca se necessário
+ *
+ * Esta função garante que os artigos encontrados realmente sustentam
+ * o conteúdo planejado no outline. Se houver gaps (tópicos sem artigos
+ * adequados), ela refaz a busca automaticamente.
+ */
 export async function validateAndRefineArticles(
   articles: FlowEnrichedArticle[],
   strategy: FlowSearchStrategy,

@@ -135,11 +135,9 @@ export interface FlowSearchStrategy {
   validationCriteria: ArticleValidationCriteria; // Como validar artigos encontrados
 
   // Estratégia de busca (baseada no roteiro)
-  queries: {
-    P1: SearchQuery[];  // Score ≥ 75
-    P2: SearchQuery[];  // Score ≥ 50
-    P3: SearchQuery[];  // Score ≥ 30
-  };
+  // NOTA: Queries são geradas flat (sem priorização). Classificação P1/P2/P3 ocorre
+  // APÓS a busca, baseado no score final dos artigos (IF, estudo, citações, etc)
+  queries: SearchQuery[];  // Array flat - todas as queries têm igual prioridade
   keyTerms: {
     primary: string[];      // Termos principais da pesquisa
     specific: string[];     // Termos específicos/técnicos

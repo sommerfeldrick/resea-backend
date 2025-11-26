@@ -1,0 +1,171 @@
+export async function executeExhaustiveSearch(
+  strategy: FlowSearchStrategy,
+  onProgress?: (progress: FlowSearchProgress) => void,
+  researchId?: number
+): Promise<FlowEnrichedArticle[]> {
+  const startTime = Date.now();
+  const targetArticles = strategy.targetArticles || 50;
+
+  logger.info('🚀 Starting NEW parallel exhaustive search', {
+    topic: strategy.topic,
+    totalQueries: strategy.queries.length,
+    targetArticles,
+    dateRange: `${strategy.filters.dateRange.start}-${strategy.filters.dateRange.end}`
+  });
+
+  try {
+    // ================================================================
+    // STEP 1: Search ALL queries in parallel across ALL APIs
+    // ================================================================
+    logger.info('📡 STEP 1: Searching all queries in parallel...');
+
+    const searchFilters = {
+      requireFullText: true,  // Only articles with full-text available
+    };
+
+    // Execute all query searches in parallel
+    const querySearchPromises = strategy.queries.map(queryObj =>
+      searchQueryAcrossAPIs(queryObj.query, queryObj.expectedResults || 15, searchFilters)
+    );
+
+    const queryResults = await Promise.allSettled(querySearchPromises);
+
+    // Collect all articles from all queries
+    const allRawArticles: any[] = [];
+    queryResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        allRawArticles.push(...result.value);
+        logger.info(`Query ${index + 1}/${strategy.queries.length}: ${result.value.length} articles`);
+      } else {
+        logger.warn(`Query ${index + 1} failed: ${result.reason}`);
+      }
+    });
+
+    logger.info(`Total raw articles collected: ${allRawArticles.length}`);
+
+    if (allRawArticles.length === 0) {
+      logger.warn('No articles found from any API');
+      return [];
+    }
+
+    // Report progress: 25% (search complete)
+    if (onProgress) {
+      onProgress({
+        currentPriority: 'P1',  // Not used anymore, but keep for compatibility
+        currentQuery: strategy.queries.length,
+        totalQueries: strategy.queries.length,
+        articlesFound: allRawArticles.length,
+        targetArticles,
+        estimatedTimeRemaining: 0,
+        phase: 'Deduplicating articles...'
+      });
+    }
+
+    // ================================================================
+    // STEP 2: Deduplicate by DOI and title
+    // ================================================================
+    logger.info('🔍 STEP 2: Deduplicating articles...');
+
+    const uniqueArticles = deduplicateArticles(allRawArticles);
+
+    logger.info(`After deduplication: ${uniqueArticles.length} unique articles`);
+
+    // ================================================================
+    // STEP 3: Score ALL articles with unified scoring system
+    // ================================================================
+    logger.info('🎯 STEP 3: Scoring all articles...');
+
+    const scoredArticles: ScoringResult[] = uniqueArticles.map(article =>
+      calculateNewArticleScore(article, strategy.originalQuery)
+    );
+
+    // Filter out very low scores (below minimum threshold)
+    const thresholds = scoringConfig.getThresholds();
+    const acceptableArticles = scoredArticles.filter(
+      result => result.score >= thresholds.minAcceptable
+    );
+
+    logger.info(`After quality filter: ${acceptableArticles.length}/${uniqueArticles.length} articles`);
+
+    // Report progress: 50% (scoring complete)
+    if (onProgress) {
+      onProgress({
+        currentPriority: 'P1',
+        currentQuery: strategy.queries.length,
+        totalQueries: strategy.queries.length,
+        articlesFound: acceptableArticles.length,
+        targetArticles,
+        estimatedTimeRemaining: 0,
+        phase: 'Sorting and classifying...'
+      });
+    }
+
+    // ================================================================
+    // STEP 4: Sort by score (descending) and take top N
+    // ================================================================
+    logger.info('📊 STEP 4: Sorting by score and selecting top articles...');
+
+    acceptableArticles.sort((a, b) => b.score - a.score);
+
+    // Take target number of articles (or all if less than target)
+    const topArticles = acceptableArticles.slice(0, targetArticles);
+
+    logger.info(`Selected top ${topArticles.length} articles`, {
+      P1Count: topArticles.filter(a => a.priority === 'P1').length,
+      P2Count: topArticles.filter(a => a.priority === 'P2').length,
+      P3Count: topArticles.filter(a => a.priority === 'P3').length,
+      avgScore: topArticles.length > 0 ? (topArticles.reduce((sum, a) => sum + a.score, 0) / topArticles.length).toFixed(1) : '0'
+    });
+
+    // ================================================================
+    // STEP 5: Convert to FlowEnrichedArticle format
+    // ================================================================
+    const enrichedArticles: FlowEnrichedArticle[] = topArticles.map(result => ({
+      ...result.article,
+      score: {
+        score: result.score,
+        priority: result.priority,
+        reasons: result.reasons,
+        breakdown: {
+          titleRelevance: 0,  // Will be properly calculated in next task
+          citations: result.article.citationCount || 0,
+          recency: 0,
+          hasFulltext: !!result.article.sections,
+          sourceQuality: 0,
+          hasDoi: !!result.article.doi,
+          hasCompleteAbstract: !!(result.article.abstract && result.article.abstract.length > 100)
+        }
+      }
+    }));
+
+    const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    logger.info(`✅ Search complete in ${elapsedTime}s`, {
+      totalArticles: enrichedArticles.length,
+      targetArticles,
+      queriesSearched: strategy.queries.length,
+      APIsUsed: 7,  // OpenAlex, arXiv, EuropePMC, Crossref, PubMed, DOAJ, PLOS
+    });
+
+    // Final progress report
+    if (onProgress) {
+      onProgress({
+        currentPriority: 'P1',
+        currentQuery: strategy.queries.length,
+        totalQueries: strategy.queries.length,
+        articlesFound: enrichedArticles.length,
+        targetArticles,
+        estimatedTimeRemaining: 0,
+        phase: 'Search complete!'
+      });
+    }
+
+    return enrichedArticles;
+  } catch (error: any) {
+    logger.error('Search failed', {
+      error: error.message,
+      stack: error.stack
+    });
+    throw error;
+  }
+}
