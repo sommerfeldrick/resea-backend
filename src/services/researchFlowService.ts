@@ -11,7 +11,7 @@ import { UnpaywallService } from './apis/unpaywall.service.js';
 import { CrossrefService } from './apis/crossref.service.js';
 import { COREService } from './apis/core.service.js';
 import { OpenAlexService } from './apis/openalex.service.js';
-import { ArxivService } from './apis/arxiv.service.js';
+import { ArXivService } from './apis/arxiv.service.js';
 import { EuropePMCService } from './apis/europepmc.service.js';
 import { SemanticScholarService } from './apis/semantic-scholar.service.js';
 import { PubMedService } from './apis/pubmed.service.js';
@@ -43,7 +43,7 @@ import type {
 
 // Initialize all 8 API services for NEW parallel search implementation
 const openAlexServiceInstance = new OpenAlexService();
-const arxivServiceInstance = new ArxivService();
+const arxivServiceInstance = new ArXivService();
 const europePMCServiceInstance = new EuropePMCService();
 const crossrefServiceInstance = new CrossrefService();
 const pubmedServiceInstance = new PubMedService();

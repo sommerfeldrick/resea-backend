@@ -118,7 +118,7 @@ export interface ArticleValidationCriteria {
 
 export interface SearchQuery {
   query: string;
-  priority: PriorityLevel;
+  priority?: PriorityLevel;  // Optional - deprecated in new flat query system
   expectedResults: number;
 }
 
@@ -160,21 +160,26 @@ export interface FlowSearchProgress {
   currentPriority: PriorityLevel;
   currentQuery: number;
   totalQueries: number;
-  sourceProgress: Array<{
+  sourceProgress?: Array<{
     source: string;
     current: number;
     total: number;
     completed: boolean;
   }>;
   articlesFound: number;
-  articlesWithFulltext: number;
-  articlesByPriority: {
+  articlesWithFulltext?: number;
+  articlesByPriority?: {
     P1: number;
     P2: number;
     P3: number;
   };
-  formatsDetected: Record<string, number>;
-  elapsedTime: number;
+  formatsDetected?: Record<string, number>;
+  elapsedTime?: number;
+
+  // New fields for parallel search
+  targetArticles?: number;  // Target number of articles
+  estimatedTimeRemaining?: number;  // Estimated time remaining (seconds)
+  phase?: string;  // Current phase description (e.g., "Searching...", "Deduplicating...")
 
   // Real-time visualization data (for mind map construction)
   newArticles?: Array<{

@@ -11,9 +11,9 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
-import { createLogger } from '../utils/logger.js';
+import { Logger } from '../utils/simple-logger.js';
 
-const logger = createLogger('JournalMetrics');
+const logger = new Logger('JournalMetrics');
 
 interface OpenAlexVenue {
   id: string;
