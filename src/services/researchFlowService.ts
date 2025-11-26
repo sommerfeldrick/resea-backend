@@ -1597,7 +1597,8 @@ Output queries: ("artificial intelligence" OR "AI") AND education AND ("e-learni
       topic: strategy.topic,
       totalQueries: strategy.queries.length,
       targetArticles: strategy.targetArticles,
-      dateRange: `${strategy.filters.dateRange.start}-${strategy.filters.dateRange.end}`
+      dateRange: `${strategy.filters.dateRange.start}-${strategy.filters.dateRange.end}`,
+      queriesPreview: strategy.queries.slice(0, 3).map(q => q.query.substring(0, 50))
     });
 
     return strategy;
@@ -2487,11 +2488,12 @@ async function identifyContentGaps(
 ): Promise<string[]> {
   const gaps: string[] = [];
 
-  // Verificar cada tópico do outline
-  const topicsToCheck = [
+  // Verificar cada tópico do outline (com deduplicação)
+  const allTopics = [
     ...(contentOutline.topicsToAddress || []),
     ...(contentOutline.keyConceptsNeeded || [])
   ];
+  const topicsToCheck = [...new Set(allTopics)]; // Remove duplicatas
 
   logger.info('Checking coverage for topics', { topicsCount: topicsToCheck.length });
 

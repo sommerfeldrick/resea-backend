@@ -12,6 +12,7 @@
 
 import axios, { AxiosInstance } from 'axios';
 import { Logger } from '../utils/simple-logger.js';
+import pLimit from 'p-limit';
 
 const logger = new Logger('JournalMetrics');
 
@@ -49,6 +50,7 @@ export class JournalMetricsService {
   private cache: Map<string, JournalMetrics>;
   private cacheExpiry: Map<string, number>;
   private readonly CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+  private rateLimiter: ReturnType<typeof pLimit>;  // Rate limiter: 8 concurrent requests (safe for 10 req/s limit)
 
   constructor() {
     const email = process.env.OPENALEX_EMAIL || process.env.UNPAYWALL_EMAIL || 'contato@smileai.com.br';
@@ -63,8 +65,9 @@ export class JournalMetricsService {
 
     this.cache = new Map();
     this.cacheExpiry = new Map();
+    this.rateLimiter = pLimit(8);  // Max 8 concurrent requests to stay under 10 req/s
 
-    logger.info('✅ Journal Metrics Service initialized');
+    logger.info('✅ Journal Metrics Service initialized with rate limiting (8 concurrent requests)');
   }
 
   /**
@@ -154,22 +157,41 @@ export class JournalMetricsService {
   }
 
   /**
-   * Batch lookup multiple journals
+   * Batch lookup multiple journals with rate limiting
+   *
+   * Processes journals in controlled batches to respect OpenAlex API limits (10 req/s)
    */
   async getBatch(journalNames: string[]): Promise<Map<string, JournalMetrics>> {
     const results = new Map<string, JournalMetrics>();
+    const startTime = Date.now();
 
-    // Process with rate limiting (max 10 req/s for OpenAlex)
-    const promises = journalNames.map(async (name) => {
-      const metrics = await this.getMetricsByJournalName(name);
-      if (metrics) {
-        results.set(name, metrics);
-      }
-    });
+    logger.info(`🔍 Starting batch lookup for ${journalNames.length} journals (rate limited to 8 concurrent)`);
+
+    // Use rate limiter to control concurrency
+    const promises = journalNames.map((name) =>
+      this.rateLimiter(async () => {
+        try {
+          const metrics = await this.getMetricsByJournalName(name);
+          if (metrics) {
+            results.set(name, metrics);
+          }
+        } catch (error: any) {
+          logger.debug(`Failed to fetch metrics for "${name}": ${error.message}`);
+        }
+      })
+    );
 
     await Promise.allSettled(promises);
 
-    logger.info(`Batch lookup: ${results.size}/${journalNames.length} journals found`);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    const cached = Array.from(results.values()).filter(m => m.source === 'Cache').length;
+    const fetched = results.size - cached;
+
+    logger.info(
+      `✅ Batch lookup complete: ${results.size}/${journalNames.length} found ` +
+      `(${cached} cached, ${fetched} fetched) in ${elapsed}s`
+    );
+
     return results;
   }
 
