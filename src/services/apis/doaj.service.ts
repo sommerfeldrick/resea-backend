@@ -37,7 +37,7 @@ export class DOAJService extends BaseAPIService {
   constructor() {
     super(
       'DOAJ',
-      'https://doaj.org/api/v3',
+      'https://doaj.org/api',  // API v3 was discontinued, using v2 (default)
       { tokensPerSecond: 2, maxTokens: 4 },
       { failureThreshold: 5, resetTimeoutMs: 60000 }
     );
