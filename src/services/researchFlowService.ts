@@ -2394,43 +2394,55 @@ export async function executeExhaustiveSearch(
 
     logger.info(`Selected top 200 articles for journal metrics lookup (batching optimization)`);
 
-    // STEP 3b: Get journal metrics for top 200 (using existing batch service)
-    logger.info('📚 STEP 3b: Fetching journal metrics for top 200 articles (batched)...');
+    // STEP 3b: Queue journal metrics lookups for top 200 (async, rate-limited)
+    logger.info('📚 STEP 3b: Queuing journal metrics lookups (Redis queue)...');
     const uniqueJournals = [...new Set(top200ForMetrics
       .map(r => r.article.journal)
       .filter(Boolean)
     )];
 
-    logger.info(`Fetching metrics for ${uniqueJournals.length} unique journals`);
+    const requestId = `search-${Date.now()}`;
 
-    if (onProgress) {
-      onProgress({
-        currentPriority: 'P1',
-        currentQuery: strategy.queries.length,
-        totalQueries: strategy.queries.length,
-        articlesFound: prelimScored.length,
-        targetArticles,
-        estimatedTimeRemaining: 0,
-        phase: `Obtaining journal metrics for ${uniqueJournals.length} journals...`
-      });
+    // Import queue service dynamically
+    const { queueJournalLookups, getJournalMetricsResults } = await import('./queues/journalMetricsQueue.service.js');
+
+    // Queue all lookups (non-blocking)
+    await queueJournalLookups(uniqueJournals as string[], requestId);
+
+    // Wait for queue processing with progress updates
+    let metricsResults = new Map();
+    let lastProgress = 0;
+    const maxWaitTime = 120000; // 2 minutes max
+    const startWaitTime = Date.now();
+
+    while (metricsResults.size < uniqueJournals.length && (Date.now() - startWaitTime) < maxWaitTime) {
+      metricsResults = await getJournalMetricsResults(uniqueJournals as string[], requestId);
+
+      const progress = Math.round((metricsResults.size / uniqueJournals.length) * 100);
+      if (progress !== lastProgress) {
+        logger.info(`Journal metrics progress: ${metricsResults.size}/${uniqueJournals.length} (${progress}%)`);
+        lastProgress = progress;
+
+        if (onProgress) {
+          onProgress({
+            currentPriority: 'P1',
+            currentQuery: strategy.queries.length,
+            totalQueries: strategy.queries.length,
+            articlesFound: prelimScored.length,
+            targetArticles,
+            estimatedTimeRemaining: 0,
+            phase: `Obtaining journal metrics: ${metricsResults.size}/${uniqueJournals.length}...`
+          });
+        }
+      }
+
+      // Check every 500ms
+      if (metricsResults.size < uniqueJournals.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
-
-    // Use existing journalMetricsService.getBatch (has rate limiting built-in)
-    const metricsResults = await journalMetricsService.getBatch(uniqueJournals as string[]);
 
     logger.info(`Journal metrics complete: ${metricsResults.size}/${uniqueJournals.length} found`);
-
-    if (onProgress) {
-      onProgress({
-        currentPriority: 'P1',
-        currentQuery: strategy.queries.length,
-        totalQueries: strategy.queries.length,
-        articlesFound: prelimScored.length,
-        targetArticles,
-        estimatedTimeRemaining: 0,
-        phase: `Journal metrics obtained: ${metricsResults.size}/${uniqueJournals.length}`
-      });
-    }
 
     // STEP 3c: Re-score top 200 with actual journal metrics
     logger.info('🔄 STEP 3c: Re-scoring with actual journal metrics...');
