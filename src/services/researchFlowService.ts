@@ -2377,101 +2377,14 @@ export async function executeExhaustiveSearch(
     logger.info(`After deduplication: ${uniqueArticles.length} unique articles`);
 
     // ================================================================
-    // STEP 3: Score ALL articles with optimized queue-based system
+    // STEP 3: Score ALL articles with unified scoring system
     // ================================================================
-    logger.info('🎯 STEP 3: Scoring all articles (queue-optimized)...');
+    logger.info('🎯 STEP 3: Scoring all articles...');
 
-    // STEP 3a: Preliminary scoring WITHOUT journal metrics (fast)
-    logger.info('📊 STEP 3a: Preliminary scoring (no journal metrics yet)...');
-    const prelimScorePromises = uniqueArticles.map(article =>
+    const scoringPromises = uniqueArticles.map(article =>
       calculateNewArticleScore(article, strategy.originalQuery)
     );
-    const prelimScored: ScoringResult[] = await Promise.all(prelimScorePromises);
-
-    // Sort by preliminary score and take top 200 for journal metrics lookup
-    prelimScored.sort((a, b) => b.score - a.score);
-    const top200ForMetrics = prelimScored.slice(0, 200);
-
-    logger.info(`Selected top 200 articles for journal metrics lookup (batching optimization)`);
-
-    // STEP 3b: Queue journal metrics lookups for top 200 (async, rate-limited)
-    logger.info('📚 STEP 3b: Queuing journal metrics lookups (Redis queue)...');
-    const uniqueJournals = [...new Set(top200ForMetrics
-      .map(r => r.article.journal)
-      .filter(Boolean)
-    )];
-
-    const requestId = `search-${Date.now()}`;
-
-    // Import queue service dynamically
-    const { queueJournalLookups, getJournalMetricsResults } = await import('./queues/journalMetricsQueue.service.js');
-
-    // Queue all lookups (non-blocking)
-    await queueJournalLookups(uniqueJournals as string[], requestId);
-
-    // Wait for queue processing with progress updates
-    let metricsResults = new Map();
-    let lastProgress = 0;
-    const maxWaitTime = 120000; // 2 minutes max
-    const startWaitTime = Date.now();
-
-    while (metricsResults.size < uniqueJournals.length && (Date.now() - startWaitTime) < maxWaitTime) {
-      metricsResults = await getJournalMetricsResults(uniqueJournals as string[], requestId);
-
-      const progress = Math.round((metricsResults.size / uniqueJournals.length) * 100);
-      if (progress !== lastProgress) {
-        logger.info(`Journal metrics progress: ${metricsResults.size}/${uniqueJournals.length} (${progress}%)`);
-        lastProgress = progress;
-
-        if (onProgress) {
-          onProgress({
-            currentPriority: 'P1',
-            currentQuery: strategy.queries.length,
-            totalQueries: strategy.queries.length,
-            articlesFound: prelimScored.length,
-            targetArticles,
-            estimatedTimeRemaining: 0,
-            phase: `Obtaining journal metrics: ${metricsResults.size}/${uniqueJournals.length}...`
-          });
-        }
-      }
-
-      // Check every 500ms
-      if (metricsResults.size < uniqueJournals.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
-
-    logger.info(`Journal metrics complete: ${metricsResults.size}/${uniqueJournals.length} found`);
-
-    // STEP 3c: Re-score top 200 with actual journal metrics
-    logger.info('🔄 STEP 3c: Re-scoring with actual journal metrics...');
-    const rescoredTop200: ScoringResult[] = [];
-
-    for (const result of top200ForMetrics) {
-      if (result.article.journal && metricsResults.has(result.article.journal)) {
-        const metrics = metricsResults.get(result.article.journal);
-        const journalScore = Math.round((metrics.qualityScore / 100) * 30);
-
-        // Recalculate total score (replace estimated journal score)
-        const journalReason = result.reasons.find(r => r.includes('Journal'));
-        const oldJournalScore = journalReason ? parseInt(journalReason.match(/\d+/)?.[0] || '0') : 0;
-        const newScore = result.score - oldJournalScore + journalScore;
-
-        result.score = newScore;
-        result.journalMetrics = {
-          qualityScore: metrics.qualityScore,
-          hIndex: metrics.hIndex,
-          quartile: metrics.quartile,
-          twoYearCitedness: metrics.twoYearCitedness,
-          subjectAreas: metrics.subjectAreas,
-        };
-      }
-      rescoredTop200.push(result);
-    }
-
-    // Combine rescored top 200 with remaining articles (keep their preliminary scores)
-    const scoredArticles = [...rescoredTop200, ...prelimScored.slice(200)];
+    const scoredArticles: ScoringResult[] = await Promise.all(scoringPromises);
 
     // Filter out very low scores (below minimum threshold)
     const thresholds = scoringConfig.getThresholds();
