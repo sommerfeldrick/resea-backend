@@ -97,23 +97,23 @@ export class JournalMetricsService {
         // Add minimum delay between requests to prevent burst (150ms = ~6 req/s max, very safe)
         await new Promise(resolve => setTimeout(resolve, 150));
 
-        // Search for venue by name
-        const response = await this.client.get('/venues', {
+        // Search for source by name (OpenAlex renamed /venues to /sources)
+        const response = await this.client.get('/sources', {
           params: {
             search: journalName,
             per_page: 1,
           },
         });
 
-        const venues: OpenAlexVenue[] = response.data?.results || [];
+        const sources: OpenAlexVenue[] = response.data?.results || [];
 
-        if (venues.length === 0) {
+        if (sources.length === 0) {
           logger.debug(`Journal not found: ${journalName}`);
           return null;
         }
 
-        const venue = venues[0];
-        const metrics = this.parseVenue(venue);
+        const source = sources[0];
+        const metrics = this.parseVenue(source);
 
         // Cache result (using normalized name)
         this.saveToCache(normalizedName, metrics);
@@ -148,20 +148,20 @@ export class JournalMetricsService {
         // Add minimum delay between requests to prevent burst (150ms = ~6 req/s max, very safe)
         await new Promise(resolve => setTimeout(resolve, 150));
 
-        // Search by ISSN
-        const response = await this.client.get('/venues', {
+        // Search by ISSN (OpenAlex renamed /venues to /sources)
+        const response = await this.client.get('/sources', {
           params: {
             filter: `issn:${issn}`,
           },
         });
 
-        const venues: OpenAlexVenue[] = response.data?.results || [];
+        const sources: OpenAlexVenue[] = response.data?.results || [];
 
-        if (venues.length === 0) {
+        if (sources.length === 0) {
           return null;
         }
 
-        const metrics = this.parseVenue(venues[0]);
+        const metrics = this.parseVenue(sources[0]);
         this.saveToCache(cacheKey, metrics);
 
         return metrics;
